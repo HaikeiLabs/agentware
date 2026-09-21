@@ -54,6 +54,21 @@ _VALID_BUNDLE = {
 _SAMPLE_ARGS = {"query": "test"}
 _A_CALLER = CallerContext(user_id="U1", invoking_subject="U_HUMAN")
 
+_CREDENTIAL_ENV_VARS = (
+    RUNTIME_CONTROL_PLANE_URL_ENV,
+    RUNTIME_TOKEN_ENV,
+    LEGACY_ABAC_URL_ENV,
+    LEGACY_KEI_API_URL_ENV,
+    LEGACY_BOOTSTRAP_TOKEN_ENV,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_credential_env(monkeypatch):
+    """Keep tests hermetic: no ambient credential env vars."""
+    for var in _CREDENTIAL_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+
 
 def _make_lifecycle(
     bundle_data: dict | None = None,
@@ -330,10 +345,21 @@ class TestCredentialResolution:
         monkeypatch.setenv(LEGACY_KEI_API_URL_ENV, "http://kei-api.example")
         assert _resolve_control_plane_url() == "http://kei-api.example"
 
-    def test_legacy_token_fallback(self, monkeypatch):
-        monkeypatch.delenv(RUNTIME_TOKEN_ENV, raising=False)
+    def test_legacy_token_fails_closed(self, monkeypatch):
+        """ADR-020 decision 2: the deprecated name is never accepted."""
         monkeypatch.setenv(LEGACY_BOOTSTRAP_TOKEN_ENV, "legacy-token")
-        assert _resolve_runtime_token() == "legacy-token"
+        with pytest.raises(BundleFetchError, match=RUNTIME_TOKEN_ENV):
+            _resolve_runtime_token()
+
+    def test_legacy_token_only_fails_closed_at_construction(self, monkeypatch):
+        """A stale deployment setting only the legacy name must not
+        degrade to local-only mode (ADR-020, decision 2)."""
+        monkeypatch.setenv(LEGACY_BOOTSTRAP_TOKEN_ENV, "legacy-token")
+        with pytest.raises(BundleFetchError, match=RUNTIME_TOKEN_ENV):
+            PolicyBundleLifecycle(
+                control_plane_url="http://cp.example",
+                persist_path=":memory:",
+            )
 
     def test_no_url_raises(self, monkeypatch):
         monkeypatch.delenv(RUNTIME_CONTROL_PLANE_URL_ENV, raising=False)
