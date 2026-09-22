@@ -56,6 +56,16 @@ from .evaluator import (
     resources_touched,
     tool_args_digest,
 )
+from .policy_bundle import (
+    RUNTIME_CONTROL_PLANE_URL_ENV,
+    RUNTIME_TOKEN_ENV,
+    BundleFetchError,
+    BundleNotLoadedError,
+    BundleParseError,
+    PolicyBundleData,
+    PolicyBundleError,
+    PolicyBundleLifecycle,
+)
 from .proxy import (
     LocalProxyProcess,
     ProxyConfig,
@@ -100,6 +110,14 @@ __all__ = [
     "load_manifest",
     "validate_contract",
     "validate_manifest",
+    "BundleFetchError",
+    "BundleNotLoadedError",
+    "BundleParseError",
+    "PolicyBundleData",
+    "PolicyBundleError",
+    "PolicyBundleLifecycle",
+    "RUNTIME_CONTROL_PLANE_URL_ENV",
+    "RUNTIME_TOKEN_ENV",
     "LocalProxyProcess",
     "ProxyConfig",
     "ProxyDiscoveryError",
