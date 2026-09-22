@@ -9,7 +9,7 @@ executable, which owns the network boundary to the KEI API.
 
 Security contract:
 - The bootstrap secret is passed to the subprocess ONLY via the
-  KEI_HARNESS_TOKEN environment variable (or an injected secret
+  KEI_RUNTIME_TOKEN environment variable (or an injected secret
   provider). It is never taken from the manifest, never placed on the
   command line, and never logged.
 - Discovery fails closed: if no executable is found, no process is
@@ -50,7 +50,7 @@ class ProxyConfig:
     """Configuration for local KEI proxy process.
 
     The bootstrap secret is resolved from token, secret_provider, or the
-    KEI_HARNESS_TOKEN environment variable — never from the manifest.
+    KEI_RUNTIME_TOKEN environment variable — never from the manifest.
     It is delivered to the subprocess only via the environment.
     """
 

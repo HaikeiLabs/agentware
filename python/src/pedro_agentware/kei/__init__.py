@@ -11,7 +11,7 @@ Key components:
   enforcement lives here rather than in each agent harness
 
 Security contract:
-- The bootstrap secret (KEI_HARNESS_TOKEN) is loaded only from the
+- The bootstrap secret (KEI_RUNTIME_TOKEN) is loaded only from the
   environment or a secret provider. It is never stored in the manifest
   and never logged.
 - Self-reported tool bindings/capabilities never grant permissions.

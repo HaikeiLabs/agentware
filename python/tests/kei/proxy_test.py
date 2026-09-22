@@ -147,7 +147,7 @@ class TestProxyProcess:
         """Bootstrap secret is passed via env, never argv."""
         exe = _make_executable(
             tmp_path / "kei-proxy",
-            body='#!/bin/sh\necho "$KEI_HARNESS_TOKEN" > /dev/null\nsleep 30\n',
+            body='#!/bin/sh\necho "$KEI_RUNTIME_TOKEN" > /dev/null\nsleep 30\n',
         )
         config = ProxyConfig(executable=str(exe), token="secret-value")
         process = LocalProxyProcess(config)

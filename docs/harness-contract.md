@@ -54,7 +54,7 @@ class MyToolExecutor:
 
 ### 3. SecretProvider
 
-Sources the bootstrap secret (`KEI_HARNESS_TOKEN`). Use the built-in:
+Sources the bootstrap secret (`KEI_RUNTIME_TOKEN`). Use the built-in:
 
 ```python
 from pedro_agentware.kei import EnvSecretProvider
@@ -182,7 +182,7 @@ changing this contract.
 - **Non-secret metadata only.** `tool_bindings` (tool → connector routing) and
   `secret_refs` (opaque reference identifiers) are metadata; they grant no
   permissions and are never resolved to credentials by the library. The
-  bootstrap secret (`KEI_HARNESS_TOKEN`) is loaded separately from the
+  bootstrap secret (`KEI_RUNTIME_TOKEN`) is loaded separately from the
   environment or a secret provider and is rejected from any manifest.
 - **The proxy is the enforcement boundary.** Governed external operations go
   through the proxy, which is the connector/provider runtime and policy

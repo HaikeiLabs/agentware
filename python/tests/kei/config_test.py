@@ -105,13 +105,13 @@ class TestSecurityContract:
 
     def test_config_resolves_no_secrets(self):
         """HarnessConfig must not resolve or carry any secret values."""
-        os.environ["KEI_HARNESS_TOKEN"] = "must-not-appear"
+        os.environ["KEI_RUNTIME_TOKEN"] = "must-not-appear"
         try:
             config = get_config(VALID_MANIFEST)
             dumped = json.dumps(config.model_dump())
             assert "must-not-appear" not in dumped
         finally:
-            del os.environ["KEI_HARNESS_TOKEN"]
+            del os.environ["KEI_RUNTIME_TOKEN"]
 
     def test_tool_bindings_never_grant_permissions(self):
         """Self-reported tool bindings never grant permissions."""
