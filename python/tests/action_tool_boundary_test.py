@@ -101,14 +101,14 @@ class TestSecretRefsAreOpaque:
         assert "getenv" not in src
 
     def test_get_config_does_not_pull_secret_values_from_env(self):
-        os.environ["KEI_HARNESS_TOKEN"] = "bootstrap-must-not-appear"
+        os.environ["KEI_RUNTIME_TOKEN"] = "bootstrap-must-not-appear"
         os.environ["kei.connector.web.credentials"] = "connector-must-not-appear"
         try:
             dumped = json.dumps(get_config(VALID_MANIFEST).model_dump())
             assert "bootstrap-must-not-appear" not in dumped
             assert "connector-must-not-appear" not in dumped
         finally:
-            del os.environ["KEI_HARNESS_TOKEN"]
+            del os.environ["KEI_RUNTIME_TOKEN"]
             del os.environ["kei.connector.web.credentials"]
 
     def test_harness_config_exposes_no_secret_resolver(self):

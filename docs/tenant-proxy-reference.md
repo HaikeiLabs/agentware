@@ -48,7 +48,7 @@ The harness manifest (`kei-harness.json`) is versioned, non-secret metadata:
 - `tool_bindings` — tool → connector routing, non-secret, no permissions.
 - `secret_refs` — **non-secret reference identifiers only**. The wrapper never
   resolves them, and they must never be able to reveal credentials to the
-  agent. The bootstrap secret (`KEI_HARNESS_TOKEN`) is loaded separately from
+  agent. The bootstrap secret (`KEI_RUNTIME_TOKEN`) is loaded separately from
   the environment or a secret provider and is rejected from the manifest.
 - `workspace_id` is informational only; authority is server-derived.
 

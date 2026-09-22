@@ -5,7 +5,7 @@ This module provides a pluggable AuthProvider interface supporting:
 2. Future short-lived JWT exchange (gated behind explicit config)
 
 Security contract:
-- The bootstrap secret is loaded ONLY from the KEI_HARNESS_TOKEN
+- The bootstrap secret is loaded ONLY from the KEI_RUNTIME_TOKEN
   environment variable or an injected secret provider. It is never read
   from the manifest, never logged, and never written to disk.
 - The JWT exchange contract is defined here but its behavior is gated
@@ -31,7 +31,17 @@ class TokenType(str, Enum):
 
 
 # Canonical name of the bootstrap secret environment variable.
-BOOTSTRAP_TOKEN_ENV = "KEI_HARNESS_TOKEN"
+BOOTSTRAP_TOKEN_ENV = "KEI_RUNTIME_TOKEN"
+_OLD_BOOTSTRAP_TOKEN_ENV = "KEI_HARNESS_TOKEN"
+
+
+def _deprecated_env_check() -> None:
+    """Reject the old env var name with a clear error (ADR-020)."""
+    if os.environ.get(_OLD_BOOTSTRAP_TOKEN_ENV) and not os.environ.get(BOOTSTRAP_TOKEN_ENV):
+        raise ValueError(
+            f"{_OLD_BOOTSTRAP_TOKEN_ENV} is deprecated and no longer accepted; "
+            f"set {BOOTSTRAP_TOKEN_ENV} instead"
+        )
 
 
 @dataclass
@@ -103,7 +113,7 @@ class AuthProvider(Protocol):
 class OpaqueTokenProvider:
     """Auth provider for opaque tokens (current implementation).
 
-    Loads the bootstrap secret ONLY from the KEI_HARNESS_TOKEN environment
+    Loads the bootstrap secret ONLY from the KEI_RUNTIME_TOKEN environment
     variable or an injected SecretProvider. Opaque tokens do not support
     automatic renewal; invalidation fails closed.
     """
@@ -119,7 +129,7 @@ class OpaqueTokenProvider:
             token: Optional explicit token value (e.g., injected by a
                    harness runtime). Takes precedence.
             secret_provider: Optional secret provider consulted for
-                   KEI_HARNESS_TOKEN when token is not given.
+                   KEI_RUNTIME_TOKEN when token is not given.
 
         Raises:
             ValueError: If no token is available from any source.
@@ -128,6 +138,7 @@ class OpaqueTokenProvider:
         if resolved is None and secret_provider is not None:
             resolved = secret_provider.get_secret(BOOTSTRAP_TOKEN_ENV)
         if resolved is None:
+            _deprecated_env_check()
             resolved = os.environ.get(BOOTSTRAP_TOKEN_ENV)
         if not resolved:
             raise ValueError(
@@ -203,6 +214,7 @@ class JWTTokenProvider:
         if resolved is None and secret_provider is not None:
             resolved = secret_provider.get_secret(BOOTSTRAP_TOKEN_ENV)
         if resolved is None:
+            _deprecated_env_check()
             resolved = os.environ.get(BOOTSTRAP_TOKEN_ENV)
         if not resolved:
             raise ValueError(
@@ -292,7 +304,7 @@ class AuthProviderFactory:
         """Create an AuthProvider based on explicit configuration.
 
         The bootstrap secret is read only from the provided token, the
-        secret provider, or the KEI_HARNESS_TOKEN environment variable —
+        secret provider, or the KEI_RUNTIME_TOKEN environment variable —
         never from the manifest.
 
         Args:

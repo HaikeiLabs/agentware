@@ -31,7 +31,7 @@ never resolves connector credentials or executes providers itself.
    A ref is `{source, key}` — an identifier, not a credential. The config layer
    reads no environment, retains no smuggled value, and exposes no resolver.
    Resolution happens out-of-band (in the proxy). The bootstrap secret
-   (`KEI_HARNESS_TOKEN`) is the one secret agentware handles, and only to hand
+   (`KEI_RUNTIME_TOKEN`) is the one secret agentware handles, and only to hand
    to the proxy via the environment.
    *`::TestSecretRefsAreOpaque`*
 

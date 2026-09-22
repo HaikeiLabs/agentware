@@ -32,7 +32,7 @@ class TestOpaqueTokenProvider:
     """Tests for OpaqueTokenProvider."""
 
     def test_token_from_env(self):
-        """Bootstrap token loaded from KEI_HARNESS_TOKEN env."""
+        """Bootstrap token loaded from KEI_RUNTIME_TOKEN env."""
         os.environ[BOOTSTRAP_TOKEN_ENV] = "env-token"
         try:
             provider = OpaqueTokenProvider()

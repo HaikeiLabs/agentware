@@ -4,9 +4,9 @@ This module provides the canonical configuration layer for KEI harness
 integration. It loads and validates versioned kei-harness.json manifests
 while enforcing security boundaries:
 
-- The bootstrap secret (KEI_HARNESS_TOKEN) is NEVER stored in the manifest
+- The bootstrap secret (KEI_RUNTIME_TOKEN) is NEVER stored in the manifest
   and is never resolved from it. The wrapper always reads it separately
-  from the KEI_HARNESS_TOKEN environment variable or a secret provider.
+  from the KEI_RUNTIME_TOKEN environment variable or a secret provider.
 - The manifest may contain non-secret connector secret reference
   identifiers only. The wrapper never resolves them and they must not be
   able to resolve or reveal credentials to the agent.
@@ -172,7 +172,7 @@ class HarnessConfig(BaseModel):
     """Loaded harness configuration.
 
     Wraps the manifest. Contains no secret values: the bootstrap secret is
-    resolved separately by the auth layer from KEI_HARNESS_TOKEN or a
+    resolved separately by the auth layer from KEI_RUNTIME_TOKEN or a
     secret provider, and connector secret_refs are never resolved here.
     """
 
