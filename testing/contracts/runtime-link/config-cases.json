@@ -1,0 +1,591 @@
+{
+  "token_canary": "canary-runtime-token-DO-NOT-LOG",
+  "cases": [
+    {
+      "name": "defaults_enabled_by_token",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord"
+      },
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": true,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "https://catalog.example.test",
+          "binary_path": "kei-proxy",
+          "binary_sha256": "",
+          "interval_s": 60,
+          "beat_timeout_s": 10,
+          "grace_s": 15,
+          "restart_min_s": 1,
+          "restart_max_s": 300,
+          "stable_reset_s": 300,
+          "stop_timeout_s": 10,
+          "log_count": 3,
+          "harness": {
+            "kind": "chat-discord",
+            "version": "",
+            "deployment_env": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "no_token_is_disabled_local_mode",
+      "env": {},
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": false,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "",
+          "binary_path": "kei-proxy",
+          "binary_sha256": "",
+          "interval_s": 60,
+          "beat_timeout_s": 10,
+          "grace_s": 15,
+          "restart_min_s": 1,
+          "restart_max_s": 300,
+          "stable_reset_s": 300,
+          "stop_timeout_s": 10,
+          "log_count": 3,
+          "harness": {
+            "kind": "",
+            "version": "",
+            "deployment_env": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "explicit_disable_with_token",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_RUNTIME_ENABLED": "false"
+      },
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": false,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "https://catalog.example.test",
+          "binary_path": "kei-proxy",
+          "binary_sha256": "",
+          "interval_s": 60,
+          "beat_timeout_s": 10,
+          "grace_s": 15,
+          "restart_min_s": 1,
+          "restart_max_s": 300,
+          "stable_reset_s": 300,
+          "stop_timeout_s": 10,
+          "log_count": 3,
+          "harness": {
+            "kind": "chat-discord",
+            "version": "",
+            "deployment_env": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "interval_clamped_low",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_INTERVAL": "5",
+        "KEI_HEARTBEAT_TIMEOUT": "3"
+      },
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": true,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "https://catalog.example.test",
+          "binary_path": "kei-proxy",
+          "binary_sha256": "",
+          "interval_s": 15,
+          "beat_timeout_s": 3,
+          "grace_s": 15,
+          "restart_min_s": 1,
+          "restart_max_s": 300,
+          "stable_reset_s": 300,
+          "stop_timeout_s": 10,
+          "log_count": 3,
+          "harness": {
+            "kind": "chat-discord",
+            "version": "",
+            "deployment_env": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "interval_clamped_high",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_INTERVAL": "9000"
+      },
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": true,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "https://catalog.example.test",
+          "binary_path": "kei-proxy",
+          "binary_sha256": "",
+          "interval_s": 300,
+          "beat_timeout_s": 10,
+          "grace_s": 15,
+          "restart_min_s": 1,
+          "restart_max_s": 300,
+          "stable_reset_s": 300,
+          "stop_timeout_s": 10,
+          "log_count": 3,
+          "harness": {
+            "kind": "chat-discord",
+            "version": "",
+            "deployment_env": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "full_envelope_and_timings",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "assistant",
+        "KEI_HARNESS_VERSION": "2026.09.23+b1",
+        "KEI_DEPLOYMENT_ENV": "prod",
+        "KEI_PROXY_PATH": "/opt/kei/bin/kei-proxy",
+        "KEI_PROXY_SHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "KEI_HEARTBEAT_INTERVAL": "30",
+        "KEI_HEARTBEAT_TIMEOUT": "14",
+        "KEI_HEARTBEAT_RESTART_MIN": "2",
+        "KEI_HEARTBEAT_RESTART_MAX": "120",
+        "KEI_HEARTBEAT_STABLE_SECONDS": "600",
+        "KEI_HEARTBEAT_LOG_COUNT": "0"
+      },
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": true,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "https://catalog.example.test",
+          "binary_path": "/opt/kei/bin/kei-proxy",
+          "binary_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "interval_s": 30,
+          "beat_timeout_s": 14,
+          "grace_s": 15,
+          "restart_min_s": 2,
+          "restart_max_s": 120,
+          "stable_reset_s": 600,
+          "stop_timeout_s": 10,
+          "log_count": 0,
+          "harness": {
+            "kind": "assistant",
+            "version": "2026.09.23+b1",
+            "deployment_env": "prod"
+          }
+        }
+      }
+    },
+    {
+      "name": "harness_argument_overrides_env",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "assistant"
+      },
+      "expect": {
+        "ok": true,
+        "config": {
+          "enabled": true,
+          "token_env": "KEI_RUNTIME_TOKEN",
+          "control_plane_url": "https://catalog.example.test",
+          "binary_path": "kei-proxy",
+          "binary_sha256": "",
+          "interval_s": 60,
+          "beat_timeout_s": 10,
+          "grace_s": 15,
+          "restart_min_s": 1,
+          "restart_max_s": 300,
+          "stable_reset_s": 300,
+          "stop_timeout_s": 10,
+          "log_count": 3,
+          "harness": {
+            "kind": "pde",
+            "version": "1.2.3",
+            "deployment_env": ""
+          }
+        }
+      },
+      "harness": {
+        "kind": "pde",
+        "version": "1.2.3"
+      }
+    },
+    {
+      "name": "unknown_harness_kind",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "slack-bot"
+      },
+      "expect": {
+        "ok": false,
+        "error": "harness_kind"
+      }
+    },
+    {
+      "name": "unknown_harness_kind_even_when_disabled",
+      "env": {
+        "KEI_HARNESS_KIND": "telegram"
+      },
+      "expect": {
+        "ok": false,
+        "error": "harness_kind"
+      }
+    },
+    {
+      "name": "unknown_harness_kind_from_argument",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord"
+      },
+      "expect": {
+        "ok": false,
+        "error": "harness_kind"
+      },
+      "harness": {
+        "kind": "Assistant"
+      }
+    },
+    {
+      "name": "missing_harness_kind_when_enabled",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test"
+      },
+      "expect": {
+        "ok": false,
+        "error": "harness_kind"
+      }
+    },
+    {
+      "name": "harness_version_bad_charset",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HARNESS_VERSION": "1.0 beta"
+      },
+      "expect": {
+        "ok": false,
+        "error": "envelope"
+      }
+    },
+    {
+      "name": "harness_version_too_long",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HARNESS_VERSION": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+      },
+      "expect": {
+        "ok": false,
+        "error": "envelope"
+      }
+    },
+    {
+      "name": "deployment_env_too_long",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_DEPLOYMENT_ENV": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "expect": {
+        "ok": false,
+        "error": "envelope"
+      }
+    },
+    {
+      "name": "legacy_token_only_refused",
+      "env": {
+        "KEI_HARNESS_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "pde"
+      },
+      "expect": {
+        "ok": false,
+        "error": "legacy_token"
+      }
+    },
+    {
+      "name": "enabled_without_token",
+      "env": {
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_RUNTIME_ENABLED": "true"
+      },
+      "expect": {
+        "ok": false,
+        "error": "token_missing"
+      }
+    },
+    {
+      "name": "empty_token_is_missing",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_RUNTIME_ENABLED": "true"
+      },
+      "expect": {
+        "ok": false,
+        "error": "token_missing"
+      }
+    },
+    {
+      "name": "enabled_flag_garbage",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_RUNTIME_ENABLED": "yes-please"
+      },
+      "expect": {
+        "ok": false,
+        "error": "invalid_value"
+      }
+    },
+    {
+      "name": "missing_control_plane_url",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_HARNESS_KIND": "chat-discord"
+      },
+      "expect": {
+        "ok": false,
+        "error": "control_plane_url"
+      }
+    },
+    {
+      "name": "control_plane_url_not_http",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "ftp://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord"
+      },
+      "expect": {
+        "ok": false,
+        "error": "control_plane_url"
+      }
+    },
+    {
+      "name": "control_plane_url_with_userinfo",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://user:pw@catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord"
+      },
+      "expect": {
+        "ok": false,
+        "error": "control_plane_url"
+      }
+    },
+    {
+      "name": "control_plane_url_relative",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "/api/v1",
+        "KEI_HARNESS_KIND": "chat-discord"
+      },
+      "expect": {
+        "ok": false,
+        "error": "control_plane_url"
+      }
+    },
+    {
+      "name": "interval_not_integer",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_INTERVAL": "1m"
+      },
+      "expect": {
+        "ok": false,
+        "error": "invalid_value"
+      }
+    },
+    {
+      "name": "interval_negative",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_INTERVAL": "-60"
+      },
+      "expect": {
+        "ok": false,
+        "error": "invalid_value"
+      }
+    },
+    {
+      "name": "timeout_half_interval",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_INTERVAL": "60",
+        "KEI_HEARTBEAT_TIMEOUT": "30"
+      },
+      "expect": {
+        "ok": false,
+        "error": "beat_timeout"
+      }
+    },
+    {
+      "name": "timeout_default_too_long_for_min_interval",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_INTERVAL": "15"
+      },
+      "expect": {
+        "ok": false,
+        "error": "beat_timeout"
+      }
+    },
+    {
+      "name": "timeout_zero",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_TIMEOUT": "0"
+      },
+      "expect": {
+        "ok": false,
+        "error": "beat_timeout"
+      }
+    },
+    {
+      "name": "restart_min_zero",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_RESTART_MIN": "0"
+      },
+      "expect": {
+        "ok": false,
+        "error": "out_of_range"
+      }
+    },
+    {
+      "name": "restart_min_above_max",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_RESTART_MIN": "60",
+        "KEI_HEARTBEAT_RESTART_MAX": "30"
+      },
+      "expect": {
+        "ok": false,
+        "error": "out_of_range"
+      }
+    },
+    {
+      "name": "restart_max_unbounded",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_RESTART_MAX": "86400"
+      },
+      "expect": {
+        "ok": false,
+        "error": "out_of_range"
+      }
+    },
+    {
+      "name": "stable_reset_unbounded",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_STABLE_SECONDS": "86400"
+      },
+      "expect": {
+        "ok": false,
+        "error": "out_of_range"
+      }
+    },
+    {
+      "name": "log_count_unbounded",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_HEARTBEAT_LOG_COUNT": "1000"
+      },
+      "expect": {
+        "ok": false,
+        "error": "out_of_range"
+      }
+    },
+    {
+      "name": "prod_requires_binary_sha",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_DEPLOYMENT_ENV": "prod"
+      },
+      "expect": {
+        "ok": false,
+        "error": "binary"
+      }
+    },
+    {
+      "name": "binary_sha_not_hex",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_PROXY_SHA": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+      },
+      "expect": {
+        "ok": false,
+        "error": "binary"
+      }
+    },
+    {
+      "name": "binary_sha_uppercase",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "canary-runtime-token-DO-NOT-LOG",
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
+        "KEI_HARNESS_KIND": "chat-discord",
+        "KEI_PROXY_SHA": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "expect": {
+        "ok": false,
+        "error": "binary"
+      }
+    }
+  ]
+}

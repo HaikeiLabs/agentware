@@ -1,0 +1,289 @@
+{
+  "note": "Each 'line' is one child stdout line. 'synthesized' cases build {\"v\":1,\"event\":\"pad\",\"pad\":\"xxx...\"} padded to exactly 'bytes' bytes (excluding the newline).",
+  "cases": [
+    {
+      "name": "identity",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"installation_id\":\"inst_01J9ZK\",\"org_id\":\"org_acme\",\"workspace_id\":\"ws_sales\",\"platform\":\"discord\",\"status\":\"active\",\"binding_status\":\"verified\",\"runtime_version\":\"1.9.0\"}",
+      "expect": {
+        "kind": "identity",
+        "fields": {
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "installation_id": "inst_01J9ZK",
+          "org_id": "org_acme",
+          "workspace_id": "ws_sales",
+          "platform": "discord",
+          "status": "active",
+          "binding_status": "verified",
+          "runtime_version": "1.9.0"
+        }
+      }
+    },
+    {
+      "name": "identity_minimal",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"r1\",\"installation_id\":\"inst_1\",\"org_id\":\"org_1\"}",
+      "expect": {
+        "kind": "identity",
+        "fields": {
+          "run_id": "r1",
+          "installation_id": "inst_1",
+          "org_id": "org_1",
+          "workspace_id": "",
+          "platform": "",
+          "status": "",
+          "binding_status": "",
+          "runtime_version": ""
+        }
+      }
+    },
+    {
+      "name": "beat",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "seq": 42,
+          "at": "2026-09-23T17:00:00Z",
+          "outcome": "ok",
+          "http_status": 204,
+          "latency_ms": 83,
+          "next_in_ms": 60000
+        }
+      }
+    },
+    {
+      "name": "beat_unreachable_no_http_status",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"r1\",\"seq\":7,\"at\":\"2026-09-23T17:00:00.123+02:00\",\"outcome\":\"catalog_unreachable\",\"latency_ms\":5000,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "r1",
+          "seq": 7,
+          "at": "2026-09-23T17:00:00.123+02:00",
+          "outcome": "catalog_unreachable",
+          "http_status": 0,
+          "latency_ms": 5000,
+          "next_in_ms": 60000
+        }
+      }
+    },
+    {
+      "name": "terminal",
+      "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"reason\":\"unauthorized\"}",
+      "expect": {
+        "kind": "terminal",
+        "fields": {
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "reason": "unauthorized"
+        }
+      }
+    },
+    {
+      "name": "crlf_terminated",
+      "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"reason\":\"unauthorized\"}\r\n",
+      "expect": {
+        "kind": "terminal",
+        "fields": {
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "reason": "unauthorized"
+        }
+      }
+    },
+    {
+      "name": "beat_extra_fields_dropped",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000,\"payload\":{\"messages\":[\"customer secret\"]},\"result\":\"provider result\",\"reasoning\":\"chain of thought\",\"token\":\"canary-runtime-token-DO-NOT-LOG\",\"stderr\":\"boom\",\"env\":{\"DISCORD_TOKEN\":\"x\"}}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "seq": 42,
+          "at": "2026-09-23T17:00:00Z",
+          "outcome": "ok",
+          "http_status": 204,
+          "latency_ms": 83,
+          "next_in_ms": 60000
+        }
+      }
+    },
+    {
+      "name": "identity_extra_fields_dropped",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"installation_id\":\"inst_01J9ZK\",\"org_id\":\"org_acme\",\"workspace_id\":\"ws_sales\",\"platform\":\"discord\",\"status\":\"active\",\"binding_status\":\"verified\",\"runtime_version\":\"1.9.0\",\"subject\":\"alice@example.com\",\"content\":\"hello\",\"credentials\":{\"api_key\":\"canary-runtime-token-DO-NOT-LOG\"}}",
+      "expect": {
+        "kind": "identity",
+        "fields": {
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "installation_id": "inst_01J9ZK",
+          "org_id": "org_acme",
+          "workspace_id": "ws_sales",
+          "platform": "discord",
+          "status": "active",
+          "binding_status": "verified",
+          "runtime_version": "1.9.0"
+        }
+      }
+    },
+    {
+      "name": "unknown_event_ignored",
+      "line": "{\"v\":1,\"event\":\"progress\",\"run_id\":\"r1\",\"payload\":\"x\"}",
+      "expect": {
+        "kind": "ignored"
+      }
+    },
+    {
+      "name": "unknown_version",
+      "line": "{\"v\":2,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "contract_mismatch"
+      }
+    },
+    {
+      "name": "missing_version",
+      "line": "{\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "contract_mismatch"
+      }
+    },
+    {
+      "name": "version_string",
+      "line": "{\"v\":\"1\",\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "contract_mismatch"
+      }
+    },
+    {
+      "name": "unknown_outcome",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"maybe\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "contract_mismatch"
+      }
+    },
+    {
+      "name": "non_json",
+      "line": "kei-proxy: heartbeat ok",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "partial_line",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "empty_line",
+      "line": "",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "json_array",
+      "line": "[1,2,3]",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "event_not_string",
+      "line": "{\"v\":1,\"event\":7}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_missing_seq",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_negative_seq",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":-1,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_seq_fraction",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":1.5,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_seq_bool",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":true,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_bad_timestamp",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"yesterday\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_http_status_out_of_range",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":999,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "beat_latency_unbounded",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"seq\":42,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":3600001,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "identity_missing_installation",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"org_id\":\"org_acme\",\"workspace_id\":\"ws_sales\",\"platform\":\"discord\",\"status\":\"active\",\"binding_status\":\"verified\",\"runtime_version\":\"1.9.0\"}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "identity_free_text_smuggled",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"installation_id\":\"inst_01J9ZK\",\"org_id\":\"org_acme\",\"workspace_id\":\"ws_sales\",\"platform\":\"discord user said: my password is hunter2\",\"status\":\"active\",\"binding_status\":\"verified\",\"runtime_version\":\"1.9.0\"}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "identity_id_too_long",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"installation_id\":\"inst_01J9ZK\",\"org_id\":\"ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo\",\"workspace_id\":\"ws_sales\",\"platform\":\"discord\",\"status\":\"active\",\"binding_status\":\"verified\",\"runtime_version\":\"1.9.0\"}",
+      "expect": {
+        "kind": "malformed"
+      }
+    },
+    {
+      "name": "terminal_reason_free_text",
+      "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"reason\":\"Unauthorized: token abc123 revoked\"}",
+      "expect": {
+        "kind": "malformed"
+      }
+    }
+  ],
+  "synthesized": [
+    {
+      "name": "exactly_max_bytes_accepted",
+      "bytes": 4096,
+      "expect": {
+        "kind": "ignored"
+      }
+    },
+    {
+      "name": "over_max_bytes_rejected",
+      "bytes": 4097,
+      "expect": {
+        "kind": "line_too_long"
+      }
+    }
+  ]
+}

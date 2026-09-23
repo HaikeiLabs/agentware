@@ -1,0 +1,82 @@
+{
+  "note": "cap_ms = min(max_ms, min_ms * 2^attempt); delay_ms = floor(rand * cap_ms). rand is clamped to [0, 1).",
+  "cases": [
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 0,
+      "rand": 0.0,
+      "delay_ms": 0
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 0,
+      "rand": 0.5,
+      "delay_ms": 500
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 3,
+      "rand": 0.5,
+      "delay_ms": 4000
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 3,
+      "rand": 0.999,
+      "delay_ms": 7992
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 8,
+      "rand": 0.25,
+      "delay_ms": 64000
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 9,
+      "rand": 0.5,
+      "delay_ms": 150000
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 200,
+      "rand": 0.5,
+      "delay_ms": 150000
+    },
+    {
+      "min_ms": 2000,
+      "max_ms": 120000,
+      "attempt": 6,
+      "rand": 0.75,
+      "delay_ms": 90000
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": -4,
+      "rand": 0.5,
+      "delay_ms": 500
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 2,
+      "rand": 1.5,
+      "delay_ms": 3999
+    },
+    {
+      "min_ms": 1000,
+      "max_ms": 300000,
+      "attempt": 2,
+      "rand": -1,
+      "delay_ms": 0
+    }
+  ]
+}
