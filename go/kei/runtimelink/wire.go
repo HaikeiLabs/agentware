@@ -35,7 +35,7 @@ const (
 // BeatEvent is one runtime→catalog heartbeat result as the runtime reports it.
 type BeatEvent struct {
 	RunID      string      `json:"run_id"`
-	Seq        int64       `json:"seq"`
+	Seq        int64       `json:"seq"` // 0 when absent: the runtime omits seq on beats sent before identity
 	At         string      `json:"at"`
 	Outcome    BeatOutcome `json:"outcome"`
 	HTTPStatus int         `json:"http_status"`
@@ -115,7 +115,7 @@ func ParseChildLine(line []byte) (ChildEvent, error) {
 	case ChildBeat:
 		b := BeatEvent{
 			RunID:     f.id("run_id", true),
-			Seq:       f.integer("seq", true, 0, maxSeq),
+			Seq:       f.integer("seq", false, 0, maxSeq),
 			At:        f.timestamp("at"),
 			Outcome:   BeatOutcome(f.str("outcome", true)),
 			LatencyMS: f.integer("latency_ms", false, 0, maxLatencyMS),

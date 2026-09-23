@@ -1,5 +1,5 @@
 {
-  "note": "Each 'line' is one child stdout line. 'synthesized' cases build {\"v\":1,\"event\":\"pad\",\"pad\":\"xxx...\"} padded to exactly 'bytes' bytes (excluding the newline).",
+  "note": "Each 'line' is one child stdout line. 'synthesized' cases build {\"v\":1,\"event\":\"pad\",\"pad\":\"xxx...\"} padded to exactly 'bytes' bytes (excluding the newline). 'seq' is optional (0 when absent): kei-connector-runtime emits beats without seq while whoami is still failing, before identity.",
   "cases": [
     {
       "name": "identity",
@@ -193,10 +193,19 @@
       }
     },
     {
-      "name": "beat_missing_seq",
-      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"ok\",\"http_status\":204,\"latency_ms\":83,\"next_in_ms\":60000}",
+      "name": "beat_pre_identity_without_seq",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"3f0c9f5e-6a55-4d2c-9d0e-2f7e0c1b9a10\",\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"catalog_unreachable\",\"latency_ms\":1200,\"next_in_ms\":57000}",
       "expect": {
-        "kind": "malformed"
+        "kind": "beat",
+        "fields": {
+          "run_id": "3f0c9f5e-6a55-4d2c-9d0e-2f7e0c1b9a10",
+          "seq": 0,
+          "at": "2026-09-23T17:00:00Z",
+          "outcome": "catalog_unreachable",
+          "http_status": 0,
+          "latency_ms": 1200,
+          "next_in_ms": 57000
+        }
       }
     },
     {

@@ -484,7 +484,7 @@ class BeatEvent:
     """One runtime→catalog heartbeat result as the runtime reports it."""
 
     run_id: str
-    seq: int
+    seq: int  # 0 when absent: the runtime omits seq on beats sent before identity
     at: str
     outcome: BeatOutcome
     http_status: int = 0
@@ -586,7 +586,7 @@ def parse_child_line(line: str | bytes) -> ChildEvent:
         )
     if event == "beat":
         run_id = f.ident("run_id", True)
-        seq = f.integer("seq", True, 0, _MAX_SEQ)
+        seq = f.integer("seq", False, 0, _MAX_SEQ)
         at = f.timestamp("at")
         outcome = f.text("outcome", True)
         latency_ms = f.integer("latency_ms", False, 0, _MAX_LATENCY_MS)

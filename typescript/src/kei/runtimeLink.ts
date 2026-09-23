@@ -515,6 +515,7 @@ export class ChildLineError extends Error {
 
 export interface BeatEvent {
   runId: string;
+  /** 0 when absent: the runtime omits seq on beats sent before identity. */
   seq: number;
   at: string;
   outcome: BeatOutcome;
@@ -627,7 +628,7 @@ export function parseChildLine(line: string | Uint8Array): ChildEvent {
       };
     case "beat": {
       const runId = f.id("run_id", true);
-      const seq = f.integer("seq", true, 0, MAX_SEQ);
+      const seq = f.integer("seq", false, 0, MAX_SEQ);
       const at = f.timestamp("at");
       const outcome = f.text("outcome", true);
       const latencyMs = f.integer("latency_ms", false, 0, MAX_LATENCY_MS);
