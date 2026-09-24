@@ -68,6 +68,86 @@
       }
     },
     {
+      "name": "beat_catalog_timeout",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"r1\",\"seq\":8,\"at\":\"2026-09-23T17:00:00Z\",\"outcome\":\"catalog_timeout\",\"http_status\":504,\"latency_ms\":30000,\"next_in_ms\":30000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "r1",
+          "seq": 8,
+          "at": "2026-09-23T17:00:00Z",
+          "outcome": "catalog_timeout",
+          "http_status": 504,
+          "latency_ms": 30000,
+          "next_in_ms": 30000
+        }
+      }
+    },
+    {
+      "name": "beat_catalog_error",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"r1\",\"seq\":9,\"at\":\"2026-09-23T17:01:00Z\",\"outcome\":\"catalog_error\",\"http_status\":502,\"latency_ms\":4500,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "r1",
+          "seq": 9,
+          "at": "2026-09-23T17:01:00Z",
+          "outcome": "catalog_error",
+          "http_status": 502,
+          "latency_ms": 4500,
+          "next_in_ms": 60000
+        }
+      }
+    },
+    {
+      "name": "beat_catalog_backpressure",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"r1\",\"seq\":10,\"at\":\"2026-09-23T17:02:00Z\",\"outcome\":\"catalog_backpressure\",\"http_status\":429,\"latency_ms\":820,\"next_in_ms\":120000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "r1",
+          "seq": 10,
+          "at": "2026-09-23T17:02:00Z",
+          "outcome": "catalog_backpressure",
+          "http_status": 429,
+          "latency_ms": 820,
+          "next_in_ms": 120000
+        }
+      }
+    },
+    {
+      "name": "beat_catalog_rejected",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"r1\",\"seq\":11,\"at\":\"2026-09-23T17:03:00Z\",\"outcome\":\"catalog_rejected\",\"http_status\":422,\"latency_ms\":120,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "r1",
+          "seq": 11,
+          "at": "2026-09-23T17:03:00Z",
+          "outcome": "catalog_rejected",
+          "http_status": 422,
+          "latency_ms": 120,
+          "next_in_ms": 60000
+        }
+      }
+    },
+    {
+      "name": "beat_unauthorized",
+      "line": "{\"v\":1,\"event\":\"beat\",\"run_id\":\"r1\",\"seq\":12,\"at\":\"2026-09-23T17:04:00Z\",\"outcome\":\"unauthorized\",\"http_status\":401,\"latency_ms\":95,\"next_in_ms\":60000}",
+      "expect": {
+        "kind": "beat",
+        "fields": {
+          "run_id": "r1",
+          "seq": 12,
+          "at": "2026-09-23T17:04:00Z",
+          "outcome": "unauthorized",
+          "http_status": 401,
+          "latency_ms": 95,
+          "next_in_ms": 60000
+        }
+      }
+    },
+    {
       "name": "terminal",
       "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11\",\"reason\":\"unauthorized\"}",
       "expect": {
@@ -86,6 +166,39 @@
         "fields": {
           "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
           "reason": "unauthorized"
+        }
+      }
+    },
+    {
+      "name": "terminal_contract_mismatch",
+      "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"r1\",\"reason\":\"contract_mismatch\"}",
+      "expect": {
+        "kind": "terminal",
+        "fields": {
+          "run_id": "r1",
+          "reason": "contract_mismatch"
+        }
+      }
+    },
+    {
+      "name": "terminal_installation_unauthorized",
+      "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"r1\",\"reason\":\"installation_unauthorized\"}",
+      "expect": {
+        "kind": "terminal",
+        "fields": {
+          "run_id": "r1",
+          "reason": "installation_unauthorized"
+        }
+      }
+    },
+    {
+      "name": "terminal_config_invalid",
+      "line": "{\"v\":1,\"event\":\"terminal\",\"run_id\":\"r1\",\"reason\":\"config_invalid\"}",
+      "expect": {
+        "kind": "terminal",
+        "fields": {
+          "run_id": "r1",
+          "reason": "config_invalid"
         }
       }
     },

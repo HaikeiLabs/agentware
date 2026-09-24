@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -427,6 +428,142 @@ func TestNormalizeConfigDirect(t *testing.T) {
 	}
 	if got.Interval != MinInterval {
 		t.Fatalf("interval not clamped: %v", got.Interval)
+	}
+}
+
+func TestExitCodeMappingContract(t *testing.T) {
+	var fx struct {
+		Note  string `json:"note"`
+		Cases []struct {
+			ExitCode     int    `json:"exit_code"`
+			FailureClass string `json:"failure_class"`
+			Terminal     bool   `json:"terminal"`
+			Restart      bool   `json:"restart"`
+		} `json:"cases"`
+	}
+	loadFixture(t, "exit-code-cases.json", &fx)
+
+	for _, tc := range fx.Cases {
+		t.Run(fmt.Sprintf("exit_%d", tc.ExitCode), func(t *testing.T) {
+			l := testLink()
+			l.transition(StateConnected, "")
+
+			var waitErr error
+			if tc.ExitCode != 0 {
+				waitErr = errors.New("exit error")
+			}
+
+			err := l.handleChildExit(tc.ExitCode, waitErr)
+
+			if tc.ExitCode == 0 {
+				if err != nil {
+					t.Fatalf("exit 0: want nil error, got %v", err)
+				}
+				if l.Status().State != StateConnected {
+					t.Fatalf("exit 0: state changed to %q, want %q", l.Status().State, StateConnected)
+				}
+				return
+			}
+
+			st := l.Status()
+			if tc.Terminal {
+				if !errors.Is(err, errTerminal) {
+					t.Fatalf("exit %d: want errTerminal, got %v", tc.ExitCode, err)
+				}
+				if st.State != StateTerminal {
+					t.Fatalf("exit %d: state=%q, want %q", tc.ExitCode, st.State, StateTerminal)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("exit %d: want nil error, got %v", tc.ExitCode, err)
+				}
+				if st.State == StateTerminal {
+					t.Fatalf("exit %d: should not be terminal, but state is terminal", tc.ExitCode)
+				}
+			}
+
+			if tc.FailureClass != "" && string(st.Reason) != tc.FailureClass {
+				t.Fatalf("exit %d: reason=%q, want %q", tc.ExitCode, st.Reason, tc.FailureClass)
+			}
+		})
+	}
+}
+
+func TestChildEnvAllowlistContract(t *testing.T) {
+	var fx struct {
+		Note      string   `json:"note"`
+		Allowlist []string `json:"allowlist"`
+		Canaries  []string `json:"canaries"`
+		Injected  []string `json:"sdk_injected"`
+		EnvMax    int      `json:"env_count_max"`
+	}
+	loadFixture(t, "child-env-allowlist.json", &fx)
+
+	// Save and restore the environment so changes do not leak to other tests.
+	saved := os.Environ()
+	defer func() {
+		os.Clearenv()
+		for _, e := range saved {
+			_ = os.Setenv(e[:strings.IndexByte(e, '=')], e[strings.IndexByte(e, '=')+1:])
+		}
+	}()
+
+	os.Clearenv()
+	for _, k := range fx.Allowlist {
+		_ = os.Setenv(k, k+"-value")
+	}
+	for _, k := range fx.Canaries {
+		_ = os.Setenv(k, k+"-should-not-leak")
+	}
+	// Add a few non-allowlisted vars to confirm they are stripped.
+	_ = os.Setenv("IRRELEVANT_VAR", "must-not-appear")
+	_ = os.Setenv("ANOTHER_UNRELATED_KEY", "also-must-not-appear")
+
+	l := testLink()
+	cmd, err := l.buildCommand()
+	if err != nil {
+		t.Fatalf("buildCommand: %v", err)
+	}
+
+	envMap := make(map[string]string)
+	for _, e := range cmd.Env {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+
+	// All allowlisted vars that we set should be present.
+	for _, k := range fx.Allowlist {
+		if _, ok := envMap[k]; !ok {
+			t.Errorf("allowlisted var %q missing from child env", k)
+		}
+	}
+
+	// Canary secrets must be absent.
+	for _, k := range fx.Canaries {
+		if _, ok := envMap[k]; ok {
+			t.Errorf("canary secret %q leaked to child env", k)
+		}
+	}
+
+	// Non-allowlisted vars must be absent.
+	if _, ok := envMap["IRRELEVANT_VAR"]; ok {
+		t.Error("non-allowlisted IRRELEVANT_VAR leaked to child env")
+	}
+	if _, ok := envMap["ANOTHER_UNRELATED_KEY"]; ok {
+		t.Error("non-allowlisted ANOTHER_UNRELATED_KEY leaked to child env")
+	}
+
+	// SDK injected vars must be present.
+	for _, k := range fx.Injected {
+		if _, ok := envMap[k]; !ok {
+			t.Errorf("SDK injected var %q missing from child env", k)
+		}
+	}
+
+	if n := len(cmd.Env); n > fx.EnvMax {
+		t.Errorf("env entries: got %d, want at most %d", n, fx.EnvMax)
 	}
 }
 

@@ -1,0 +1,32 @@
+{
+  "note": "Child process environment variables the SDK may pass through. Only entries from this allowlist plus the two injected SDK identity vars reach the child. Canary secrets must never appear. This document is the single source of truth.",
+  "allowlist": [
+    "KEI_RUNTIME_TOKEN",
+    "KEI_RUNTIME_CONTROL_PLANE_URL",
+    "KEI_HARNESS_KIND",
+    "KEI_HARNESS_VERSION",
+    "KEI_DEPLOYMENT_ENV",
+    "KEI_AGENTWARE_SDK_LANG",
+    "KEI_AGENTWARE_SDK_VERSION",
+    "KEI_HEARTBEAT_RUN_ID",
+    "PATH",
+    "HOME",
+    "TZ"
+  ],
+  "canaries": [
+    "DISCORD_TOKEN",
+    "TWILIO_AUTH_TOKEN",
+    "KEI_HARNESS_TOKEN",
+    "KEI_BOOTSTRAP_TOKEN",
+    "AWS_SECRET_ACCESS_KEY",
+    "OPENAI_API_KEY",
+    "DATABASE_URL",
+    "PGPASSWORD",
+    "GITHUB_TOKEN"
+  ],
+  "sdk_injected": [
+    "KEI_AGENTWARE_SDK_LANG",
+    "KEI_AGENTWARE_SDK_VERSION"
+  ],
+  "env_count_max": 13
+}
