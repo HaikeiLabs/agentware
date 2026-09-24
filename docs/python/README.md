@@ -125,7 +125,7 @@ for entry in records:
 ## Condition Operators
 
 | Operator | Description |
-|----------|-------------|
+| --- | --- |
 | `eq` | Field equals value |
 | `not_eq` | Field does not equal value |
 | `contains` | Field contains value |

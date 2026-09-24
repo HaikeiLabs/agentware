@@ -6,7 +6,7 @@ This guide explains how to use the middleware to add policy enforcement, rate li
 
 The middleware sits between your LLM (or agent loop) and tool execution:
 
-```
+```text
 LLM Request → Middleware → Policy Check → (allow/deny/filter) → Tool Executor → Response
                               ↓
                          Auditor (logs every decision)
@@ -217,6 +217,7 @@ result, err := mw.Execute(ctx, "tool_name", args)
 ```
 
 Fields in `CallerContext`:
+
 - `UserID` - unique user identifier
 - `SessionID` - session/conversation ID
 - `Role` - user role (reader, writer, admin, etc.)
@@ -242,6 +243,7 @@ Use conditions to make rules match based on caller or arguments:
 ### Field References
 
 Conditions can reference:
+
 - `caller.role` - caller's role
 - `caller.user_id` - user ID
 - `caller.session_id` - session ID

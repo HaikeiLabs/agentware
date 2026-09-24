@@ -93,7 +93,7 @@ Each package should be usable in isolation.
 
 ## 3. Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Your Agent Application                     │
 └───────────────────────┬─────────────────────────────────────┘
@@ -134,7 +134,7 @@ Each package should be usable in isolation.
 
 ### Package Dependency Graph
 
-```
+```text
 executor
   ├── middleware
   ├── tools
@@ -168,7 +168,7 @@ llmcontext
 
 ## 4. Package Organization
 
-```
+```text
 github.com/Soypete/pedro-agentware/
 ├── go.mod
 │
@@ -664,7 +664,7 @@ type ToolResultEntry struct {
 
 ## 6. Data Flow
 
-```
+```text
 Application
     │
     │ ExecuteRequest

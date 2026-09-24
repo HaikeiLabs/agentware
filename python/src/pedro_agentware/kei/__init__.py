@@ -9,6 +9,8 @@ Key components:
 - Local proxy executable discovery and subprocess invocation (fail closed)
 - KeiProxyEvaluator: a middleware PolicyEvaluator backed by kei-proxy, so
   enforcement lives here rather than in each agent harness
+- RuntimeLink contract types and helpers for the harness → Agentware →
+  kei-connector-runtime heartbeat protocol
 
 Security contract:
 - The bootstrap secret (KEI_RUNTIME_TOKEN) is loaded only from the
@@ -77,6 +79,36 @@ from .proxy import (
     run_proxy,
     stop_proxy,
 )
+from .runtime_link import (
+    CONTRACT_VERSION,
+    Backoff,
+    BeatEvent,
+    BeatOutcome,
+    BinaryRef,
+    ChildLineError,
+    ContractMismatchError,
+    EventHarness,
+    FailureClass,
+    HarnessEnvelope,
+    HarnessKind,
+    IgnoredEvent,
+    InvalidLinkEventError,
+    LifecycleEventName,
+    LineTooLongError,
+    LinkEvent,
+    LinkState,
+    LinkStatus,
+    MalformedLineError,
+    RuntimeIdentity,
+    RuntimeLink,
+    RuntimeLinkConfig,
+    RuntimeLinkConfigError,
+    SecretSource,
+    TerminalEvent,
+    config_from_env,
+    normalize_config,
+    parse_child_line,
+)
 
 __all__ = [
     "AFFIRMATIVE_DECISIONS",
@@ -127,4 +159,32 @@ __all__ = [
     "discover_proxy",
     "run_proxy",
     "stop_proxy",
+    "CONTRACT_VERSION",
+    "HarnessKind",
+    "LinkState",
+    "FailureClass",
+    "BeatOutcome",
+    "LifecycleEventName",
+    "RuntimeLinkConfigError",
+    "BinaryRef",
+    "SecretSource",
+    "Backoff",
+    "HarnessEnvelope",
+    "RuntimeLinkConfig",
+    "normalize_config",
+    "config_from_env",
+    "LinkStatus",
+    "RuntimeIdentity",
+    "ChildLineError",
+    "LineTooLongError",
+    "MalformedLineError",
+    "ContractMismatchError",
+    "BeatEvent",
+    "TerminalEvent",
+    "IgnoredEvent",
+    "parse_child_line",
+    "InvalidLinkEventError",
+    "EventHarness",
+    "LinkEvent",
+    "RuntimeLink",
 ]
