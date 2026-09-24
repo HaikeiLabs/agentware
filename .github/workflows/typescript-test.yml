@@ -6,11 +6,13 @@ on:
     paths:
       - 'typescript/**'
       - '.github/workflows/typescript-test.yml'
+      - 'testing/contracts/runtime-link/**'
   pull_request:
     branches: [main]
     paths:
       - 'typescript/**'
       - '.github/workflows/typescript-test.yml'
+      - 'testing/contracts/runtime-link/**'
 
 jobs:
   typescript-test:

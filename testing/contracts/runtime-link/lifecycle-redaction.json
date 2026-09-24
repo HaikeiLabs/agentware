@@ -1,0 +1,365 @@
+{
+  "record_keys": [
+    "name",
+    "at",
+    "state",
+    "reason",
+    "run_id",
+    "seq",
+    "sdk_instance_id",
+    "harness",
+    "restarts",
+    "consecutive_fails"
+  ],
+  "harness_keys": [
+    "kind",
+    "version",
+    "deployment_env",
+    "sdk_lang",
+    "sdk_version"
+  ],
+  "canaries": [
+    "canary-runtime-token-DO-NOT-LOG",
+    "canary-discord",
+    "canary-stderr",
+    "canary-payload",
+    "canary-result",
+    "canary-reasoning",
+    "canary-content",
+    "alice@example.com",
+    "ws_sales",
+    "kei-proxy"
+  ],
+  "cases": [
+    {
+      "name": "forbidden_fields_dropped",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0",
+          "token": "canary-runtime-token-DO-NOT-LOG",
+          "workspace_id": "ws_sales"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3,
+        "token": "canary-runtime-token-DO-NOT-LOG",
+        "argv": [
+          "kei-proxy",
+          "runtime",
+          "heartbeat"
+        ],
+        "env": {
+          "DISCORD_TOKEN": "canary-discord"
+        },
+        "stderr": "panic: canary-stderr",
+        "payload": {
+          "q": "canary-payload"
+        },
+        "result": "canary-result",
+        "reasoning": "canary-reasoning",
+        "content": "canary-content",
+        "subject": "alice@example.com"
+      },
+      "expect": {
+        "ok": true,
+        "serialized": {
+          "name": "runtime.link.degraded",
+          "at": "2026-09-23T17:00:00.000Z",
+          "state": "degraded",
+          "reason": "catalog_error",
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "seq": 42,
+          "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+          "harness": {
+            "kind": "chat-discord",
+            "version": "2026.09.23",
+            "deployment_env": "prod",
+            "sdk_lang": "python",
+            "sdk_version": "0.4.0"
+          },
+          "restarts": 2,
+          "consecutive_fails": 3
+        }
+      }
+    },
+    {
+      "name": "clean_record_round_trips",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": true,
+        "serialized": {
+          "name": "runtime.link.degraded",
+          "at": "2026-09-23T17:00:00.000Z",
+          "state": "degraded",
+          "reason": "catalog_error",
+          "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+          "seq": 42,
+          "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+          "harness": {
+            "kind": "chat-discord",
+            "version": "2026.09.23",
+            "deployment_env": "prod",
+            "sdk_lang": "python",
+            "sdk_version": "0.4.0"
+          },
+          "restarts": 2,
+          "consecutive_fails": 3
+        }
+      }
+    },
+    {
+      "name": "sparse_record_defaults",
+      "input": {
+        "name": "runtime.link.started",
+        "at": "2026-09-23T16:00:00Z",
+        "state": "starting",
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "serialized": {
+          "name": "runtime.link.started",
+          "at": "2026-09-23T16:00:00.000Z",
+          "state": "starting",
+          "reason": "",
+          "run_id": "",
+          "seq": 0,
+          "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+          "harness": {
+            "kind": "chat-discord",
+            "version": "",
+            "deployment_env": "",
+            "sdk_lang": "python",
+            "sdk_version": "0.4.0"
+          },
+          "restarts": 0,
+          "consecutive_fails": 0
+        }
+      }
+    },
+    {
+      "name": "unknown_event_name",
+      "input": {
+        "name": "runtime.link.payload",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "unknown_state",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "happy",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "free_text_reason",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog said: customer data here",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "unknown_harness_kind",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "telegram",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "unknown_sdk_lang",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "rust",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "run_id_free_text",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "the user asked about invoices",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "negative_counter",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "2026-09-23T17:00:00.000Z",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": -1,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "bad_timestamp",
+      "input": {
+        "name": "runtime.link.degraded",
+        "at": "now",
+        "state": "degraded",
+        "reason": "catalog_error",
+        "run_id": "3f2b8c1e-6a0d-4c1b-9f3e-2a7d5b9c0e11",
+        "seq": 42,
+        "sdk_instance_id": "9d1c7f00-2b8e-4f0a-8c55-0b6d7e1a2f33",
+        "harness": {
+          "kind": "chat-discord",
+          "version": "2026.09.23",
+          "deployment_env": "prod",
+          "sdk_lang": "python",
+          "sdk_version": "0.4.0"
+        },
+        "restarts": 2,
+        "consecutive_fails": 3
+      },
+      "expect": {
+        "ok": false
+      }
+    }
+  ]
+}

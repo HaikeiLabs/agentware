@@ -6,11 +6,13 @@ on:
     paths:
       - 'go/**'
       - '.github/workflows/go-test.yml'
+      - 'testing/contracts/runtime-link/**'
   pull_request:
     branches: [main]
     paths:
       - 'go/**'
       - '.github/workflows/go-test.yml'
+      - 'testing/contracts/runtime-link/**'
 
 jobs:
   go-test:

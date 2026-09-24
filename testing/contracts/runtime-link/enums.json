@@ -1,0 +1,65 @@
+{
+  "contract_version": 1,
+  "harness_kinds": ["assistant", "pde", "chat-discord", "chat-slack", "chat-teams", "cli"],
+  "link_states": ["disabled", "starting", "connected", "degraded", "reconnecting", "terminal", "stopped"],
+  "failure_classes": [
+    "config_invalid",
+    "runtime_unavailable",
+    "runtime_crashloop",
+    "runtime_unresponsive",
+    "contract_mismatch",
+    "catalog_unreachable",
+    "catalog_timeout",
+    "catalog_error",
+    "catalog_backpressure",
+    "installation_unauthorized",
+    "installation_stale",
+    "installation_offline",
+    "audit_backlog",
+    "legacy_runtime_unverified"
+  ],
+  "beat_outcomes": [
+    "ok",
+    "catalog_unreachable",
+    "catalog_timeout",
+    "catalog_error",
+    "catalog_backpressure",
+    "catalog_rejected",
+    "unauthorized"
+  ],
+  "lifecycle_events": [
+    "runtime.link.started",
+    "runtime.link.connected",
+    "runtime.link.degraded",
+    "runtime.link.reconnecting",
+    "runtime.link.terminal",
+    "runtime.link.stopped"
+  ],
+  "sdk_langs": ["go", "python", "typescript"],
+  "config_error_codes": [
+    "invalid_value",
+    "out_of_range",
+    "beat_timeout",
+    "harness_kind",
+    "envelope",
+    "legacy_token",
+    "token_missing",
+    "control_plane_url",
+    "binary"
+  ],
+  "child_env_allowlist": [
+    "KEI_RUNTIME_TOKEN",
+    "KEI_RUNTIME_CONTROL_PLANE_URL",
+    "KEI_HARNESS_KIND",
+    "KEI_HARNESS_VERSION",
+    "KEI_DEPLOYMENT_ENV",
+    "KEI_AGENTWARE_SDK_LANG",
+    "KEI_AGENTWARE_SDK_VERSION",
+    "KEI_HEARTBEAT_RUN_ID",
+    "PATH",
+    "HOME",
+    "TZ"
+  ],
+  "max_child_line_bytes": 4096,
+  "event_buffer_size": 64
+}
