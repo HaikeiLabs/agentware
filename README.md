@@ -141,7 +141,7 @@ default_deny: false
 ## Audit record
 
 | Field | Notes |
-|-------|-------|
+| --- | --- |
 | `invoking_subject` | The human who initiated the task. Survives every delegation hop. |
 | `parent_span`, `delegation_depth` | Reconstructs the full call tree |
 | `agent_id`, `agent_version` | |
@@ -159,7 +159,7 @@ resource-level lineage is what makes the question tractable.
 ## Layout
 
 | Path | Contents |
-|------|----------|
+| --- | --- |
 | `go/middleware/` | Policy engine, audit records, interception |
 | `go/adapters/` | Framework adapters (ADK, hermes) |
 | `go/memory/` | Wiki memory — see `SCHEMA.md` for the page contract |
@@ -170,6 +170,7 @@ resource-level lineage is what makes the question tractable.
 | `docs/engineering-design.md` | Architecture |
 | `docs/tenant-proxy-reference.md` | Canonical tenant-side proxy architecture and metadata-only control-plane boundary |
 | `docs/harness-contract.md` | Contract for third-party agent builders |
+| `docs/runtime-link-integration.md` | RuntimeLink public API and usage boundaries for harness authors |
 | `docs/build-history/` | Archived build-loop working files |
 
 ## Development
@@ -180,6 +181,9 @@ cd go && go build ./... && go test ./...
 
 # Python
 cd python && pip install -e ".[dev]" && pytest && ruff check . && mypy src/
+
+# Docs (markdown lint; rules in .markdownlint.json; build-history is archived)
+npx markdownlint-cli2 "docs/**/*.md" README.md "!docs/build-history/**"
 ```
 
 The ontology T-box is a git submodule: run `git submodule update --init` after

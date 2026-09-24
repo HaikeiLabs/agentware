@@ -18,7 +18,7 @@
 
 The only permitted path is:
 
-```
+```text
 harness ──config──▶ Agentware SDK RuntimeLink ──(pinned child, stdio JSONL)──▶ kei-proxy runtime heartbeat
                                                                                       │  POST /api/v1/runtime/heartbeat (v2, metadata only)
                                                                                       ▼
@@ -153,7 +153,7 @@ await link.stop()                     # on shutdown signal
 
 ### 4.1 SDK → runtime (child process)
 
-```
+```text
 argv: <KEI_PROXY_PATH> runtime heartbeat --interval <s>s --timeout <s>s --output jsonl --parent-stdin
 env : exactly the allowlist {KEI_RUNTIME_TOKEN, KEI_RUNTIME_CONTROL_PLANE_URL, KEI_HARNESS_KIND,
       KEI_HARNESS_VERSION, KEI_DEPLOYMENT_ENV, KEI_AGENTWARE_SDK_LANG, KEI_AGENTWARE_SDK_VERSION,
@@ -272,7 +272,7 @@ Subjects are pseudonymized before they reach any SDK record, using a tenant-side
 
 ### 6.1 Timing, retry, backoff, cancellation, backpressure
 
-**SDK (harness↔runtime)**
+#### SDK (harness↔runtime)
 
 - **Child restart backoff:** `min(Max, Min·2^n)` with full jitter. `n` resets after `StableReset` of continuous `connected|degraded`. This matches Assistant PR #90.
 - **Beat watchdog:** no `beat` event for `Interval + BeatTimeout + Grace` → `runtime_unresponsive`. The SDK then kills the process group and restarts.
@@ -280,7 +280,7 @@ Subjects are pseudonymized before they reach any SDK record, using a tenant-side
 - **Cancellation:** `Stop` or `ctx` cancel closes stdin, then SIGTERMs the group, then SIGKILLs it after `StopTimeout/2`. It never leaves an orphan, and it is idempotent. Context cancellation is the only way to stop a Python or TS link; no daemon threads outlive `stop()`.
 - **Backpressure inside the SDK:** stdout is read continuously on a dedicated reader. Events go to a 64-slot ring that drops the oldest entry. `MetricsSink` and `LifecycleAuditSink` run off the reader path with a bounded queue (256) that drops and counts. A slow or throwing sink can never delay the watchdog or block the harness event loop.
 
-**Runtime (runtime↔catalog)**
+#### Runtime (runtime↔catalog)
 
 - **Tick:** `interval ± 10%` jitter so the fleet doesn't pulse. Each POST has a `--timeout`.
 - **Transient failures** (`catalog_unreachable|catalog_timeout|catalog_error`): at most one in-tick retry after `min(5s, interval/4)`, then an event with that outcome, then **keep running**. This fixes G3.
@@ -289,7 +289,7 @@ Subjects are pseudonymized before they reach any SDK record, using a tenant-side
 - **400:** emit `terminal`, then exit 2. (The SDK does not restart on contract errors because they won't fix themselves.)
 - **stdin EOF:** exit 0 within 1s. This fixes G4.
 
-**Catalog**
+#### Catalog
 
 - A heartbeat is an O(1) indexed update. It is rate-limited per token hash to 1 accepted beat per 10s; excess beats get 429 `Retry-After: 10`.
 - Under global overload the catalog sheds heartbeats with 429 before it sheds `authorize` or `audit/flush`.

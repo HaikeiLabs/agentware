@@ -108,8 +108,9 @@ client = create_model_client(
 ```
 
 Supported backends:
-- `ollama` - Local Ollama (http://localhost:11434)
-- `llamacpp` - llama.cpp server (http://localhost:8000)
+
+- `ollama` - Local Ollama (`http://localhost:11434`)
+- `llamacpp` - llama.cpp server (`http://localhost:8000`)
 - `vllm` - vLLM server
 - `lmstudio` - LM Studio
 - `openai` - OpenAI API (requires OPENAI_API_KEY)
@@ -130,12 +131,14 @@ const runner = new EvalRunner("http://pedrogpt:8000", 10);
 ## Test Cases
 
 ### File Search
+
 - `glob_python_files` - Find Python files
 - `glob_md_files` - Find Markdown files
 - `search_code` - Search for code patterns
 - `read_file` - Read configuration files
 
 ### General
+
 - `calculator_add` - Simple addition
 - `calculator_complex` - Complex expressions
 - `get_weather` - Get weather info
@@ -143,19 +146,21 @@ const runner = new EvalRunner("http://pedrogpt:8000", 10);
 - `translate_with_source` - Translation with source language
 
 ### GitHub
+
 - `list_prs` - List pull requests
 - `list_issues` - List issues
 - `create_issue` - Create an issue
 - `workflow_status` - Get workflow status
 
 ### Calendar
+
 - `schedule_meeting` - Schedule a meeting
 - `list_events` - List calendar events
 - `find_free_time` - Find free time slots
 
 ## Adding New Test Cases
 
-### Python
+### Python example
 
 ```python
 from evals.runner import EvalCase
@@ -190,7 +195,7 @@ MY_CASES = [
 ]
 ```
 
-### Go
+### Go example
 
 ```go
 var MyTools = []ToolDefinition{
@@ -217,7 +222,7 @@ var MyCases = []EvalCase{
 }
 ```
 
-### TypeScript
+### TypeScript example
 
 ```typescript
 const myTools: ToolDefinition[] = [
