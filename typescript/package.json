@@ -1,6 +1,6 @@
 {
   "name": "@haikeilabs/agentware",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Agent middleware and tooling for LLM tool calling",
   "repository": {
     "type": "git",
@@ -21,6 +21,7 @@
   "scripts": {
     "prepack": "npm run build",
     "build": "tsc",
+    "check:package": "node scripts/check-package.mjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""

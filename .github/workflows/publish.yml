@@ -95,4 +95,5 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test -- --runInBand
+      - run: npm run check:package
       - run: npm stage publish
