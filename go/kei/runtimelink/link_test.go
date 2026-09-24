@@ -86,7 +86,7 @@ func TestNewWithMetricsSink(t *testing.T) {
 
 func TestStateMachineIdentityDuringStart(t *testing.T) {
 	l := testLink()
-	defer l.Stop(context.Background())
+	defer func() { _ = l.Stop(context.Background()) }()
 
 	l.transition(StateStarting, "")
 
@@ -269,11 +269,11 @@ func TestBuildCommandArgs(t *testing.T) {
 
 func TestBuildCommandEnv(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PATH", "/usr/bin:/bin")
-	os.Setenv("HOME", "/root")
-	os.Setenv("KEI_RUNTIME_TOKEN", "test-token")
-	os.Setenv("DISCORD_TOKEN", "should-not-leak")
-	os.Setenv("TWILIO_AUTH_TOKEN", "should-not-leak")
+	_ = os.Setenv("PATH", "/usr/bin:/bin")
+	_ = os.Setenv("HOME", "/root")
+	_ = os.Setenv("KEI_RUNTIME_TOKEN", "test-token")
+	_ = os.Setenv("DISCORD_TOKEN", "should-not-leak")
+	_ = os.Setenv("TWILIO_AUTH_TOKEN", "should-not-leak")
 
 	l := testLink()
 	cmd, err := l.buildCommand()

@@ -274,7 +274,7 @@ func (l *link) spawnAndWatch() error {
 	l.emitMetrics(StateStarting, "")
 
 	// close parent stdin so child sees EOF on its stdin
-	stdin.Close()
+	_ = stdin.Close()
 
 	// read stderr concurrently; capture last N lines
 	stderrCtx, stderrCancel := context.WithCancel(l.ctx)
@@ -286,7 +286,7 @@ func (l *link) spawnAndWatch() error {
 	_ = drainLines(stderrLines)
 
 	// drain remaining stderr
-	io.Copy(io.Discard, stderr)
+	_, _ = io.Copy(io.Discard, stderr)
 
 	exitCode := 0
 	if err != nil {
