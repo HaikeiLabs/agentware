@@ -26,7 +26,11 @@ from pydantic import BaseModel, Field
 
 # Canonical name of the bootstrap secret. Manifests that reference it in
 # any form are rejected (fail closed).
-BOOTSTRAP_SECRET_NAME = "KEI_HARNESS_TOKEN"
+BOOTSTRAP_SECRET_NAME = "KEI_RUNTIME_TOKEN"
+
+# Legacy bootstrap secret name (HAI-119 / ADR-020). The old name is also
+# rejected in manifests; only KEI_RUNTIME_TOKEN is accepted.
+LEGACY_BOOTSTRAP_SECRET_NAME = "KEI_HARNESS_TOKEN"
 
 # Tool bindings are self-reported routing metadata. They never grant
 # permissions; enforcement remains with the middleware policy layer.
@@ -111,18 +115,20 @@ def validate_manifest(manifest: HarnessManifest) -> list[str]:
 
     # Fail closed: the bootstrap secret must never appear in the manifest,
     # neither as a value-bearing entry nor as a resolvable reference.
+    # Both the current name (KEI_RUNTIME_TOKEN) and the legacy name
+    # (KEI_HARNESS_TOKEN) are rejected.
+    forbidden_names = {BOOTSTRAP_SECRET_NAME, LEGACY_BOOTSTRAP_SECRET_NAME}
     for name in manifest.secret_refs:
-        if name.upper() == BOOTSTRAP_SECRET_NAME:
+        if name.upper() in forbidden_names:
             errors.append(
                 f"Manifest must not contain a secret_ref for the bootstrap "
-                f"secret '{BOOTSTRAP_SECRET_NAME}'; it is loaded separately "
+                f"secret '{name}'; it is loaded separately "
                 f"from the environment/secret provider"
             )
     for ref in manifest.secret_refs.values():
-        if ref.key.upper() == BOOTSTRAP_SECRET_NAME:
+        if ref.key.upper() in forbidden_names:
             errors.append(
-                f"Secret reference key must not reference the bootstrap "
-                f"secret '{BOOTSTRAP_SECRET_NAME}'"
+                f"Secret reference key must not reference the bootstrap secret '{ref.key}'"
             )
 
     if manifest.schema_version != "1.0.0":

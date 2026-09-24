@@ -12,9 +12,9 @@
   "config_revision": "def456abc",
   "tool_bindings": [],
   "secret_refs": {
-    "KEI_HARNESS_TOKEN": {
+    "KEI_RUNTIME_TOKEN": {
       "source": "env",
-      "key": "KEI_HARNESS_TOKEN"
+      "key": "KEI_RUNTIME_TOKEN"
     }
   }
 }

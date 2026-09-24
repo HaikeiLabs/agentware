@@ -10,6 +10,7 @@ import pytest
 from pedro_agentware.kei.config import (
     BINDINGS_GRANT_PERMISSIONS,
     BOOTSTRAP_SECRET_NAME,
+    LEGACY_BOOTSTRAP_SECRET_NAME,
     HarnessConfig,
     HarnessManifest,
     get_config,
@@ -91,7 +92,7 @@ class TestSecurityContract:
         data = json.loads(VALID_MANIFEST.read_text())
         data["secret_refs"]["connector_bad"] = {
             "source": "env",
-            "key": "kei_harness_token",
+            "key": "kei_runtime_token",
         }
         manifest = HarnessManifest(**data)
         errors = validate_manifest(manifest)
@@ -100,8 +101,31 @@ class TestSecurityContract:
     def test_manifest_contains_no_secret_values(self):
         """The manifest file itself must not contain the bootstrap secret."""
         raw = VALID_MANIFEST.read_text()
+        assert "KEI_RUNTIME_TOKEN" not in raw
         assert "KEI_HARNESS_TOKEN" not in raw
         assert "secret_value" not in raw
+
+    def test_legacy_bootstrap_token_name_rejected(self):
+        """A secret_ref whose name is the legacy bootstrap token must be rejected."""
+        data = json.loads(VALID_MANIFEST.read_text())
+        data["secret_refs"][LEGACY_BOOTSTRAP_SECRET_NAME] = {
+            "source": "env",
+            "key": "some_key",
+        }
+        manifest = HarnessManifest(**data)
+        errors = validate_manifest(manifest)
+        assert any("bootstrap" in e for e in errors)
+
+    def test_legacy_bootstrap_token_key_rejected(self):
+        """A secret_ref whose key is the legacy bootstrap token must be rejected."""
+        data = json.loads(VALID_MANIFEST.read_text())
+        data["secret_refs"]["connector_legacy"] = {
+            "source": "env",
+            "key": "kei_harness_token",
+        }
+        manifest = HarnessManifest(**data)
+        errors = validate_manifest(manifest)
+        assert any("bootstrap" in e for e in errors)
 
     def test_config_resolves_no_secrets(self):
         """HarnessConfig must not resolve or carry any secret values."""
@@ -120,6 +144,7 @@ class TestSecurityContract:
         for binding in manifest.tool_bindings:
             dumped = json.dumps(binding.model_dump())
             assert BOOTSTRAP_SECRET_NAME not in dumped
+            assert LEGACY_BOOTSTRAP_SECRET_NAME not in dumped
             assert "permission" not in dumped.lower()
 
 
