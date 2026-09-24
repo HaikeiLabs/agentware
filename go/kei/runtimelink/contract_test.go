@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,17 +13,35 @@ import (
 	"time"
 )
 
+// fixtureDir holds the cross-language fixtures. They live at the repository
+// root, outside the go/ module, so they are not part of the module zip.
 const fixtureDir = "../../../testing/contracts/runtime-link"
 
 func loadFixture(t *testing.T, name string, v any) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(fixtureDir, name))
+	if errors.Is(err, fs.ErrNotExist) && inModuleCache(t) {
+		t.Skipf("contract fixtures ship with the repository, not the module zip: %v", err)
+	}
 	if err != nil {
 		t.Fatalf("read fixture %s: %v", name, err)
 	}
 	if err := json.Unmarshal(data, v); err != nil {
 		t.Fatalf("decode fixture %s: %v", name, err)
 	}
+}
+
+// inModuleCache reports whether the package runs from a downloaded module
+// (a "<module>@<version>" directory), where `go test all` in a consumer would
+// otherwise fail on the missing repository fixtures. Inside the repository a
+// missing fixture is still a failure.
+func inModuleCache(t *testing.T) bool {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	return strings.Contains(filepath.ToSlash(wd), "@v")
 }
 
 func asStrings[T ~string](in []T) []string {

@@ -42,3 +42,7 @@ jobs:
         run: |
           cd typescript
           npm test
+      - name: Check npm package contents and consumer import
+        run: |
+          cd typescript
+          npm run check:package
