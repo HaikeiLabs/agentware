@@ -3,12 +3,11 @@
 // child's JSONL wire events, and redacted lifecycle events.
 //
 // This package is the Go reference for docs/specs/runtime-heartbeat-liveness.md
-// (HAI-141). It holds contract types only: it never spawns a process, opens a
-// network connection, or reads a credential value. The only heartbeat path is
-// harness → RuntimeLink → kei-connector-runtime; nothing here talks to the
-// catalog. Python (pedro_agentware.kei.runtime_link) and TypeScript
-// (src/kei/runtimeLink.ts) mirror it and share the fixtures in
-// testing/contracts/runtime-link.
+// (HAI-141). It defines the contract types and the RuntimeLink implementation.
+// The only heartbeat path is harness → RuntimeLink → kei-connector-runtime;
+// nothing here talks to the catalog. Python
+// (pedro_agentware.kei.runtime_link) and TypeScript (src/kei/runtimeLink.ts)
+// mirror it and share the fixtures in testing/contracts/runtime-link.
 package runtimelink
 
 import (
@@ -165,6 +164,26 @@ type RuntimeIdentity struct {
 	Status         string `json:"status"`
 	BindingStatus  string `json:"binding_status"`
 	RuntimeVersion string `json:"runtime_version"`
+}
+
+// MetricsSink receives heartbeat metrics from the RuntimeLink supervisor.
+// Implementations must be non-blocking and must not delay the watchdog.
+type MetricsSink interface {
+	// EmitBeat is called for every parsed child beat event.
+	EmitBeat(ctx context.Context, beat BeatEvent)
+	// EmitRestart is called when the child is restarted, before backoff.
+	EmitRestart(ctx context.Context, attempt int, cause FailureClass)
+	// EmitLifecycle is called on every state transition.
+	EmitLifecycle(ctx context.Context, state LinkState, reason FailureClass)
+}
+
+// LifecycleAuditSink receives redacted lifecycle events. Implementations
+// must be non-blocking; the supervisor drops events that cannot be delivered.
+type LifecycleAuditSink interface {
+	// RecordLifecycle is called on every state transition with a validated
+	// and redacted LinkEvent. The event has been serialization-checked and
+	// is safe to persist.
+	RecordLifecycle(ctx context.Context, event LinkEvent)
 }
 
 // RuntimeLink supervises the harness→runtime heartbeat. Implementations
