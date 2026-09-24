@@ -56,7 +56,7 @@ Revisions inspected: Agentware `f5820d8`, kei-connector-runtime `origin/main e5d
 | G8 | Three copies of the bootstrap call | Assistant entrypoint, Chat `main.py`, and Chat `teams_main.py`; PDE bootstrap is manual | Fatal vs. non-fatal behavior differs (open decision D0). |
 | G9 | Harness-local control-plane-shaped routes | Chat `headless_main.py` serves `/api/v1/runtime/{whoami,heartbeat}` (PR #146) | Easy to mistake for the catalog. Violates §1 row 3. |
 | G10 | `CallerContext` lineage parity | Go has no `SpanID/AgentID/AgentVersion/Framework/WorkspaceID`; TS has no delegation fields at all | TS/Go harnesses can't populate `KEI_PROXY_*` lineage. |
-| G11 | Manifest guard misses the live credential name | `python/.../kei/config.py` `BOOTSTRAP_SECRET_NAME = "KEI_HARNESS_TOKEN"` | A manifest `secret_ref` for `KEI_RUNTIME_TOKEN` is **accepted** (security defect). |
+| G11 | Manifest guard misses the live credential name | `python/.../kei/config.py` `BOOTSTRAP_SECRET_NAME = "KEI_HARNESS_TOKEN"` | **RESOLVED**: `BOOTSTRAP_SECRET_NAME` changed to `"KEI_RUNTIME_TOKEN"`; `validate_manifest` now rejects both `KEI_RUNTIME_TOKEN` and the legacy `KEI_HARNESS_TOKEN`. |
 
 ## 3. SDK interface (normative)
 
