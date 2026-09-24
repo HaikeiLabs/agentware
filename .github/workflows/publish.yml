@@ -59,18 +59,24 @@ jobs:
           test "$actual_version" = "$expected_version"
 
           release_tag="agentware-v$expected_version"
+
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             if git ls-remote --exit-code --tags origin "refs/tags/$release_tag"; then
-              echo "Release tag already exists: $release_tag" >&2
-              exit 1
+              echo "Release tag already exists: $release_tag — verifying tag commit" >&2
+              git fetch origin "refs/tags/$release_tag"
+              git checkout "$release_tag"
+            else
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git config user.name "github-actions[bot]"
+              git tag -a "$release_tag" -m "Agentware $expected_version" "$RELEASE_SHA"
+              git push origin "$release_tag"
             fi
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git config user.name "github-actions[bot]"
-            git tag -a "$release_tag" -m "Agentware $expected_version" "$RELEASE_SHA"
-            git push origin "$release_tag"
           fi
 
-          echo "release_ref=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          actual_version="$(npm pkg get version | tr -d '\"')"
+          test "$actual_version" = "$expected_version"
+
+          echo "release_ref=refs/tags/$release_tag" >> "$GITHUB_OUTPUT"
 
   stage:
     needs: prepare
@@ -88,7 +94,11 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
+          registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
+
+      - name: Drop NODE_AUTH_TOKEN for OIDC-only publish
+        run: sed -i '/_authToken/d' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
 
       - run: npm ci
       - run: npm run lint
