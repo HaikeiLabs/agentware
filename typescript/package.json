@@ -4,7 +4,7 @@
   "description": "Agent middleware and tooling for LLM tool calling",
   "repository": {
     "type": "git",
-    "url": "https://github.com/HaikeiLabs/Agentware.git",
+    "url": "git+https://github.com/HaikeiLabs/Agentware.git",
     "directory": "typescript"
   },
   "homepage": "https://github.com/HaikeiLabs/Agentware#readme",
@@ -13,6 +13,12 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "type": "module",
   "files": [
     "dist",
