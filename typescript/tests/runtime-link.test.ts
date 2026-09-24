@@ -54,6 +54,13 @@ const BACKOFF: { cases: Case[] } = load("backoff-cases.json");
 const WIRE: { cases: Case[]; synthesized: Case[] } = load(
   "wire/child-events.json",
 );
+const EXIT_CODE_CASES: { cases: Case[] } = load("exit-code-cases.json");
+const CHILD_ENV_ALLOWLIST_FIXTURE: {
+  allowlist: string[];
+  canaries: string[];
+  sdk_injected: string[];
+  env_count_max: number;
+} = load("child-env-allowlist.json");
 const REDACTION: {
   record_keys: string[];
   harness_keys: string[];
@@ -304,6 +311,36 @@ describe("parseChildLine contract", () => {
     expect(Buffer.byteLength(line)).toBe(c.bytes);
     expect(childKind(line + "\n")[0]).toBe(c.expect.kind);
   });
+});
+
+describe("exit code mapping fixture", () => {
+  it("has valid failure class values", () => {
+    const valid = new Set(FAILURE_CLASSES);
+    for (const c of EXIT_CODE_CASES.cases) {
+      if (c.failure_class) {
+        expect(valid.has(c.failure_class)).toBe(true);
+      }
+    }
+  });
+  // TODO: Add behavioral assertions when handleChildExit is implemented.
+});
+
+describe("child env allowlist fixture", () => {
+  it("matches the CHILD_ENV_ALLOWLIST constant", () => {
+    expect([...CHILD_ENV_ALLOWLIST_FIXTURE.allowlist].sort()).toEqual(
+      [...CHILD_ENV_ALLOWLIST].sort(),
+    );
+  });
+
+  it("has complete fixture structure", () => {
+    expect(CHILD_ENV_ALLOWLIST_FIXTURE.canaries).toBeDefined();
+    expect(CHILD_ENV_ALLOWLIST_FIXTURE.sdk_injected).toBeDefined();
+    expect(CHILD_ENV_ALLOWLIST_FIXTURE.env_count_max).toBe(
+      CHILD_ENV_ALLOWLIST_FIXTURE.allowlist.length +
+        CHILD_ENV_ALLOWLIST_FIXTURE.sdk_injected.length,
+    );
+  });
+  // TODO: Add behavioral assertions when buildCommand is implemented.
 });
 
 describe("lifecycle event redaction contract", () => {

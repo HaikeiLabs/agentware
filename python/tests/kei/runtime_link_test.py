@@ -26,6 +26,8 @@ CONFIG = load("config-cases.json")
 BACKOFF = load("backoff-cases.json")
 WIRE = load("wire/child-events.json")
 REDACTION = load("lifecycle-redaction.json")
+EXIT_CODE_CASES = load("exit-code-cases.json")
+CHILD_ENV_ALLOWLIST = load("child-env-allowlist.json")
 
 
 def test_enums_match_contract() -> None:
@@ -198,6 +200,25 @@ def test_lifecycle_redaction_contract(case: dict[str, Any]) -> None:
     assert decoded == case["expect"]["serialized"]
     assert list(decoded) == REDACTION["record_keys"]
     assert sorted(decoded["harness"]) == sorted(REDACTION["harness_keys"])
+
+
+def test_exit_code_mapping_fixture() -> None:
+    valid = {c.value for c in rl.FailureClass}
+    for case in EXIT_CODE_CASES["cases"]:
+        fc = case["failure_class"]
+        if fc:
+            assert fc in valid, f"unknown failure_class {fc!r} in fixture"
+    # TODO: Add behavioral assertions when handleChildExit is implemented.
+
+
+def test_child_env_allowlist_fixture() -> None:
+    fx = CHILD_ENV_ALLOWLIST
+    assert sorted(fx["allowlist"]) == sorted(rl.CHILD_ENV_ALLOWLIST)
+    assert "canaries" in fx
+    assert "sdk_injected" in fx
+    assert set(fx["sdk_injected"]).issubset(fx["allowlist"])
+    assert fx["env_count_max"] == len(rl.CHILD_ENV_ALLOWLIST) + 2
+    # TODO: Add behavioral assertions when buildCommand is implemented.
 
 
 def test_link_event_rejects_invalid_direct_construction() -> None:

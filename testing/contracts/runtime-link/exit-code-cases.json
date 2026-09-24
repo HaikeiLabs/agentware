@@ -1,0 +1,47 @@
+{
+  "note": "PID exit code to FailureClass mapping contract. An exit code of 0 is a clean stop; 1 is transient (retried with backoff); 2+ are terminal. The SDK applies this mapping when the child process exits with a non-nil error. Exit codes >=4 all map to config_invalid.",
+  "cases": [
+    {
+      "exit_code": 0,
+      "failure_class": "",
+      "terminal": false,
+      "restart": false,
+      "meaning": "clean exit"
+    },
+    {
+      "exit_code": 1,
+      "failure_class": "runtime_unavailable",
+      "terminal": false,
+      "restart": true,
+      "meaning": "transient error"
+    },
+    {
+      "exit_code": 2,
+      "failure_class": "contract_mismatch",
+      "terminal": true,
+      "restart": false,
+      "meaning": "usage or flag error"
+    },
+    {
+      "exit_code": 3,
+      "failure_class": "installation_unauthorized",
+      "terminal": true,
+      "restart": false,
+      "meaning": "authorization failure"
+    },
+    {
+      "exit_code": 4,
+      "failure_class": "config_invalid",
+      "terminal": true,
+      "restart": false,
+      "meaning": "invalid runtime config"
+    },
+    {
+      "exit_code": 5,
+      "failure_class": "config_invalid",
+      "terminal": true,
+      "restart": false,
+      "meaning": "any exit >= 4 maps to config_invalid"
+    }
+  ]
+}
