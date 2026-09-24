@@ -77,6 +77,8 @@ jobs:
     name: Stage @haikeilabs/agentware
     runs-on: ubuntu-latest
     environment: release
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     defaults:
       run:
         working-directory: typescript
