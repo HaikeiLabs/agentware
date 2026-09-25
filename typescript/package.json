@@ -1,6 +1,6 @@
 {
   "name": "@haikeilabs/agentware",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Agent middleware and tooling for LLM tool calling",
   "repository": {
     "type": "git",
