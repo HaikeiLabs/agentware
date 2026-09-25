@@ -41,22 +41,21 @@ describe("MiddlewareImpl", () => {
   });
 
   describe("basic execution", () => {
-    it("should execute tool when no policy is configured", () => {
+    it("should deny tool when no policy is configured", () => {
       const result = middleware.execute("test_tool", { foo: "bar" }, createCaller());
 
-      expect(result[1]).toBe(true);
-      expect(executor.callCount).toBe(1);
-      expect(executor.lastCall?.tool).toBe("test_tool");
-      expect(executor.lastCall?.args).toEqual({ foo: "bar" });
+      expect(result[1]).toBe(false);
+      expect(result[2]).toContain("no policy configured");
+      expect(executor.callCount).toBe(0);
     });
 
     it("should return executor result tuple format", () => {
       const result = middleware.execute("test_tool", {}, createCaller());
 
       expect(result).toHaveLength(3);
-      expect(result[0]).toEqual({ result: "success" });
-      expect(result[1]).toBe(true);
-      expect(result[2]).toBe("");
+      expect(result[0]).toBeNull();
+      expect(result[1]).toBe(false);
+      expect(result[2]).toContain("no policy configured");
     });
   });
 
@@ -146,7 +145,8 @@ describe("MiddlewareImpl", () => {
       expect(records).toHaveLength(1);
       expect(records[0].tool_name).toBe("test_tool");
       expect(records[0].args).toEqual({ foo: "bar" });
-      expect(records[0].decision.action).toBe(Action.ALLOW);
+      expect(records[0].decision.action).toBe(Action.DENY);
+      expect(executor.callCount).toBe(0);
     });
 
     it("should record deny decisions", () => {

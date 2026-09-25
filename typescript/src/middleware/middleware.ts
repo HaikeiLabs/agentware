@@ -33,7 +33,7 @@ export class MiddlewareImpl implements Middleware {
   ): [unknown, boolean, string] {
     const decision = this.evaluator
       ? this.evaluator.evaluate(toolName, args, caller)
-      : { action: Action.ALLOW, rule: "default", reason: "no policy configured", timestamp: new Date() };
+      : { action: Action.DENY, rule: "default", reason: "no policy configured; default deny", timestamp: new Date() };
 
     if (this.auditor) {
       this.auditor.record({

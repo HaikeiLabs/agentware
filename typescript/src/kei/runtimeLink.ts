@@ -2,12 +2,11 @@
  * RuntimeLink contract: the harness → Agentware → kei-connector-runtime heartbeat.
  *
  * TypeScript mirror of the Go reference `go/kei/runtimelink` for
- * `docs/specs/runtime-heartbeat-liveness.md` (HAI-141). Contract types only:
+ * `docs/specs/runtime-heartbeat-liveness.md` (HAI-141). This module defines
  * configuration, status, identity, failure classes, the child's JSONL wire
- * events, and redacted lifecycle events. It never spawns a process, opens a
- * network connection, or reads a credential value. The only heartbeat path is
- * harness → RuntimeLink → kei-connector-runtime; nothing here talks to the
- * catalog.
+ * events, and redacted lifecycle events. Process supervision is implemented
+ * in `runtimeLinkRuntime.ts`. The only heartbeat path is harness → RuntimeLink
+ * → kei-connector-runtime; Agentware does not call the catalog itself.
  *
  * All three SDK languages share `testing/contracts/runtime-link`. Durations
  * are milliseconds here (`intervalMs`), seconds in Python, and
