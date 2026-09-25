@@ -33,6 +33,8 @@ const REQUIRED_FILES = [
   "dist/kei/index.d.ts",
   "dist/kei/runtimeLink.js",
   "dist/kei/runtimeLink.d.ts",
+  "dist/kei/runtimeLinkRuntime.js",
+  "dist/kei/runtimeLinkRuntime.d.ts",
 ];
 // Nothing outside the build output may ship.
 const FORBIDDEN_PREFIXES = ["src/", "tests/", "node_modules/", "scripts/"];
@@ -57,6 +59,7 @@ const RUNTIME_EXPORTS = [
   "parseChildLine",
   "linkEventFromWire",
   "linkEventToWire",
+  "newRuntimeLink",
 ];
 
 function run(cmd, args, cwd) {
@@ -135,11 +138,12 @@ console.log("runtime import OK, contract v" + aw.RUNTIME_LINK_CONTRACT_VERSION);
 
   writeFileSync(
     join(consumer, "types.ts"),
-    `import { parseChildLine, runtimeLinkConfigFromEnv } from ${JSON.stringify(pkg.name)};
-import type { ChildEvent, LinkEvent, LinkStatus, RuntimeLink, RuntimeLinkConfig } from ${JSON.stringify(pkg.name)};
+    `import { newRuntimeLink, parseChildLine, runtimeLinkConfigFromEnv } from ${JSON.stringify(pkg.name)};
+import type { ChildEvent, LinkEvent, LinkStatus, RuntimeLink, RuntimeLinkConfig, RuntimeChildFactory } from ${JSON.stringify(pkg.name)};
 const cfg: RuntimeLinkConfig = runtimeLinkConfigFromEnv({});
 const ev: ChildEvent = parseChildLine("{}");
-export type Surface = [typeof cfg, typeof ev, LinkEvent, LinkStatus, RuntimeLink];
+declare const factory: RuntimeChildFactory;
+export type Surface = [typeof cfg, typeof ev, LinkEvent, LinkStatus, RuntimeLink, typeof newRuntimeLink, typeof factory];
 `,
   );
   run(

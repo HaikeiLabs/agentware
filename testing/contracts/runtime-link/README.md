@@ -18,8 +18,11 @@ update all three languages in the same PR.
 | `child-env-allowlist.json` | `buildCommand` passes through only vars in `ChildEnvAllowlist` + the two SDK-injected vars. Canary secrets (9 vars) must be stripped. Maximum env entries: 13. |
 | `lifecycle-redaction.json` | `runtime.link.*` lifecycle records serialize exactly the allowlisted keys. Tokens, argv, env, stderr, payloads, results, reasoning, content, and subjects are dropped by construction. |
 
-This slice defines types and contracts only. Process supervision, the
-`fake-kei-proxy.sh` scenario driver, and `scenarios/*.json` state sequences
-arrive with the Go reference implementation (spec §9, A2). Nothing here talks
-to the catalog: the only heartbeat path is harness → Agentware →
-`kei-connector-runtime`.
+The Go reference and TypeScript SDK include process supervision; TypeScript
+exposes `newRuntimeLink(config, options)` and accepts an injectable child
+factory for deterministic integration tests. Python currently exposes the
+contract protocol; the RuntimeLink API and fixtures were captured in the shared
+wiki for the Python worker to mirror. Changes to the runtime API, child
+environment, or wire events must be captured in the wiki and kept aligned
+across SDKs. Nothing here talks to the catalog:
+the only heartbeat path is harness → Agentware → `kei-connector-runtime`.

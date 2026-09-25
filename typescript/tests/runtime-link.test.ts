@@ -22,15 +22,22 @@ import {
   linkEventFromWire,
   linkEventToWire,
   normalizeRuntimeLinkConfig,
+  newRuntimeLink,
   parseChildLine,
   runtimeLinkConfigFromEnv,
   waitBackoff,
+  Action,
+  InMemoryAuditor,
+  MiddlewareImpl,
+  SimplePolicyEvaluator,
 } from "../src/index.js";
 import type {
   ChildEvent,
   HarnessEnvelope,
   LinkEvent,
   RuntimeLinkConfig,
+  RuntimeChild,
+  RuntimeChildFactory,
 } from "../src/index.js";
 
 // Jest runs from typescript/, so the shared fixtures are one level up.
@@ -388,5 +395,199 @@ describe("lifecycle event redaction contract", () => {
         harness: { ...ev.harness, kind: "telegram" as never },
       }),
     ).toThrow(InvalidLinkEventError);
+  });
+});
+
+describe("RuntimeLink supervised runtime integration", () => {
+  const config: RuntimeLinkConfig = {
+    ...defaultRuntimeLinkConfig(),
+    enabled: true,
+    controlPlaneUrl: "https://kei.example.test",
+    harness: { kind: "assistant", version: "1.0", deploymentEnv: "test" },
+    graceMs: 100,
+    intervalMs: 15_000,
+    beatTimeoutMs: 100,
+  };
+
+  it("owns identity and heartbeat, strips child env, and cancels cleanly", async () => {
+    let childEnv: Readonly<Record<string, string>> = {};
+    const factory: RuntimeChildFactory = {
+      start: (_command, _args, env): RuntimeChild => {
+        childEnv = env;
+        return {
+          stdout: (async function* () {
+            yield JSON.stringify({
+              v: 1,
+              event: "identity",
+              run_id: "run-1",
+              installation_id: "inst-1",
+              org_id: "org-1",
+            }) + "\n";
+            yield JSON.stringify({
+              v: 1,
+              event: "beat",
+              run_id: "run-1",
+              at: "2026-09-25T10:00:00Z",
+              outcome: "ok",
+            }) + "\n";
+            await new Promise<void>(() => undefined);
+          })(),
+          exitCode: new Promise<number>(() => undefined),
+          kill: () => undefined,
+        };
+      },
+    };
+    const audit: Array<Record<string, unknown>> = [];
+    const link = newRuntimeLink(config, {
+      env: {
+        KEI_RUNTIME_TOKEN: "token-canary",
+        PATH: "/bin",
+        DISCORD_TOKEN: "must-not-pass",
+      },
+      childFactory: factory,
+      sdkInstanceId: "sdk-test",
+      audit: (ev) => {
+        audit.push({ ...ev });
+      },
+    });
+    await link.start();
+    const deadline = Date.now() + 1_000;
+    while (
+      (!link.identity() || !link.status().lastCatalogOkAt) &&
+      Date.now() < deadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(link.identity()).toMatchObject({
+      runId: "run-1",
+      installationId: "inst-1",
+      orgId: "org-1",
+    });
+    expect(link.status().state).toBe("connected");
+    expect(link.status().lastCatalogOkAt).toBeInstanceOf(Date);
+    expect(childEnv).toMatchObject({
+      KEI_RUNTIME_TOKEN: "token-canary",
+      PATH: "/bin",
+      KEI_AGENTWARE_SDK_LANG: "typescript",
+    });
+    expect(childEnv).not.toHaveProperty("DISCORD_TOKEN");
+    const serializedAudit = JSON.stringify(audit);
+    expect(serializedAudit).not.toContain("token-canary");
+    expect(serializedAudit).not.toContain("installation_id");
+    expect(Object.keys(audit[0] ?? {})).toEqual(REDACTION.record_keys);
+
+    const executed: string[] = [];
+    const toolAudit = new InMemoryAuditor();
+    const middleware = new MiddlewareImpl({
+      execute: (tool) => {
+        executed.push(tool);
+        return ["ok", true, ""];
+      },
+    })
+      .withPolicy(
+        new SimplePolicyEvaluator({
+          default_deny: true,
+          rules: [{ name: "allow-read", tools: ["read_file"], action: Action.ALLOW }],
+        }),
+      )
+      .withAuditor(toolAudit);
+    const caller = { trusted: false, user_id: "human-1", session_id: "session-1" };
+    expect(middleware.execute("read_file", { query: "content-canary" }, caller)[1]).toBe(true);
+    expect(middleware.execute("write_file", { body: "content-canary" }, caller)[1]).toBe(false);
+    expect(executed).toEqual(["read_file"]);
+    expect(toolAudit.query({ session_id: "session-1" })).toHaveLength(2);
+    expect(toolAudit.query({ session_id: "session-1" })[1].decision.action).toBe(Action.DENY);
+
+    await link.stop();
+    expect(link.status().state).toBe("stopped");
+  });
+
+  it("restarts when a heartbeat misses beatTimeoutMs after identity", async () => {
+    let starts = 0;
+    const factory: RuntimeChildFactory = {
+      start: () => {
+        starts++;
+        return {
+          stdout: (async function* () {
+            yield JSON.stringify({
+              v: 1,
+              event: "identity",
+              run_id: `run-${starts}`,
+              installation_id: "inst-1",
+              org_id: "org-1",
+            }) + "\n";
+            await new Promise<void>(() => undefined);
+          })(),
+          exitCode: new Promise<number>(() => undefined),
+          kill: () => undefined,
+        };
+      },
+    };
+    const audit: Array<Record<string, unknown>> = [];
+    const link = newRuntimeLink(
+      {
+        ...config,
+        graceMs: 300,
+        beatTimeoutMs: 40,
+        restart: { minMs: 1_000, maxMs: 1_000, stableResetMs: 1_000 },
+      },
+      {
+        childFactory: factory,
+        audit: (event) => {
+          audit.push({ ...event });
+        },
+      },
+    );
+
+    await link.start();
+    const deadline = Date.now() + 2_500;
+    while (starts < 2 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    expect(starts).toBeGreaterThanOrEqual(2);
+    expect(audit).toContainEqual(
+      expect.objectContaining({
+        state: "degraded",
+        reason: "runtime_unresponsive",
+      }),
+    );
+    await link.stop();
+  });
+
+  it("preserves fail-closed allow/deny policy decisions and their audit lineage", () => {
+    const executed: string[] = [];
+    const auditor = new InMemoryAuditor();
+    const middleware = new MiddlewareImpl({
+      execute: (tool) => {
+        executed.push(tool);
+        return ["ok", true, ""];
+      },
+    })
+      .withPolicy(
+        new SimplePolicyEvaluator({
+          default_deny: true,
+          rules: [
+            { name: "allow-read", tools: ["read_file"], action: Action.ALLOW },
+          ],
+        }),
+      )
+      .withAuditor(auditor);
+    const caller = {
+      trusted: false,
+      user_id: "human-1",
+      session_id: "session-1",
+    };
+    expect(
+      middleware.execute("read_file", { query: "content-canary" }, caller)[1],
+    ).toBe(true);
+    expect(
+      middleware.execute("write_file", { body: "content-canary" }, caller)[1],
+    ).toBe(false);
+    expect(executed).toEqual(["read_file"]);
+    expect(auditor.query({ session_id: "session-1" })).toHaveLength(2);
+    expect(auditor.query({ session_id: "session-1" })[1].decision.action).toBe(
+      Action.DENY,
+    );
   });
 });
