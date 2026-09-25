@@ -1,15 +1,15 @@
 {
   "name": "@haikeilabs/agentware",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Agent middleware and tooling for LLM tool calling",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HaikeiLabs/Agentware.git",
+    "url": "git+https://github.com/HaikeiLabs/agentware.git",
     "directory": "typescript"
   },
-  "homepage": "https://github.com/HaikeiLabs/Agentware#readme",
+  "homepage": "https://github.com/HaikeiLabs/agentware#readme",
   "bugs": {
-    "url": "https://github.com/HaikeiLabs/Agentware/issues"
+    "url": "https://github.com/HaikeiLabs/agentware/issues"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
