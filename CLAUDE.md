@@ -27,8 +27,10 @@ Architecture and coordination captures live in the shared Herdr wiki
 (plugin: <https://github.com/Soypete/herdr-wiki-plugin>). All operations go
 through the `wiki` command.
 
-- Setup: `git clone https://github.com/Soypete/herdr-wiki-plugin`. If `wiki`
-  is not on PATH, run `python3 /path/to/herdr-wiki-plugin/bin/wiki <args>`.
+- Setup: `git clone https://github.com/Soypete/herdr-wiki-plugin ~/code/herdr-wiki-plugin`
+  and add it to PATH: `export PATH="$HOME/code/herdr-wiki-plugin/bin:$PATH"`.
+  If `wiki` is not on PATH, install it first and use it directly as `wiki`,
+  never as `python3 .../bin/wiki`.
 - Commands: `wiki search <query> [--top-k N] [--json]`, `wiki stats`,
   `wiki capture --title T --type T --content C [--link predicate:target ...]`,
   and `wiki organize` (**human only** — folds the inbox into the graph).
@@ -36,7 +38,7 @@ through the `wiki` command.
   (`claim`/`contradiction`/`decision`/`entity`/`source`; predicates
   `derived_from`/`contradicts`/`supports`/`about`/`relates_to`). Captures land
   in an inbox; **workers never edit wiki pages directly** and always search the
-  wiki before planning.
+  wiki before planning. Never read or edit wiki inbox JSON files directly.
 
 ## Commands
 
