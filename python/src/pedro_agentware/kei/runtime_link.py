@@ -20,6 +20,7 @@ import math
 import os
 import random
 import re
+import time
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -754,7 +755,7 @@ def _format_timestamp(at: datetime) -> str:
 
 
 # ---------------------------------------------------------------------------
-# RuntimeLink interface (implementation arrives in a later slice)
+# RuntimeLink interface
 # ---------------------------------------------------------------------------
 
 
@@ -776,3 +777,625 @@ class RuntimeLink(Protocol):
     def identity(self) -> RuntimeIdentity | None: ...
 
     def events(self) -> AsyncIterator[LinkEvent]: ...
+
+
+# ---------------------------------------------------------------------------
+# Constants and sentinels
+# ---------------------------------------------------------------------------
+
+CRASHLOOP_THRESHOLD = 5
+"""Restart count that triggers crashloop detection."""
+
+CRASHLOOP_WINDOW = 900.0
+"""Sliding window for crashloop detection (seconds)."""
+
+SDK_VERSION = "0.1.0"
+"""Set at build time or inferred from package metadata."""
+
+
+class _ErrTerminalError(Exception):
+    """Internal sentinel: the link has entered a terminal state."""
+
+
+# ---------------------------------------------------------------------------
+# Sink protocols
+# ---------------------------------------------------------------------------
+
+
+class MetricsSink(Protocol):
+    """Optional sink for operational metrics."""
+
+    async def emit_beat(self, beat: BeatEvent) -> None: ...
+
+    async def emit_restart(self, attempt: int, cause: FailureClass) -> None: ...
+
+    async def emit_lifecycle(self, state: LinkState, reason: FailureClass | None) -> None: ...
+
+
+class LifecycleAuditSink(Protocol):
+    """Optional sink for lifecycle audit records."""
+
+    async def record_lifecycle(self, event: LinkEvent) -> None: ...
+
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _classify_beat_outcome(outcome: BeatOutcome) -> FailureClass:
+    """Map a beat outcome to the appropriate failure class."""
+    mapping = {
+        BeatOutcome.CATALOG_UNREACHABLE: FailureClass.CATALOG_UNREACHABLE,
+        BeatOutcome.CATALOG_TIMEOUT: FailureClass.CATALOG_TIMEOUT,
+        BeatOutcome.CATALOG_ERROR: FailureClass.CATALOG_ERROR,
+        BeatOutcome.CATALOG_BACKPRESSURE: FailureClass.CATALOG_BACKPRESSURE,
+        BeatOutcome.CATALOG_REJECTED: FailureClass.CONTRACT_MISMATCH,
+    }
+    return mapping.get(outcome, FailureClass.RUNTIME_UNAVAILABLE)
+
+
+def _exit_code_failure_class(exit_code: int) -> tuple[FailureClass | None, bool]:
+    """Map a child exit code to ``(failure_class, is_terminal)``."""
+    if exit_code == 0:
+        return None, False
+    mapping: dict[int, FailureClass] = {
+        2: FailureClass.CONTRACT_MISMATCH,
+        3: FailureClass.INSTALLATION_UNAUTHORIZED,
+    }
+    if exit_code in mapping:
+        return mapping[exit_code], True
+    if exit_code >= 4:
+        return FailureClass.CONFIG_INVALID, True
+    return FailureClass.RUNTIME_UNAVAILABLE, False
+
+
+def _new_sdk_instance_id() -> str:
+    """Generate a unique SDK instance identifier."""
+    import uuid
+
+    return uuid.uuid4().hex[:16]
+
+
+# ---------------------------------------------------------------------------
+# Concrete RuntimeLink implementation
+# ---------------------------------------------------------------------------
+
+
+class Link:
+    """Concrete runtime-link supervisor.
+
+    Usage::
+
+        cfg = config_from_env()
+        link = Link(cfg)
+        await link.start()
+        # ... use link.status(), link.identity(), link.events() ...
+        await link.stop()
+
+    Callers must ``await stop()`` before discarding the link. The supervisor
+    task runs until ``stop()`` or the parent task is cancelled.
+    """
+
+    def __init__(
+        self,
+        config: RuntimeLinkConfig,
+        *,
+        metrics_sink: MetricsSink | None = None,
+        audit_sink: LifecycleAuditSink | None = None,
+    ) -> None:
+        self.cfg = config
+        self._sdk_id = _new_sdk_instance_id()
+        self._metrics_sink = metrics_sink
+        self._audit_sink = audit_sink
+
+        # state machine (locked)
+        self._lock = asyncio.Lock()
+        self._state: LinkState = LinkState.DISABLED
+        self._reason: FailureClass | None = None
+        self._last_beat: datetime | None = None
+        self._last_ok: datetime | None = None
+        self._fails: int = 0
+        self._restarts: int = 0
+        self._run_id: str = ""
+        self._identity: RuntimeIdentity | None = None
+
+        # crashloop tracking
+        self._crash_times: list[float] = []
+
+        # child process
+        self._process: asyncio.subprocess.Process | None = None
+
+        # lifecycle and concurrency
+        self._events: asyncio.Queue[LinkEvent] = asyncio.Queue(maxsize=EVENT_BUFFER_SIZE)
+        self._supervisor_task: asyncio.Task[None] | None = None
+        self._started = False
+        self._stopped = False
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    async def start(self) -> None:
+        """Start the supervisor.
+
+        Returns promptly. Raises only for invalid configuration. The
+        supervisor runs until ``stop()`` or the calling task is cancelled.
+        Safe to call multiple times (idempotent).
+        """
+        if self._started or self._stopped:
+            return
+        if not self.cfg.enabled:
+            self._started = True
+            return
+
+        self._supervisor_task = asyncio.create_task(self._supervise())
+
+        self._started = True
+
+    async def stop(self) -> None:
+        """Stop the supervisor and kill the child process.
+
+        Idempotent and bounded by ``config.stop_timeout``. Waits for the
+        supervisor to finish or the timeout to expire.
+        """
+        if self._stopped or not self._started:
+            return
+        self._stopped = True
+
+        async with self._lock:
+            if self._state != LinkState.TERMINAL:
+                self._transition_locked(LinkState.STOPPED, None)
+
+        # cancel the supervisor
+        if self._supervisor_task is not None and not self._supervisor_task.done():
+            self._supervisor_task.cancel()
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(self._supervisor_task),
+                    timeout=self.cfg.stop_timeout,
+                )
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
+
+        await self._kill_child()
+
+    def status(self) -> LinkStatus:
+        """Return the current point-in-time snapshot (lock-free read)."""
+        return LinkStatus(
+            state=self._state,
+            reason=self._reason,
+            last_beat_at=self._last_beat,
+            last_catalog_ok_at=self._last_ok,
+            consecutive_fails=self._fails,
+            run_id=self._run_id,
+            restarts=self._restarts,
+        )
+
+    def identity(self) -> RuntimeIdentity | None:
+        return self._identity
+
+    async def events(self) -> AsyncIterator[LinkEvent]:
+        """Iterate lifecycle events from the ring buffer (blocking)."""
+        while True:
+            try:
+                yield await self._events.get()
+            except asyncio.CancelledError:
+                break
+
+    # ------------------------------------------------------------------
+    # Supervisor
+    # ------------------------------------------------------------------
+
+    async def _supervise(self) -> None:
+        """Main supervisor coroutine: spawn, watch, restart with backoff."""
+        try:
+            while True:
+                if self._restarts > 0:
+                    async with self._lock:
+                        self._transition_locked(LinkState.RECONNECTING, None)
+                    backoff = self.cfg.restart
+                    await backoff.wait(self._restarts - 1)
+
+                err = await self._spawn_and_watch()
+                if err is None:
+                    continue
+                if isinstance(err, _ErrTerminalError):
+                    return
+                if isinstance(err, asyncio.CancelledError):
+                    raise
+
+                # transient error: count restart and check crashloop
+                self._restarts += 1
+                now = time.time()
+                self._crash_times.append(now)
+                if len(self._crash_times) > CRASHLOOP_THRESHOLD:
+                    self._crash_times.pop(0)
+
+                if self._is_crashloop():
+                    async with self._lock:
+                        self._transition_locked(LinkState.TERMINAL, FailureClass.RUNTIME_CRASHLOOP)
+                    return
+
+                async with self._lock:
+                    self._transition_locked(LinkState.RECONNECTING, None)
+        finally:
+            await self._kill_child()
+
+    async def _spawn_and_watch(self) -> Exception | None:
+        """Start the child process and watch its stdout. Returns the first
+        terminal error, transient error, or ``None`` for clean exit (code 0)
+        / transient child exit (code 1)."""
+        async with self._lock:
+            self._transition_locked(LinkState.STARTING, None)
+
+        try:
+            proc = await self._spawn_child()
+        except Exception as exc:
+            async with self._lock:
+                self._reason = FailureClass.RUNTIME_UNAVAILABLE
+            return exc
+
+        self._emit_lifecycle_event(LifecycleEventName.STARTED, LinkState.STARTING)
+
+        try:
+            exit_code = await self._watch_child(proc)
+        except asyncio.CancelledError:
+            raise
+        except _ErrTerminalError:
+            return _ErrTerminalError()
+        except Exception as exc:
+            return exc
+
+        return await self._handle_child_exit(exit_code)
+
+    async def _spawn_child(self) -> asyncio.subprocess.Process:
+        """Create and start the child process with pinned args and env."""
+        args = [self.cfg.binary.path, "runtime", "heartbeat"]
+        if self._mode_jsonl():
+            args.extend(["--output", "jsonl"])
+
+        env = self._build_env()
+
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.DEVNULL,
+        )
+        self._process = proc
+        return proc
+
+    def _mode_jsonl(self) -> bool:
+        """Heuristic: assume JSONL mode is supported (no capability probe in Python)."""
+        return True
+
+    def _build_env(self) -> dict[str, str]:
+        """Build the child process environment from the allowlist only."""
+        env: dict[str, str] = {}
+        for name in CHILD_ENV_ALLOWLIST:
+            value = os.environ.get(name)
+            if value is not None:
+                env[name] = value
+        env["KEI_AGENTWARE_SDK_LANG"] = SDK_LANG
+        env["KEI_AGENTWARE_SDK_VERSION"] = SDK_VERSION
+        return env
+
+    async def _watch_child(self, proc: asyncio.subprocess.Process) -> int:
+        """Read child stdout lines and handle events. Returns the exit code
+        when the child exits or a timeout triggers."""
+        assert proc.stdout is not None
+        assert proc.stderr is not None
+
+        grace = self.cfg.grace
+        interval = self.cfg.interval
+        identity_received = False
+
+        stdout_task = asyncio.create_task(self._read_stdout(proc.stdout))
+
+        identity_timer: asyncio.Task[None] | None = None
+        beat_timer: asyncio.Task[None] | None = None
+
+        try:
+            while True:
+                read_done = stdout_task.done()
+
+                pending = [stdout_task]
+
+                if not identity_received:
+                    if identity_timer is None:
+                        identity_timer = asyncio.create_task(asyncio.sleep(grace))
+                    pending.append(identity_timer)
+                else:
+                    if beat_timer is None:
+                        beat_timer = asyncio.create_task(asyncio.sleep(interval + grace))
+                    pending.append(beat_timer)
+
+                done, _ = await asyncio.wait(
+                    pending,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if stdout_task in done:
+                    line_event = stdout_task.result()
+                    stdout_task = asyncio.create_task(self._read_stdout(proc.stdout))
+
+                    if line_event is None:
+                        continue  # empty line or ignored event
+                    kind, payload = line_event
+                    await self._handle_child_event(kind, payload)
+
+                    if kind == "identity":
+                        identity_received = True
+                        if identity_timer is not None:
+                            identity_timer.cancel()
+                            identity_timer = None
+                        beat_timer = asyncio.create_task(asyncio.sleep(interval + grace))
+                    elif kind == "beat":
+                        if beat_timer is not None:
+                            beat_timer.cancel()
+                        beat_timer = asyncio.create_task(asyncio.sleep(interval + grace))
+
+                if identity_timer is not None and identity_timer in done:
+                    # identity timeout
+                    identity_timer = None
+                    if not identity_received:
+                        async with self._lock:
+                            self._reason = FailureClass.RUNTIME_UNRESPONSIVE
+                        proc.kill()
+                        await proc.wait()
+                        return -1
+
+                if beat_timer is not None and beat_timer in done:
+                    # beat timeout
+                    beat_timer = None
+                    async with self._lock:
+                        self._reason = FailureClass.RUNTIME_UNRESPONSIVE
+                    proc.kill()
+                    await proc.wait()
+                    return -1
+
+                if read_done:
+                    break
+
+        except asyncio.CancelledError:
+            raise
+        finally:
+            for t in (identity_timer, beat_timer, stdout_task):
+                if t is not None and not t.done():
+                    t.cancel()
+
+        return await proc.wait()
+
+    async def _read_stdout(self, stream: asyncio.StreamReader) -> tuple[str, Any] | None:
+        """Read one line from child stdout and parse it."""
+        try:
+            data = await stream.readline()
+        except Exception:
+            return None
+        if not data:
+            return None
+
+        try:
+            event = parse_child_line(data)
+        except (LineTooLongError, MalformedLineError, ContractMismatchError):
+            async with self._lock:
+                self._fails += 1
+            return None
+
+        if isinstance(event, RuntimeIdentity):
+            return ("identity", event)
+        if isinstance(event, BeatEvent):
+            return ("beat", event)
+        if isinstance(event, TerminalEvent):
+            return ("terminal", event)
+        return None  # IgnoredEvent
+
+    async def _handle_child_event(self, kind: str, payload: Any) -> None:
+        """Route a parsed child event to the appropriate handler."""
+        if kind == "identity":
+            await self._handle_identity(payload)
+        elif kind == "beat":
+            await self._handle_beat(payload)
+        elif kind == "terminal":
+            await self._handle_terminal(payload)
+
+    async def _handle_identity(self, identity: RuntimeIdentity) -> None:
+        async with self._lock:
+            self._identity = identity
+            self._run_id = identity.run_id
+            self._fails = 0
+
+            if self._state == LinkState.STARTING:
+                self._transition_locked(LinkState.CONNECTED, None)
+            else:
+                self._transition_locked(LinkState.DEGRADED, None)
+
+    async def _handle_beat(self, beat: BeatEvent) -> None:
+        async with self._lock:
+            now = datetime.now(timezone.utc)
+            self._last_beat = now
+            if beat.run_id:
+                self._run_id = beat.run_id
+
+            if self._metrics_sink is not None:
+                asyncio.ensure_future(self._safe_emit_beat(beat))
+
+            if beat.outcome == BeatOutcome.OK:
+                self._last_ok = now
+                self._fails = 0
+                if self._state in (LinkState.DEGRADED, LinkState.RECONNECTING):
+                    self._transition_locked(LinkState.CONNECTED, None)
+            elif beat.outcome == BeatOutcome.UNAUTHORIZED:
+                self._transition_locked(LinkState.TERMINAL, FailureClass.INSTALLATION_UNAUTHORIZED)
+            else:
+                self._fails += 1
+                if self._state == LinkState.CONNECTED:
+                    fc = _classify_beat_outcome(beat.outcome)
+                    self._transition_locked(LinkState.DEGRADED, fc)
+
+    async def _handle_terminal(self, terminal: TerminalEvent) -> None:
+        async with self._lock:
+            reason = terminal.reason
+            if reason == "unauthorized":
+                fc = FailureClass.INSTALLATION_UNAUTHORIZED
+            elif reason == "contract":
+                fc = FailureClass.CONTRACT_MISMATCH
+            elif reason == "config":
+                fc = FailureClass.CONFIG_INVALID
+            elif reason == "stale":
+                fc = FailureClass.INSTALLATION_STALE
+            else:
+                fc = FailureClass.RUNTIME_UNAVAILABLE
+            self._transition_locked(LinkState.TERMINAL, fc)
+
+    async def _handle_child_exit(self, exit_code: int) -> Exception | None:
+        """Handle child process exit. Returns ``_ErrTerminalError()`` for terminal
+        exits, ``None`` for clean or transient exits."""
+        fc, terminal = _exit_code_failure_class(exit_code)
+
+        async with self._lock:
+            if terminal:
+                self._transition_locked(LinkState.TERMINAL, fc)
+                return _ErrTerminalError()
+
+            if exit_code == 0:
+                return None
+
+            # transient exit (code 1)
+            self._restarts += 1
+            if self._metrics_sink is not None:
+                asyncio.ensure_future(
+                    self._safe_emit_restart(self._restarts, fc or FailureClass.RUNTIME_UNAVAILABLE)
+                )
+            return None
+
+    async def _safe_emit_beat(self, beat: BeatEvent) -> None:
+        try:
+            if self._metrics_sink is not None:
+                await self._metrics_sink.emit_beat(beat)
+        except Exception:
+            pass
+
+    async def _safe_emit_restart(self, attempt: int, cause: FailureClass) -> None:
+        try:
+            if self._metrics_sink is not None:
+                await self._metrics_sink.emit_restart(attempt, cause)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # State machine
+    # ------------------------------------------------------------------
+
+    def _transition_locked(self, state: LinkState, reason: FailureClass | None) -> None:
+        """Update state and reason. Caller must hold ``_lock``."""
+        self._state = state
+        self._reason = reason
+
+        event_name: LifecycleEventName | None = None
+        if state == LinkState.STARTING:
+            event_name = LifecycleEventName.STARTED
+        elif state == LinkState.CONNECTED:
+            event_name = LifecycleEventName.CONNECTED
+        elif state == LinkState.DEGRADED:
+            event_name = LifecycleEventName.DEGRADED
+        elif state == LinkState.RECONNECTING:
+            event_name = LifecycleEventName.RECONNECTING
+        elif state == LinkState.TERMINAL:
+            event_name = LifecycleEventName.TERMINAL
+        elif state == LinkState.STOPPED:
+            event_name = LifecycleEventName.STOPPED
+
+        if event_name is not None:
+            self._emit_lifecycle_event(event_name, state)
+        if self._metrics_sink is not None:
+            asyncio.ensure_future(self._safe_emit_metrics(state, reason))
+
+    def _emit_lifecycle_event(self, name: LifecycleEventName, state: LinkState) -> None:
+        """Build a redacted lifecycle event and push to the event ring + audit sink."""
+        now = datetime.now(timezone.utc)
+        ev = LinkEvent(
+            name=name,
+            at=now,
+            state=state,
+            reason=self._reason,
+            run_id=self._run_id,
+            seq=int(now.timestamp() * 1000),
+            sdk_instance_id=self._sdk_id,
+            harness=EventHarness(
+                kind=self.cfg.harness.kind,
+                sdk_lang=SDK_LANG,
+                version=self.cfg.harness.version,
+                deployment_env=self.cfg.harness.deployment_env,
+                sdk_version=SDK_VERSION,
+            ),
+            restarts=self._restarts,
+            consecutive_fails=self._fails,
+        )
+
+        # push to event ring (non-blocking)
+        try:
+            self._events.put_nowait(ev)
+        except asyncio.QueueFull:
+            try:
+                self._events.get_nowait()
+                self._events.put_nowait(ev)
+            except asyncio.QueueEmpty:
+                pass
+
+        # send to audit sink (fire-and-forget)
+        if self._audit_sink is not None:
+            asyncio.ensure_future(self._safe_audit(ev))
+
+    async def _safe_emit_metrics(self, state: LinkState, reason: FailureClass | None) -> None:
+        try:
+            if self._metrics_sink is not None:
+                await self._metrics_sink.emit_lifecycle(state, reason)
+        except Exception:
+            pass
+
+    async def _safe_audit(self, event: LinkEvent) -> None:
+        try:
+            if self._audit_sink is not None:
+                await self._audit_sink.record_lifecycle(event)
+        except Exception:
+            pass
+
+    async def _kill_child(self) -> None:
+        """Kill the child process group."""
+        if self._process is not None and self._process.returncode is None:
+            try:
+                self._process.kill()
+                await asyncio.wait_for(self._process.wait(), timeout=5)
+            except Exception:
+                pass
+            self._process = None
+
+    def _is_crashloop(self) -> bool:
+        """Check if the restart pattern meets the crashloop threshold."""
+        if len(self._crash_times) < CRASHLOOP_THRESHOLD:
+            return False
+        window = self._crash_times[-1] - self._crash_times[0]
+        return window <= CRASHLOOP_WINDOW
+
+
+# ---------------------------------------------------------------------------
+# Factory: create a configured RuntimeLink
+# ---------------------------------------------------------------------------
+
+
+def new_link(
+    config: RuntimeLinkConfig,
+    *,
+    metrics_sink: MetricsSink | None = None,
+    audit_sink: LifecycleAuditSink | None = None,
+) -> Link:
+    """Create a :class:`Link` from a validated config.
+
+    The config is normalized first. If the link is disabled, it returns a
+    no-op link that starts and stops immediately.
+    """
+    cfg = normalize_config(config)
+    return Link(cfg, metrics_sink=metrics_sink, audit_sink=audit_sink)
