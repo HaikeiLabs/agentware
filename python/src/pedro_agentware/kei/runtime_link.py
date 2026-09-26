@@ -453,6 +453,20 @@ class RuntimeIdentity:
     status: str = ""
     binding_status: str = ""
     runtime_version: str = ""
+    # The installation's default agent from whoami; None when the runtime
+    # reports none (older runtimes omit it). A harness reads its agent from
+    # here and must not require an agent-ID env var.
+    default_agent_id: str | None = None
+    # Agents assigned to the installation; empty when the runtime reports none.
+    agents: tuple[AssignedAgent, ...] = ()
+
+
+@dataclass(frozen=True)
+class AssignedAgent:
+    """One agent assigned to a runtime installation."""
+
+    agent_id: str
+    is_default: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +562,52 @@ class _Fields:
         return value
 
 
+def _parse_agents(raw: dict[str, Any]) -> tuple[str | None, tuple[AssignedAgent, ...], int]:
+    """Read the optional ``agent_id`` and ``agents`` identity fields.
+
+    Older runtimes omit both, so absence is not an error; a malformed
+    ``agent_id``, ``agents`` list, or entry is dropped and counted rather than
+    failing the whole identity. When ``agent_id`` is absent, the first entry
+    marked ``is_default`` supplies it. Returns (default, agents, dropped).
+    """
+    dropped = 0
+    default: str | None = None
+    if "agent_id" in raw:
+        value = raw["agent_id"]
+        if isinstance(value, str) and _ID_RE.match(value):
+            default = value
+        else:
+            dropped += 1
+    if "agents" not in raw:
+        return default, (), dropped
+    entries = raw["agents"]
+    if not isinstance(entries, list):
+        return default, (), dropped + 1
+    agents: list[AssignedAgent] = []
+    for entry in entries:
+        agent = _parse_agent_entry(entry)
+        if agent is None:
+            dropped += 1
+            continue
+        agents.append(agent)
+        if default is None and agent.is_default:
+            default = agent.agent_id
+    return default, tuple(agents), dropped
+
+
+def _parse_agent_entry(entry: Any) -> AssignedAgent | None:
+    """Read one ``{agent_id, is_default}`` entry; ``is_default`` is false when absent."""
+    if not isinstance(entry, dict):
+        return None
+    agent_id = entry.get("agent_id")
+    if not isinstance(agent_id, str) or not _ID_RE.match(agent_id):
+        return None
+    is_default = entry.get("is_default", False)
+    if not isinstance(is_default, bool):
+        return None
+    return AssignedAgent(agent_id, is_default)
+
+
 def parse_child_line(line: str | bytes) -> ChildEvent:
     """Parse one line of child stdout (a trailing ``\\n`` / ``\\r\\n`` is ignored).
 
@@ -555,6 +615,14 @@ def parse_child_line(line: str | bytes) -> ChildEvent:
     any other key the runtime might emit are dropped. Raises
     :class:`LineTooLongError`, :class:`ContractMismatchError`, or
     :class:`MalformedLineError` for lines the SDK must drop and count.
+    """
+    return parse_child_line_counted(line)[0]
+
+
+def parse_child_line_counted(line: str | bytes) -> tuple[ChildEvent, int]:
+    """Like :func:`parse_child_line`, also returning the number of malformed
+    agent entries dropped from an identity event (0 for every other event).
+    The supervisor counts them like dropped lines.
     """
     data = line.encode() if isinstance(line, str) else line
     data = data.removesuffix(b"\n").removesuffix(b"\r")
@@ -575,7 +643,8 @@ def parse_child_line(line: str | bytes) -> ChildEvent:
 
     f = _Fields(raw)
     if event == "identity":
-        return RuntimeIdentity(
+        default_agent_id, agents, dropped = _parse_agents(raw)
+        identity = RuntimeIdentity(
             run_id=f.ident("run_id", True),
             installation_id=f.ident("installation_id", True),
             org_id=f.ident("org_id", True),
@@ -584,7 +653,10 @@ def parse_child_line(line: str | bytes) -> ChildEvent:
             status=f.ident("status", False),
             binding_status=f.ident("binding_status", False),
             runtime_version=f.ident("runtime_version", False),
+            default_agent_id=default_agent_id,
+            agents=agents,
         )
+        return identity, dropped
     if event == "beat":
         run_id = f.ident("run_id", True)
         seq = f.integer("seq", False, 0, _MAX_SEQ)
@@ -599,14 +671,14 @@ def parse_child_line(line: str | bytes) -> ChildEvent:
             beat_outcome = BeatOutcome(outcome)
         except ValueError as exc:
             raise ContractMismatchError("outcome") from exc
-        return BeatEvent(run_id, seq, at, beat_outcome, http_status, latency_ms, next_in_ms)
+        return BeatEvent(run_id, seq, at, beat_outcome, http_status, latency_ms, next_in_ms), 0
     if event == "terminal":
         run_id = f.ident("run_id", True)
         reason = f.text("reason", True)
         if not _REASON_RE.match(reason):
             raise MalformedLineError("reason")
-        return TerminalEvent(run_id, reason)
-    return IgnoredEvent()
+        return TerminalEvent(run_id, reason), 0
+    return IgnoredEvent(), 0
 
 
 # ---------------------------------------------------------------------------
@@ -1178,14 +1250,14 @@ class Link:
             return None
 
         try:
-            event = parse_child_line(data)
+            event, dropped_agents = parse_child_line_counted(data)
         except (LineTooLongError, MalformedLineError, ContractMismatchError):
             async with self._lock:
                 self._fails += 1
             return None
 
         if isinstance(event, RuntimeIdentity):
-            return ("identity", event)
+            return ("identity", (event, dropped_agents))
         if isinstance(event, BeatEvent):
             return ("beat", event)
         if isinstance(event, TerminalEvent):
@@ -1195,17 +1267,19 @@ class Link:
     async def _handle_child_event(self, kind: str, payload: Any) -> None:
         """Route a parsed child event to the appropriate handler."""
         if kind == "identity":
-            await self._handle_identity(payload)
+            identity, dropped_agents = payload
+            await self._handle_identity(identity, dropped_agents)
         elif kind == "beat":
             await self._handle_beat(payload)
         elif kind == "terminal":
             await self._handle_terminal(payload)
 
-    async def _handle_identity(self, identity: RuntimeIdentity) -> None:
+    async def _handle_identity(self, identity: RuntimeIdentity, dropped_agents: int = 0) -> None:
+        # Malformed agent entries are counted like other dropped child lines.
         async with self._lock:
             self._identity = identity
             self._run_id = identity.run_id
-            self._fails = 0
+            self._fails = dropped_agents
 
             if self._state == LinkState.STARTING:
                 self._transition_locked(LinkState.CONNECTED, None)

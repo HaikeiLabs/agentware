@@ -157,7 +157,10 @@ def _child_kind(line: str) -> tuple[str, Any]:
     except rl.MalformedLineError:
         return "malformed", None
     if isinstance(ev, rl.RuntimeIdentity):
-        return "identity", asdict(ev)
+        fields = asdict(ev)
+        fields["agent_id"] = fields.pop("default_agent_id") or ""
+        fields["agents"] = list(fields["agents"])
+        return "identity", fields
     if isinstance(ev, rl.BeatEvent):
         fields = asdict(ev)
         fields["outcome"] = ev.outcome.value
@@ -173,6 +176,72 @@ def test_parse_child_line_contract(case: dict[str, Any]) -> None:
     assert kind == case["expect"]["kind"]
     if "fields" in case["expect"]:
         assert fields == case["expect"]["fields"]
+    if kind == "identity":
+        _, dropped = rl.parse_child_line_counted(case["line"])
+        assert dropped == case["expect"].get("dropped_agents", 0)
+
+
+_IDENTITY_BASE = {
+    "v": 1,
+    "event": "identity",
+    "run_id": "r1",
+    "installation_id": "i1",
+    "org_id": "o1",
+}
+
+
+def _parse_identity(**extra: Any) -> tuple[rl.RuntimeIdentity, int]:
+    ev, dropped = rl.parse_child_line_counted(json.dumps({**_IDENTITY_BASE, **extra}))
+    assert isinstance(ev, rl.RuntimeIdentity)
+    return ev, dropped
+
+
+def test_identity_agents_present() -> None:
+    ident, dropped = _parse_identity(
+        agent_id="agent_sales",
+        agents=[
+            {"agent_id": "agent_sales", "is_default": True},
+            {"agent_id": "agent_support", "is_default": False},
+        ],
+    )
+    assert ident.default_agent_id == "agent_sales"
+    assert ident.agents == (
+        rl.AssignedAgent("agent_sales", True),
+        rl.AssignedAgent("agent_support", False),
+    )
+    assert dropped == 0
+
+
+def test_identity_agents_absent_old_runtime() -> None:
+    ident, dropped = _parse_identity()
+    assert ident.default_agent_id is None
+    assert ident.agents == ()
+    assert dropped == 0
+
+
+def test_identity_agents_malformed_entry_dropped_and_counted() -> None:
+    ident, dropped = _parse_identity(
+        agents=[
+            {"agent_id": "bad id!", "is_default": True},
+            {"agent_id": "agent_b", "is_default": True},
+        ]
+    )
+    assert ident.default_agent_id == "agent_b"
+    assert ident.agents == (rl.AssignedAgent("agent_b", True),)
+    assert dropped == 1
+
+
+async def test_identity_dropped_agents_counted_as_fails() -> None:
+    link = _make_link()
+    async with link._lock:
+        link._transition_locked(rl.LinkState.STARTING, None)
+    ident, dropped = _parse_identity(agents=[{"agent_id": "a1", "is_default": True}, 7, "x"])
+    await link._handle_identity(ident, dropped)
+    st = link.status()
+    assert st.state == rl.LinkState.CONNECTED
+    assert st.consecutive_fails == 2
+    got = link.identity()
+    assert got is not None and got.default_agent_id == "a1"
 
 
 def pad_line(n: int) -> str:
@@ -789,8 +858,10 @@ async def test_read_stdout_identity() -> None:
     assert result is not None
     kind, payload = result
     assert kind == "identity"
-    assert isinstance(payload, rl.RuntimeIdentity)
-    assert payload.run_id == "r1"
+    identity, dropped_agents = payload
+    assert isinstance(identity, rl.RuntimeIdentity)
+    assert identity.run_id == "r1"
+    assert dropped_agents == 0
 
 
 async def test_read_stdout_beat() -> None:

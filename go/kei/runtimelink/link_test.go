@@ -96,7 +96,7 @@ func TestStateMachineIdentityDuringStart(t *testing.T) {
 		OrgID:          "org-1",
 		WorkspaceID:    "ws-1",
 	}
-	l.handleIdentity(id)
+	l.handleIdentity(id, 0)
 
 	st := l.Status()
 	if st.State != StateConnected {
@@ -121,10 +121,27 @@ func TestStateMachineIdentityAfterDegraded(t *testing.T) {
 	}
 
 	id := &RuntimeIdentity{RunID: "run-2"}
-	l.handleIdentity(id)
+	l.handleIdentity(id, 0)
 	st = l.Status()
 	if st.State != StateDegraded {
 		t.Fatalf("identity while degraded stays degraded: state=%q, want %q", st.State, StateDegraded)
+	}
+}
+
+func TestIdentityCountsDroppedAgents(t *testing.T) {
+	l := testLink()
+	l.transition(StateStarting, "")
+
+	l.handleIdentity(&RuntimeIdentity{RunID: "run-1", DefaultAgentID: "agent_a"}, 2)
+	st := l.Status()
+	if st.State != StateConnected {
+		t.Fatalf("dropped agent entries must not block connect: state=%q", st.State)
+	}
+	if st.ConsecutiveFails != 2 {
+		t.Fatalf("ConsecutiveFails: got %d, want 2", st.ConsecutiveFails)
+	}
+	if gotID, _ := l.Identity(); gotID.DefaultAgentID != "agent_a" {
+		t.Fatalf("Identity().DefaultAgentID: got %q, want %q", gotID.DefaultAgentID, "agent_a")
 	}
 }
 
@@ -145,7 +162,7 @@ func TestStateMachineOKBeatFromDegraded(t *testing.T) {
 func TestStateMachineOKBeatFromConnected(t *testing.T) {
 	l := testLink()
 	l.transition(StateConnected, "")
-	l.handleIdentity(&RuntimeIdentity{RunID: "run-1"})
+	l.handleIdentity(&RuntimeIdentity{RunID: "run-1"}, 0)
 
 	l.handleBeat(&BeatEvent{Outcome: OutcomeOK})
 	st := l.Status()
@@ -157,7 +174,7 @@ func TestStateMachineOKBeatFromConnected(t *testing.T) {
 func TestStateMachineUnauthorizedBeat(t *testing.T) {
 	l := testLink()
 	l.transition(StateConnected, "")
-	l.handleIdentity(&RuntimeIdentity{RunID: "run-1"})
+	l.handleIdentity(&RuntimeIdentity{RunID: "run-1"}, 0)
 
 	l.handleBeat(&BeatEvent{Outcome: OutcomeUnauthorized})
 	st := l.Status()

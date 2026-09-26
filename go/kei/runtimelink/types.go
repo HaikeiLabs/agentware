@@ -164,6 +164,19 @@ type RuntimeIdentity struct {
 	Status         string `json:"status"`
 	BindingStatus  string `json:"binding_status"`
 	RuntimeVersion string `json:"runtime_version"`
+	// DefaultAgentID is the installation's default agent from whoami. Empty
+	// when the runtime reports none (older runtimes omit it). A harness reads
+	// its agent from here; it must not require an agent-ID env var.
+	DefaultAgentID string `json:"agent_id"`
+	// Agents are the agents assigned to the installation. Never nil; empty
+	// when the runtime reports none.
+	Agents []AssignedAgent `json:"agents"`
+}
+
+// AssignedAgent is one agent assigned to a runtime installation.
+type AssignedAgent struct {
+	AgentID   string `json:"agent_id"`
+	IsDefault bool   `json:"is_default"`
 }
 
 // MetricsSink receives heartbeat metrics from the RuntimeLink supervisor.

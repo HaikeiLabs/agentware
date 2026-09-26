@@ -340,7 +340,7 @@ func (l *link) watchChild(stdout io.Reader, cmd *exec.Cmd) error {
 
 		switch ev.Kind {
 		case ChildIdentity:
-			l.handleIdentity(ev.Identity)
+			l.handleIdentity(ev.Identity, ev.DroppedAgents)
 
 			if !identityTimer.Stop() {
 				select {
@@ -407,13 +407,15 @@ func readLine(reader *bufio.Reader) ([]byte, error) {
 	}
 }
 
-func (l *link) handleIdentity(id *RuntimeIdentity) {
+// handleIdentity records the reported identity. dropped counts malformed
+// agent entries, which are counted like other dropped child lines.
+func (l *link) handleIdentity(id *RuntimeIdentity, dropped int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	l.identity = id
 	l.runID = id.RunID
-	l.fails = 0
+	l.fails = dropped
 
 	if l.state == StateStarting {
 		l.state = StateConnected
