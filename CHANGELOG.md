@@ -3,6 +3,8 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
+## [0.4.0] - 2026-09-26
+
 ## Unreleased
 
 ### Added
