@@ -272,6 +272,11 @@ function childKind(line: string): [string, unknown] {
           status: i.status,
           binding_status: i.bindingStatus,
           runtime_version: i.runtimeVersion,
+          agent_id: i.defaultAgentId ?? "",
+          agents: i.agents.map((a) => ({
+            agent_id: a.agentId,
+            is_default: a.isDefault,
+          })),
         },
       ];
     }
@@ -311,12 +316,70 @@ describe("parseChildLine contract", () => {
     const [kind, fields] = childKind(c.line);
     expect(kind).toBe(c.expect.kind);
     if (c.expect.fields) expect(fields).toEqual(c.expect.fields);
+    if (kind === "identity") {
+      const ev = parseChildLine(c.line);
+      expect(ev.kind === "identity" && ev.droppedAgents).toBe(
+        c.expect.dropped_agents ?? 0,
+      );
+    }
   });
 
   it.each(WIRE.synthesized)("$name", (c) => {
     const line = padLine(c.bytes);
     expect(Buffer.byteLength(line)).toBe(c.bytes);
     expect(childKind(line + "\n")[0]).toBe(c.expect.kind);
+  });
+});
+
+describe("identity assigned agents", () => {
+  const base = {
+    v: 1,
+    event: "identity",
+    run_id: "r1",
+    installation_id: "inst_1",
+    org_id: "org_1",
+  };
+  const parseIdentity = (extra: Record<string, unknown>) => {
+    const ev = parseChildLine(JSON.stringify({ ...base, ...extra }));
+    if (ev.kind !== "identity") throw new Error(`got ${ev.kind}`);
+    return ev;
+  };
+
+  it("exposes agent_id and agents when present", () => {
+    const ev = parseIdentity({
+      agent_id: "agent_sales",
+      agents: [
+        { agent_id: "agent_sales", is_default: true },
+        { agent_id: "agent_support", is_default: false },
+      ],
+    });
+    expect(ev.identity.defaultAgentId).toBe("agent_sales");
+    expect(ev.identity.agents).toEqual([
+      { agentId: "agent_sales", isDefault: true },
+      { agentId: "agent_support", isDefault: false },
+    ]);
+    expect(ev.droppedAgents).toBe(0);
+  });
+
+  it("tolerates an older runtime that omits both fields", () => {
+    const ev = parseIdentity({});
+    expect(ev.identity.defaultAgentId).toBeUndefined();
+    expect(ev.identity.agents).toEqual([]);
+    expect(ev.droppedAgents).toBe(0);
+  });
+
+  it("drops and counts a malformed entry, defaulting from is_default", () => {
+    const ev = parseIdentity({
+      agents: [
+        { agent_id: "bad id!", is_default: true },
+        { agent_id: "agent_b", is_default: true },
+      ],
+    });
+    expect(ev.identity.defaultAgentId).toBe("agent_b");
+    expect(ev.identity.agents).toEqual([
+      { agentId: "agent_b", isDefault: true },
+    ]);
+    expect(ev.droppedAgents).toBe(1);
   });
 });
 
@@ -422,6 +485,8 @@ describe("RuntimeLink supervised runtime integration", () => {
               run_id: "run-1",
               installation_id: "inst-1",
               org_id: "org-1",
+              agent_id: "agent-1",
+              agents: [{ agent_id: "agent-1", is_default: true }],
             }) + "\n";
             yield JSON.stringify({
               v: 1,
@@ -462,6 +527,8 @@ describe("RuntimeLink supervised runtime integration", () => {
       runId: "run-1",
       installationId: "inst-1",
       orgId: "org-1",
+      defaultAgentId: "agent-1",
+      agents: [{ agentId: "agent-1", isDefault: true }],
     });
     expect(link.status().state).toBe("connected");
     expect(link.status().lastCatalogOkAt).toBeInstanceOf(Date);
@@ -487,16 +554,28 @@ describe("RuntimeLink supervised runtime integration", () => {
       .withPolicy(
         new SimplePolicyEvaluator({
           default_deny: true,
-          rules: [{ name: "allow-read", tools: ["read_file"], action: Action.ALLOW }],
+          rules: [
+            { name: "allow-read", tools: ["read_file"], action: Action.ALLOW },
+          ],
         }),
       )
       .withAuditor(toolAudit);
-    const caller = { trusted: false, user_id: "human-1", session_id: "session-1" };
-    expect(middleware.execute("read_file", { query: "content-canary" }, caller)[1]).toBe(true);
-    expect(middleware.execute("write_file", { body: "content-canary" }, caller)[1]).toBe(false);
+    const caller = {
+      trusted: false,
+      user_id: "human-1",
+      session_id: "session-1",
+    };
+    expect(
+      middleware.execute("read_file", { query: "content-canary" }, caller)[1],
+    ).toBe(true);
+    expect(
+      middleware.execute("write_file", { body: "content-canary" }, caller)[1],
+    ).toBe(false);
     expect(executed).toEqual(["read_file"]);
     expect(toolAudit.query({ session_id: "session-1" })).toHaveLength(2);
-    expect(toolAudit.query({ session_id: "session-1" })[1].decision.action).toBe(Action.DENY);
+    expect(
+      toolAudit.query({ session_id: "session-1" })[1].decision.action,
+    ).toBe(Action.DENY);
 
     await link.stop();
     expect(link.status().state).toBe("stopped");

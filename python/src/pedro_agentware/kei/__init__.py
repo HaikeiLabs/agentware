@@ -81,6 +81,7 @@ from .proxy import (
 )
 from .runtime_link import (
     CONTRACT_VERSION,
+    AssignedAgent,
     Backoff,
     BeatEvent,
     BeatOutcome,
@@ -112,6 +113,7 @@ from .runtime_link import (
     new_link,
     normalize_config,
     parse_child_line,
+    parse_child_line_counted,
 )
 
 __all__ = [
@@ -179,6 +181,7 @@ __all__ = [
     "config_from_env",
     "LinkStatus",
     "RuntimeIdentity",
+    "AssignedAgent",
     "ChildLineError",
     "LineTooLongError",
     "MalformedLineError",
@@ -187,6 +190,7 @@ __all__ = [
     "TerminalEvent",
     "IgnoredEvent",
     "parse_child_line",
+    "parse_child_line_counted",
     "InvalidLinkEventError",
     "EventHarness",
     "LinkEvent",

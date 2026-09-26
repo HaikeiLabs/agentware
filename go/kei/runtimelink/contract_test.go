@@ -226,8 +226,9 @@ type childFixture struct {
 		Name   string `json:"name"`
 		Line   string `json:"line"`
 		Expect struct {
-			Kind   string         `json:"kind"`
-			Fields map[string]any `json:"fields"`
+			Kind          string         `json:"kind"`
+			Fields        map[string]any `json:"fields"`
+			DroppedAgents int            `json:"dropped_agents"`
 		} `json:"expect"`
 	} `json:"cases"`
 	Synthesized []struct {
@@ -272,9 +273,13 @@ func TestParseChildLineContract(t *testing.T) {
 	loadFixture(t, "wire/child-events.json", &fx)
 	for _, tc := range fx.Cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			kind, payload := childKind(ParseChildLine([]byte(tc.Line)))
+			ev, err := ParseChildLine([]byte(tc.Line))
+			kind, payload := childKind(ev, err)
 			if kind != tc.Expect.Kind {
 				t.Fatalf("kind: got %q, want %q", kind, tc.Expect.Kind)
+			}
+			if ev.DroppedAgents != tc.Expect.DroppedAgents {
+				t.Fatalf("dropped agents: got %d, want %d", ev.DroppedAgents, tc.Expect.DroppedAgents)
 			}
 			if tc.Expect.Fields == nil {
 				return

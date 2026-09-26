@@ -490,6 +490,20 @@ export interface RuntimeIdentity {
   status: string;
   bindingStatus: string;
   runtimeVersion: string;
+  /**
+   * The installation's default agent from whoami; undefined when the runtime
+   * reports none (older runtimes omit it). A harness reads its agent from
+   * here and must not require an agent-ID env var.
+   */
+  defaultAgentId?: string;
+  /** Agents assigned to the installation; empty when the runtime reports none. */
+  agents: AssignedAgent[];
+}
+
+/** One agent assigned to a runtime installation. */
+export interface AssignedAgent {
+  agentId: string;
+  isDefault: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -529,7 +543,12 @@ export interface TerminalEvent {
 }
 
 export type ChildEvent =
-  | { kind: "identity"; identity: RuntimeIdentity }
+  | {
+      kind: "identity";
+      identity: RuntimeIdentity;
+      /** Malformed agent entries dropped from the event; counted like dropped lines. */
+      droppedAgents: number;
+    }
   | { kind: "beat"; beat: BeatEvent }
   | { kind: "terminal"; terminal: TerminalEvent }
   | { kind: "ignored" };
@@ -577,6 +596,56 @@ class FieldReader {
   }
 }
 
+/**
+ * Fill identity.defaultAgentId and identity.agents from the optional agent_id
+ * and agents fields. Older runtimes omit both, so absence is not an error; a
+ * malformed agent_id, agents list, or entry is dropped and counted rather than
+ * failing the whole identity. When agent_id is absent, the first entry marked
+ * is_default supplies it. Returns the number of dropped values.
+ */
+function parseAgents(
+  raw: Record<string, unknown>,
+  identity: RuntimeIdentity,
+): number {
+  let dropped = 0;
+  if (Object.hasOwn(raw, "agent_id")) {
+    const v = raw.agent_id;
+    if (typeof v === "string" && ID_RE.test(v)) identity.defaultAgentId = v;
+    else dropped++;
+  }
+  if (!Object.hasOwn(raw, "agents")) return dropped;
+  const entries = raw.agents;
+  if (!Array.isArray(entries)) return dropped + 1;
+  for (const entry of entries) {
+    const agent = parseAgentEntry(entry);
+    if (!agent) {
+      dropped++;
+      continue;
+    }
+    identity.agents.push(agent);
+    if (identity.defaultAgentId === undefined && agent.isDefault) {
+      identity.defaultAgentId = agent.agentId;
+    }
+  }
+  return dropped;
+}
+
+/** Read one {agent_id, is_default} entry; is_default is false when absent. */
+function parseAgentEntry(entry: unknown): AssignedAgent | undefined {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+    return undefined;
+  }
+  const e = entry as Record<string, unknown>;
+  const agentId = e.agent_id;
+  if (typeof agentId !== "string" || !ID_RE.test(agentId)) return undefined;
+  let isDefault = false;
+  if (Object.hasOwn(e, "is_default")) {
+    if (typeof e.is_default !== "boolean") return undefined;
+    isDefault = e.is_default;
+  }
+  return { agentId, isDefault };
+}
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -611,20 +680,21 @@ export function parseChildLine(line: string | Uint8Array): ChildEvent {
 
   const f = new FieldReader(obj);
   switch (obj.event) {
-    case "identity":
-      return {
-        kind: "identity",
-        identity: {
-          runId: f.id("run_id", true),
-          installationId: f.id("installation_id", true),
-          orgId: f.id("org_id", true),
-          workspaceId: f.id("workspace_id", false),
-          platform: f.id("platform", false),
-          status: f.id("status", false),
-          bindingStatus: f.id("binding_status", false),
-          runtimeVersion: f.id("runtime_version", false),
-        },
+    case "identity": {
+      const identity: RuntimeIdentity = {
+        runId: f.id("run_id", true),
+        installationId: f.id("installation_id", true),
+        orgId: f.id("org_id", true),
+        workspaceId: f.id("workspace_id", false),
+        platform: f.id("platform", false),
+        status: f.id("status", false),
+        bindingStatus: f.id("binding_status", false),
+        runtimeVersion: f.id("runtime_version", false),
+        agents: [],
       };
+      const droppedAgents = parseAgents(obj, identity);
+      return { kind: "identity", identity, droppedAgents };
+    }
     case "beat": {
       const runId = f.id("run_id", true);
       const seq = f.integer("seq", false, 0, MAX_SEQ);

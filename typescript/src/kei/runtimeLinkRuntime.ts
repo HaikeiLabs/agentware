@@ -309,6 +309,7 @@ class RuntimeLinkImpl implements RuntimeLink {
         }
         if (ev.kind === "identity") {
           this.identityValue = ev.identity;
+          this.consecutiveFails += ev.droppedAgents;
           this.runId = ev.identity.runId;
           identitySeen = true;
           heartbeatDeadline = Date.now() + this.config.beatTimeoutMs;

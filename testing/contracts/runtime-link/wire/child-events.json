@@ -1,5 +1,5 @@
 {
-  "note": "Each 'line' is one child stdout line. 'synthesized' cases build {\"v\":1,\"event\":\"pad\",\"pad\":\"xxx...\"} padded to exactly 'bytes' bytes (excluding the newline). 'seq' is optional (0 when absent): kei-connector-runtime emits beats without seq while whoami is still failing, before identity.",
+  "note": "Each 'line' is one child stdout line. 'synthesized' cases build {\"v\":1,\"event\":\"pad\",\"pad\":\"xxx...\"} padded to exactly 'bytes' bytes (excluding the newline). 'seq' is optional (0 when absent): kei-connector-runtime emits beats without seq while whoami is still failing, before identity. Identity 'agent_id' and 'agents' are optional (older runtimes omit them): absent means agent_id \"\" and agents []; a malformed agent_id, agents list, or entry is dropped and counted in 'dropped_agents' without failing the line; when agent_id is absent the first is_default entry supplies it.",
   "cases": [
     {
       "name": "identity",
@@ -14,7 +14,9 @@
           "platform": "discord",
           "status": "active",
           "binding_status": "verified",
-          "runtime_version": "1.9.0"
+          "runtime_version": "1.9.0",
+          "agent_id": "",
+          "agents": []
         }
       }
     },
@@ -31,7 +33,141 @@
           "platform": "",
           "status": "",
           "binding_status": "",
-          "runtime_version": ""
+          "runtime_version": "",
+          "agent_id": "",
+          "agents": []
+        }
+      }
+    },
+    {
+      "name": "identity_agents",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"r1\",\"installation_id\":\"inst_1\",\"org_id\":\"org_1\",\"agent_id\":\"agent_sales\",\"agents\":[{\"agent_id\":\"agent_sales\",\"is_default\":true},{\"agent_id\":\"agent_support\",\"is_default\":false}]}",
+      "expect": {
+        "kind": "identity",
+        "dropped_agents": 0,
+        "fields": {
+          "run_id": "r1",
+          "installation_id": "inst_1",
+          "org_id": "org_1",
+          "workspace_id": "",
+          "platform": "",
+          "status": "",
+          "binding_status": "",
+          "runtime_version": "",
+          "agent_id": "agent_sales",
+          "agents": [
+            {
+              "agent_id": "agent_sales",
+              "is_default": true
+            },
+            {
+              "agent_id": "agent_support",
+              "is_default": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "identity_agents_default_from_entry",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"r1\",\"installation_id\":\"inst_1\",\"org_id\":\"org_1\",\"agents\":[{\"agent_id\":\"agent_a\",\"is_default\":false},{\"agent_id\":\"agent_b\",\"is_default\":true}]}",
+      "expect": {
+        "kind": "identity",
+        "dropped_agents": 0,
+        "fields": {
+          "run_id": "r1",
+          "installation_id": "inst_1",
+          "org_id": "org_1",
+          "workspace_id": "",
+          "platform": "",
+          "status": "",
+          "binding_status": "",
+          "runtime_version": "",
+          "agent_id": "agent_b",
+          "agents": [
+            {
+              "agent_id": "agent_a",
+              "is_default": false
+            },
+            {
+              "agent_id": "agent_b",
+              "is_default": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "identity_agents_malformed_entries_dropped",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"r1\",\"installation_id\":\"inst_1\",\"org_id\":\"org_1\",\"agent_id\":\"agent_a\",\"agents\":[{\"agent_id\":\"agent_a\",\"is_default\":true},{\"agent_id\":\"has space\"},{\"is_default\":true},{\"agent_id\":\"agent_c\",\"is_default\":\"yes\"},\"agent_d\",{\"agent_id\":\"agent_e\"}]}",
+      "expect": {
+        "kind": "identity",
+        "dropped_agents": 4,
+        "fields": {
+          "run_id": "r1",
+          "installation_id": "inst_1",
+          "org_id": "org_1",
+          "workspace_id": "",
+          "platform": "",
+          "status": "",
+          "binding_status": "",
+          "runtime_version": "",
+          "agent_id": "agent_a",
+          "agents": [
+            {
+              "agent_id": "agent_a",
+              "is_default": true
+            },
+            {
+              "agent_id": "agent_e",
+              "is_default": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "identity_agents_not_a_list",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"r1\",\"installation_id\":\"inst_1\",\"org_id\":\"org_1\",\"agent_id\":\"agent_a\",\"agents\":{\"agent_id\":\"agent_a\"}}",
+      "expect": {
+        "kind": "identity",
+        "dropped_agents": 1,
+        "fields": {
+          "run_id": "r1",
+          "installation_id": "inst_1",
+          "org_id": "org_1",
+          "workspace_id": "",
+          "platform": "",
+          "status": "",
+          "binding_status": "",
+          "runtime_version": "",
+          "agent_id": "agent_a",
+          "agents": []
+        }
+      }
+    },
+    {
+      "name": "identity_agent_id_malformed",
+      "line": "{\"v\":1,\"event\":\"identity\",\"run_id\":\"r1\",\"installation_id\":\"inst_1\",\"org_id\":\"org_1\",\"agent_id\":42,\"agents\":[{\"agent_id\":\"agent_b\",\"is_default\":true}]}",
+      "expect": {
+        "kind": "identity",
+        "dropped_agents": 1,
+        "fields": {
+          "run_id": "r1",
+          "installation_id": "inst_1",
+          "org_id": "org_1",
+          "workspace_id": "",
+          "platform": "",
+          "status": "",
+          "binding_status": "",
+          "runtime_version": "",
+          "agent_id": "agent_b",
+          "agents": [
+            {
+              "agent_id": "agent_b",
+              "is_default": true
+            }
+          ]
         }
       }
     },
@@ -231,7 +367,9 @@
           "platform": "discord",
           "status": "active",
           "binding_status": "verified",
-          "runtime_version": "1.9.0"
+          "runtime_version": "1.9.0",
+          "agent_id": "",
+          "agents": []
         }
       }
     },

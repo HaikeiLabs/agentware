@@ -69,6 +69,32 @@ await link.start();
 await link.stop();        // on shutdown
 ```
 
+### Agent identity comes from `link.identity()`
+
+A harness needs only `KEI_RUNTIME_TOKEN`. Its agent identity is resolved by the
+runtime from catalog whoami and delivered on the `identity` event, so an
+adapter reads its agent from `link.identity()` once the link reports identity
+and **must not require an agent-ID env var** (or any other declared agent
+config that could disagree with whoami):
+
+| Field | Python | Go | TypeScript |
+| --- | --- | --- | --- |
+| Default agent | `default_agent_id: str \| None` | `DefaultAgentID string` (`""` when none) | `defaultAgentId?: string` |
+| Assigned agents | `agents: tuple[AssignedAgent, ...]` | `Agents []AssignedAgent` | `agents: AssignedAgent[]` |
+| Entry | `AssignedAgent(agent_id, is_default)` | `AssignedAgent{AgentID, IsDefault}` | `{ agentId, isDefault }` |
+
+Both fields are optional on the wire. An older runtime omits them, so the
+default agent is absent and the list is empty — treat that as "no agent
+assigned" and fail closed rather than falling back to an env var. When
+`agent_id` is absent but an entry has `is_default`, the SDK fills the default
+from that entry.
+
+```typescript
+const identity = link.identity();
+const agentId = identity?.defaultAgentId;
+if (!agentId) throw new Error("runtime reported no assigned agent");
+```
+
 ---
 
 ## Recommended Integration Subset
@@ -216,13 +242,18 @@ The child process writes JSONL events to stdout. The SDK parses them with
 
 | Event | Fields | SDK type |
 | --- | --- | --- |
-| `identity` | `run_id`, `installation_id`, `org_id`, `workspace_id`, `platform`, `status`, `binding_status`, `runtime_version` | `RuntimeIdentity` (also returned by `link.identity()`) |
+| `identity` | `run_id`, `installation_id`, `org_id`, `workspace_id`, `platform`, `status`, `binding_status`, `runtime_version`, `agent_id` (optional), `agents: [{agent_id, is_default}]` (optional) | `RuntimeIdentity` (also returned by `link.identity()`) |
 | `beat` | `run_id`, `seq`, `at`, `outcome`, `http_status`, `latency_ms`, `next_in_ms` | `BeatEvent` |
 | `terminal` | `run_id`, `reason` | `TerminalEvent` |
 | *(unknown event)* | — | `IgnoredEvent` / `{kind: "ignored"}` |
 
 Only allowlisted fields are read from the wire; payloads, results, reasoning,
 tokens, or any other key the runtime might emit are dropped.
+
+`agent_id` and `agents` are tolerant: a malformed `agent_id`, a non-list
+`agents`, or a malformed entry (bad `agent_id`, non-boolean `is_default`) is
+dropped without rejecting the identity, and the supervisor counts each drop in
+`consecutive_fails` the way it counts other dropped child lines.
 
 ### ChildProcessEnv
 

@@ -58,6 +58,9 @@ type ChildEvent struct {
 	Identity *RuntimeIdentity
 	Beat     *BeatEvent
 	Terminal *TerminalEvent
+	// DroppedAgents counts malformed agent entries dropped from an identity
+	// event. The supervisor counts them like other dropped child lines.
+	DroppedAgents int
 }
 
 // Bounds on child event fields. Identifiers are opaque tokens, never text, so
@@ -111,7 +114,8 @@ func ParseChildLine(line []byte) (ChildEvent, error) {
 		if f.err != nil {
 			return ChildEvent{}, f.err
 		}
-		return ChildEvent{Kind: ChildIdentity, Identity: &id}, nil
+		dropped := parseAgents(raw, &id)
+		return ChildEvent{Kind: ChildIdentity, Identity: &id, DroppedAgents: dropped}, nil
 	case ChildBeat:
 		b := BeatEvent{
 			RunID:     f.id("run_id", true),
@@ -146,6 +150,63 @@ func ParseChildLine(line []byte) (ChildEvent, error) {
 	default:
 		return ChildEvent{Kind: ChildIgnored}, nil
 	}
+}
+
+// parseAgents fills id.DefaultAgentID and id.Agents from the optional
+// agent_id and agents fields. Older runtimes omit both, so absence is not an
+// error; a malformed agent_id, agents list, or entry is dropped and counted
+// rather than failing the whole identity. When agent_id is absent, the first
+// entry marked is_default supplies it.
+func parseAgents(raw map[string]json.RawMessage, id *RuntimeIdentity) int {
+	dropped := 0
+	id.Agents = []AssignedAgent{}
+	if v, ok := raw["agent_id"]; ok {
+		var s string
+		if json.Unmarshal(v, &s) == nil && idPattern.MatchString(s) {
+			id.DefaultAgentID = s
+		} else {
+			dropped++
+		}
+	}
+	v, ok := raw["agents"]
+	if !ok {
+		return dropped
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(v, &entries); err != nil || entries == nil {
+		return dropped + 1
+	}
+	for _, e := range entries {
+		agent, ok := parseAgentEntry(e)
+		if !ok {
+			dropped++
+			continue
+		}
+		id.Agents = append(id.Agents, agent)
+		if id.DefaultAgentID == "" && agent.IsDefault {
+			id.DefaultAgentID = agent.AgentID
+		}
+	}
+	return dropped
+}
+
+// parseAgentEntry reads one {agent_id, is_default} entry. is_default is
+// optional and false when absent.
+func parseAgentEntry(e json.RawMessage) (AssignedAgent, bool) {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(e, &obj); err != nil || obj == nil {
+		return AssignedAgent{}, false
+	}
+	var agent AssignedAgent
+	if err := json.Unmarshal(obj["agent_id"], &agent.AgentID); err != nil || !idPattern.MatchString(agent.AgentID) {
+		return AssignedAgent{}, false
+	}
+	if v, ok := obj["is_default"]; ok {
+		if err := json.Unmarshal(v, &agent.IsDefault); err != nil || string(v) == "null" {
+			return AssignedAgent{}, false
+		}
+	}
+	return agent, true
 }
 
 // fieldReader extracts typed, bounded fields and records the first failure.

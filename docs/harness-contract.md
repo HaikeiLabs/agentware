@@ -184,6 +184,12 @@ changing this contract.
   permissions and are never resolved to credentials by the library. The
   bootstrap secret (`KEI_RUNTIME_TOKEN`) is loaded separately from the
   environment or a secret provider and is rejected from any manifest.
+- **Agent identity comes from the runtime.** `KEI_RUNTIME_TOKEN` is the only
+  credential a harness needs. The agent it runs as is the one whoami assigns,
+  reported on the runtime's `identity` event; an adapter reads it from
+  `link.identity()` (`defaultAgentId` / `default_agent_id` / `DefaultAgentID`,
+  plus the assigned `agents` list) and must not require an agent-ID env var.
+  See `docs/runtime-link-integration.md`.
 - **The proxy is the enforcement boundary.** Governed external operations go
   through the proxy, which is the connector/provider runtime and policy
   enforcement point. The local middleware chain evaluates policy and audits
