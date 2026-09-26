@@ -49,10 +49,11 @@ git clone https://github.com/Soypete/herdr-wiki-plugin
 # plugin is already installed and `wiki` is on PATH for most workers
 ```
 
-If `wiki` is not on PATH, run the launcher directly:
+If `wiki` is not on PATH, install it first:
 
 ```bash
-python3 /path/to/herdr-wiki-plugin/bin/wiki <args>
+git clone https://github.com/Soypete/herdr-wiki-plugin ~/code/herdr-wiki-plugin
+export PATH="$HOME/code/herdr-wiki-plugin/bin:$PATH"
 ```
 
 ### Commands
@@ -72,6 +73,8 @@ wiki organize                                   # HUMAN ONLY — folds inbox int
   `contradicts`, `supports`, `about`, `relates_to`). Do not guess types.
 - Captures land in an inbox; a human runs `wiki organize`. **Workers never
   edit wiki pages directly.**
+- Never read or edit wiki inbox JSON files directly; use only `wiki search` /
+  `wiki capture`.
 - Search the wiki before planning; when you learn something durable, capture it.
 
 ## Build, Lint, and Test Commands
