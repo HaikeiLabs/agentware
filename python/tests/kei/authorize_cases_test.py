@@ -113,6 +113,8 @@ def test_authorize_case(
     if expected["invoked"]:
         argv = argv_file.read_text().splitlines()
         assert all(CANARIES["runtime_token"] not in arg for arg in argv)
+        for flag in TABLE["argv_forbidden"]["flags"]:
+            assert flag not in argv, f"{flag} must not be sent"
         if "argv" in expected:
             assert argv == expected["argv"]
 

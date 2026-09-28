@@ -7,6 +7,12 @@
     "span_id": "span-fixture-0001",
     "comment": "Callers are built from policy.v1.json: user_id and invoking_subject are users[input.user].id; agent_id/agent_version/framework come from agent; workspace_id from workspace. input.caller overrides user_id, parent_span and delegation_depth."
   },
+  "argv_forbidden": {
+    "note": "Flags no client may send. Agent identity is resolved by kei-proxy (>= 0.1.11) from the runtime installation; harnesses must omit --agent-id (kei-proxy skill). The runtime token never appears in argv (checked separately via canaries).",
+    "flags": [
+      "--agent-id"
+    ]
+  },
   "reason_classes": [
     "allow",
     "deny",
@@ -28,13 +34,14 @@
     "stderr_detail": "CANARY-STDERR-DETAIL"
   },
   "child_env": {
-    "note": "The kei-proxy child sees only these parent variables (when set) plus any explicit extra env. KEI_RUNTIME_TOKEN reaches it only through the environment, never argv. KEI_PROXY_* identity variables are not inherited; identity travels as flags.",
+    "note": "KEI_RUNTIME_VERSION is the harness-set runtime version the kei-proxy skill says the child inherits. The kei-proxy child sees only these parent variables (when set) plus any explicit extra env. KEI_RUNTIME_TOKEN reaches it only through the environment, never argv. KEI_PROXY_* identity variables are not inherited; identity travels as flags.",
     "allowlist": [
       "PATH",
       "HOME",
       "TZ",
       "KEI_RUNTIME_TOKEN",
       "KEI_RUNTIME_CONTROL_PLANE_URL",
+      "KEI_RUNTIME_VERSION",
       "KEI_API_URL",
       "KEI_PROXY_REGISTRY",
       "KEI_PROXY_AUDIT",
@@ -91,8 +98,6 @@
           "span-fixture-0001",
           "--invoking-subject",
           "user-member-0001",
-          "--agent-id",
-          "agent-fixture-0001",
           "--agent-version",
           "1.0.0",
           "--framework",
@@ -152,8 +157,6 @@
           "span-fixture-0001",
           "--invoking-subject",
           "user-admin-0001",
-          "--agent-id",
-          "agent-fixture-0001",
           "--agent-version",
           "1.0.0",
           "--framework",
@@ -213,8 +216,6 @@
           "span-parent-0001",
           "--delegation-depth",
           "2",
-          "--agent-id",
-          "agent-fixture-0001",
           "--agent-version",
           "1.0.0",
           "--framework",
