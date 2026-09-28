@@ -27,6 +27,7 @@ export const AUTHORIZE_CHILD_ENV_ALLOWLIST = [
   "TZ",
   "KEI_RUNTIME_TOKEN",
   "KEI_RUNTIME_CONTROL_PLANE_URL",
+  "KEI_RUNTIME_VERSION",
   "KEI_API_URL",
   "KEI_PROXY_REGISTRY",
   "KEI_PROXY_AUDIT",
@@ -131,7 +132,11 @@ export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
   }
 }
 
-/** The argv (after the executable) for one authorize call. */
+/**
+ * The argv (after the executable) for one authorize call. `agentId` and
+ * `workspaceId` are not sent: kei-proxy (>= 0.1.11) resolves the agent from
+ * the runtime installation and workspace scope from the runtime token.
+ */
 export function keiProxyAuthorizeArgv(
   request: KeiProxyAuthorizeRequest,
 ): string[] {
@@ -154,7 +159,6 @@ export function keiProxyAuthorizeArgv(
       "--delegation-depth",
       request.delegationDepth > 0 ? String(request.delegationDepth) : "",
     ],
-    ["--agent-id", request.agentId],
     ["--agent-version", request.agentVersion],
     ["--framework", request.framework],
     ["--tool-args-digest", request.toolArgsDigest],

@@ -133,6 +133,7 @@ posix("KeiProxyEvaluator authorize-cases.v1", () => {
     if (expected.invoked) {
       const argv = readFileSync(argvFile, "utf8").split("\n").filter((l) => l !== "");
       expect(argv.some((a) => a.includes(CANARIES.runtime_token))).toBe(false);
+      for (const flag of TABLE.argv_forbidden.flags as string[]) expect(argv).not.toContain(flag);
       if (expected.argv) expect(argv).toEqual(expected.argv);
     }
   });
