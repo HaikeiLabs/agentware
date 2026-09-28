@@ -1,0 +1,92 @@
+{
+  "schema": "agentware.kei.policy-fixture/v1",
+  "note": "Seeded, fixture-only policy for the KeiProxyEvaluator parity table (authorize-cases.v1.json). Every id is synthetic; nothing here is a live org, user or credential. The fake kei-proxy does not evaluate this policy: each case in authorize-cases.v1.json names the rule it was derived from, and the Python fixture-integrity test checks the case's canned decision agrees with that rule.",
+  "org": {
+    "id": "org-fixture-0001",
+    "name": "Fixture Org"
+  },
+  "workspace": {
+    "id": "ws-fixture-0001",
+    "org_id": "org-fixture-0001",
+    "name": "Fixture Workspace"
+  },
+  "agent": {
+    "id": "agent-fixture-0001",
+    "version": "1.0.0",
+    "framework": "agentware"
+  },
+  "users": {
+    "member": {
+      "id": "user-member-0001",
+      "role": "member",
+      "linked": true,
+      "provider": "discord",
+      "provider_user_id": "discord-member-0001"
+    },
+    "admin": {
+      "id": "user-admin-0001",
+      "role": "admin",
+      "linked": true,
+      "provider": "discord",
+      "provider_user_id": "discord-admin-0001"
+    },
+    "unlinked": {
+      "id": "user-unlinked-0001",
+      "role": "chat_user",
+      "linked": false,
+      "provider": "discord",
+      "provider_user_id": "discord-unlinked-0001"
+    }
+  },
+  "tools": {
+    "github.get_issue": {
+      "service": "github",
+      "action": "github:read"
+    },
+    "github.create_issue": {
+      "service": "github",
+      "action": "github:write"
+    },
+    "github.delete_repo": {
+      "service": "github",
+      "action": "github:admin"
+    }
+  },
+  "rules": [
+    {
+      "id": "pol-unlinked-enroll",
+      "effect": "enrollment",
+      "roles": ["chat_user"],
+      "linked": false,
+      "tools": ["*"],
+      "reason": "identity not linked"
+    },
+    {
+      "id": "pol-read-all",
+      "effect": "allow",
+      "roles": ["member", "admin"],
+      "tools": ["github.get_issue"]
+    },
+    {
+      "id": "pol-write-admin",
+      "effect": "allow",
+      "roles": ["admin"],
+      "tools": ["github.create_issue"]
+    },
+    {
+      "id": "pol-write-member-deny",
+      "effect": "deny",
+      "roles": ["member"],
+      "tools": ["github.create_issue"],
+      "reason": "member lacks github:write"
+    },
+    {
+      "id": "pol-admin-destructive-deny",
+      "effect": "deny",
+      "roles": ["member", "admin"],
+      "tools": ["github.delete_repo"],
+      "reason": "destructive github:admin actions are denied"
+    }
+  ],
+  "default": "deny"
+}

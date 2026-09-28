@@ -1,0 +1,922 @@
+{
+  "schema": "agentware.kei.authorize-cases/v1",
+  "note": "Language-neutral parity table for KeiProxyEvaluator (Python, TypeScript, Go). Each case feeds a tool call through the evaluator to the fake kei-proxy (fake-kei-proxy.sh), which prints proxy.stdout / proxy.stderr and exits with proxy.exit_code. Every language must produce expected.action, a reason starting with 'kei-proxy <reason_class>', expected.rule, and exactly expected.enrollment (null = absent). No canary may appear in any decision reason or log line, and the runtime token must never appear in argv. Changing this file is a contract change: update all three languages in the same stack.",
+  "policy": "policy.v1.json",
+  "timeout_ms": 500,
+  "caller_defaults": {
+    "span_id": "span-fixture-0001",
+    "comment": "Callers are built from policy.v1.json: user_id and invoking_subject are users[input.user].id; agent_id/agent_version/framework come from agent; workspace_id from workspace. input.caller overrides user_id, parent_span and delegation_depth."
+  },
+  "reason_classes": [
+    "allow",
+    "deny",
+    "enrollment_required",
+    "unknown_decision",
+    "no_decision",
+    "malformed_response",
+    "empty_response",
+    "proxy_error",
+    "exit_mismatch",
+    "proxy_unavailable",
+    "proxy_timeout",
+    "missing_token"
+  ],
+  "canaries": {
+    "runtime_token": "kh_fixture_CANARY_RUNTIME_TOKEN",
+    "enrollment_url": "https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM",
+    "credential_value": "CANARY-CREDENTIAL-VALUE",
+    "stderr_detail": "CANARY-STDERR-DETAIL"
+  },
+  "child_env": {
+    "note": "The kei-proxy child sees only these parent variables (when set) plus any explicit extra env. KEI_RUNTIME_TOKEN reaches it only through the environment, never argv. KEI_PROXY_* identity variables are not inherited; identity travels as flags.",
+    "allowlist": [
+      "PATH",
+      "HOME",
+      "TZ",
+      "KEI_RUNTIME_TOKEN",
+      "KEI_RUNTIME_CONTROL_PLANE_URL",
+      "KEI_API_URL",
+      "KEI_PROXY_REGISTRY",
+      "KEI_PROXY_AUDIT",
+      "KEI_PROXY_AUDIT_MAX_BYTES",
+      "KEI_PROXY_PROVIDER_USER",
+      "KEI_CREDENTIAL_STORE_INSTALLATION_ID",
+      "KEI_AWS_SECRETS_MANAGER_ENDPOINT"
+    ],
+    "stripped": [
+      "DISCORD_TOKEN",
+      "OPENAI_API_KEY",
+      "GITHUB_TOKEN",
+      "AWS_SECRET_ACCESS_KEY",
+      "KEI_PROXY_SPAN_ID"
+    ]
+  },
+  "cases": [
+    {
+      "id": "allow_member_read",
+      "description": "Linked member reads an issue; the proxy allows (exit 0). Pins the exact argv.",
+      "derived_from": "pol-read-all",
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "allow",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "allow",
+        "invoked": true,
+        "argv": [
+          "authorize",
+          "--user",
+          "user-member-0001",
+          "--tool",
+          "github.get_issue",
+          "--action",
+          "github:read",
+          "--resource",
+          "github:repo:acme/sales-pipeline",
+          "--span-id",
+          "span-fixture-0001",
+          "--invoking-subject",
+          "user-member-0001",
+          "--agent-id",
+          "agent-fixture-0001",
+          "--agent-version",
+          "1.0.0",
+          "--framework",
+          "agentware",
+          "--tool-args-digest",
+          "7ed161e4e3b1613f53bbf8de4b03ff63e5fc7938b64232034e6bd2088d8e1153",
+          "--resources",
+          "github:repo:acme/sales-pipeline,github:issue:42"
+        ]
+      }
+    },
+    {
+      "id": "allow_admin_write_with_credential",
+      "description": "Linked admin writes; the proxy allows and returns a credential, which must never reach a reason or a log. Pins the digest of non-ASCII, nested args.",
+      "derived_from": "pol-write-admin",
+      "input": {
+        "user": "admin",
+        "tool": "github.create_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "action": "github:write",
+          "title": "Café ☕ <b>&",
+          "labels": [
+            "bug",
+            "p1"
+          ],
+          "meta": {
+            "z": 1,
+            "a": true,
+            "n": null
+          }
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\",\"service\":\"github\",\"credential\":{\"value\":\"CANARY-CREDENTIAL-VALUE\"}}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "allow",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "allow",
+        "invoked": true,
+        "argv": [
+          "authorize",
+          "--user",
+          "user-admin-0001",
+          "--tool",
+          "github.create_issue",
+          "--action",
+          "github:write",
+          "--resource",
+          "github:repo:acme/sales-pipeline",
+          "--span-id",
+          "span-fixture-0001",
+          "--invoking-subject",
+          "user-admin-0001",
+          "--agent-id",
+          "agent-fixture-0001",
+          "--agent-version",
+          "1.0.0",
+          "--framework",
+          "agentware",
+          "--tool-args-digest",
+          "4e8ac6942acde9fb6d10e721ae4fe350429410bd574c5e9305b54874c51c9bf6",
+          "--resources",
+          "github:repo:acme/sales-pipeline"
+        ]
+      }
+    },
+    {
+      "id": "allow_delegated_admin",
+      "description": "A subagent two hops down acts for the admin: --user is the invoking subject, and the delegation chain is forwarded.",
+      "derived_from": "pol-read-all",
+      "input": {
+        "user": "admin",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        },
+        "caller": {
+          "user_id": "agent-fixture-0001",
+          "parent_span": "span-parent-0001",
+          "delegation_depth": 2
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "allow",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "allow",
+        "invoked": true,
+        "argv": [
+          "authorize",
+          "--user",
+          "user-admin-0001",
+          "--tool",
+          "github.get_issue",
+          "--action",
+          "github:read",
+          "--resource",
+          "github:repo:acme/sales-pipeline",
+          "--span-id",
+          "span-fixture-0001",
+          "--invoking-subject",
+          "user-admin-0001",
+          "--parent-span",
+          "span-parent-0001",
+          "--delegation-depth",
+          "2",
+          "--agent-id",
+          "agent-fixture-0001",
+          "--agent-version",
+          "1.0.0",
+          "--framework",
+          "agentware",
+          "--tool-args-digest",
+          "7ed161e4e3b1613f53bbf8de4b03ff63e5fc7938b64232034e6bd2088d8e1153",
+          "--resources",
+          "github:repo:acme/sales-pipeline,github:issue:42"
+        ]
+      }
+    },
+    {
+      "id": "permit_legacy_affirmative",
+      "description": "Older proxies say permit; it is still the affirmative.",
+      "derived_from": "pol-read-all",
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"permit\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "allow",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "allow",
+        "invoked": true
+      }
+    },
+    {
+      "id": "allow_case_insensitive",
+      "description": "Decisions are matched case-insensitively.",
+      "derived_from": "pol-read-all",
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"ALLOW\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "allow",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "allow",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_member_write",
+      "description": "Plain deny (exit 1): the proxy reason is kept, no enrollment.",
+      "derived_from": "pol-write-member-deny",
+      "input": {
+        "user": "member",
+        "tool": "github.create_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "action": "github:write",
+          "title": "Café ☕ <b>&",
+          "labels": [
+            "bug",
+            "p1"
+          ],
+          "meta": {
+            "z": 1,
+            "a": true,
+            "n": null
+          }
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"member lacks github:write\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "reason_contains": "member lacks github:write",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_admin_destructive",
+      "description": "Even an admin is denied the destructive action.",
+      "derived_from": "pol-admin-destructive-deny",
+      "input": {
+        "user": "admin",
+        "tool": "github.delete_repo",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "action": "github:admin"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"destructive github:admin actions are denied\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "reason_contains": "destructive github:admin actions are denied",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_with_policy_id",
+      "description": "A policy_id in the output attributes the decision's rule.",
+      "derived_from": "pol-write-member-deny",
+      "input": {
+        "user": "member",
+        "tool": "github.create_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "action": "github:write",
+          "title": "Café ☕ <b>&",
+          "labels": [
+            "bug",
+            "p1"
+          ],
+          "meta": {
+            "z": 1,
+            "a": true,
+            "n": null
+          }
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"member lacks github:write\",\"policy_id\":\"pol-write-member-deny\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "pol-write-member-deny",
+        "enrollment": null,
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_with_enrollment",
+      "description": "Unlinked chat user: kei-proxy #41 shape, deny plus the enrollment claim link (exit 1). Enrollment is carried verbatim.",
+      "derived_from": "pol-unlinked-enroll",
+      "input": {
+        "user": "unlinked",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"identity not linked\",\"enrollment\":{\"provider\":\"discord\",\"provider_user_id\":\"discord-unlinked-0001\",\"org_id\":\"org-fixture-0001\",\"workspace_id\":\"ws-fixture-0001\",\"url\":\"https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM\",\"expires_at\":\"2026-09-28T12:00:00Z\"}}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": {
+          "provider": "discord",
+          "provider_user_id": "discord-unlinked-0001",
+          "org_id": "org-fixture-0001",
+          "workspace_id": "ws-fixture-0001",
+          "url": "https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM",
+          "expires_at": "2026-09-28T12:00:00Z"
+        },
+        "reason_class": "deny",
+        "reason_contains": "identity not linked",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_with_enrollment_without_url",
+      "description": "url and expires_at may be absent; carry what is given.",
+      "derived_from": "pol-unlinked-enroll",
+      "input": {
+        "user": "unlinked",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"identity not linked\",\"enrollment\":{\"provider\":\"discord\",\"provider_user_id\":\"discord-unlinked-0001\",\"org_id\":\"org-fixture-0001\",\"workspace_id\":\"ws-fixture-0001\"}}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": {
+          "provider": "discord",
+          "provider_user_id": "discord-unlinked-0001",
+          "org_id": "org-fixture-0001",
+          "workspace_id": "ws-fixture-0001"
+        },
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "enrollment_required_legacy",
+      "description": "Legacy bridge path: enrollment_required (exit 0) still denies and carries enrollment.",
+      "derived_from": "pol-unlinked-enroll",
+      "input": {
+        "user": "unlinked",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"enrollment_required\",\"service\":\"github\",\"enrollment\":{\"provider\":\"discord\",\"provider_user_id\":\"discord-unlinked-0001\",\"org_id\":\"org-fixture-0001\",\"workspace_id\":\"ws-fixture-0001\",\"url\":\"https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM\",\"expires_at\":\"2026-09-28T12:00:00Z\"}}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": {
+          "provider": "discord",
+          "provider_user_id": "discord-unlinked-0001",
+          "org_id": "org-fixture-0001",
+          "workspace_id": "ws-fixture-0001",
+          "url": "https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM",
+          "expires_at": "2026-09-28T12:00:00Z"
+        },
+        "reason_class": "enrollment_required",
+        "invoked": true
+      }
+    },
+    {
+      "id": "enrollment_required_without_enrollment",
+      "description": "enrollment_required with no enrollment object denies with none.",
+      "derived_from": "pol-unlinked-enroll",
+      "input": {
+        "user": "unlinked",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"enrollment_required\",\"service\":\"github\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "enrollment_required",
+        "invoked": true
+      }
+    },
+    {
+      "id": "enrollment_not_an_object",
+      "description": "A string enrollment (here the bare URL) is dropped, and never logged.",
+      "derived_from": "pol-unlinked-enroll",
+      "input": {
+        "user": "unlinked",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"identity not linked\",\"enrollment\":\"https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "enrollment_is_an_array",
+      "description": "An array enrollment is dropped.",
+      "derived_from": "pol-unlinked-enroll",
+      "input": {
+        "user": "unlinked",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"identity not linked\",\"enrollment\":[{\"provider\":\"discord\",\"provider_user_id\":\"discord-unlinked-0001\",\"org_id\":\"org-fixture-0001\",\"workspace_id\":\"ws-fixture-0001\",\"url\":\"https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM\",\"expires_at\":\"2026-09-28T12:00:00Z\"}]}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "unknown_decision",
+      "description": "An unrecognised decision denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"maybe\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "unknown_decision",
+        "invoked": true
+      }
+    },
+    {
+      "id": "non_string_decision",
+      "description": "A non-string decision is unrecognised and denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":1}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "unknown_decision",
+        "invoked": true
+      }
+    },
+    {
+      "id": "missing_decision",
+      "description": "No decision field denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"reason\":\"no decision here\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "no_decision",
+        "invoked": true
+      }
+    },
+    {
+      "id": "null_decision",
+      "description": "A null decision denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":null}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "no_decision",
+        "invoked": true
+      }
+    },
+    {
+      "id": "malformed_json",
+      "description": "Stdout that is not JSON denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\": \"allow\"\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "malformed_response",
+        "invoked": true
+      }
+    },
+    {
+      "id": "json_not_an_object",
+      "description": "JSON that is not an object denies, even when it says allow.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "\"allow\"\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "malformed_response",
+        "invoked": true
+      }
+    },
+    {
+      "id": "empty_stdout",
+      "description": "Exit 0 with nothing on stdout denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "empty_response",
+        "invoked": true
+      }
+    },
+    {
+      "id": "nonzero_exit_without_output",
+      "description": "kei-proxy's error path: exit 1, nothing on stdout, a diagnostic on stderr. Stderr never reaches a reason or a log.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "",
+        "stderr": "Error: authorization unavailable (fail closed): CANARY-STDERR-DETAIL https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM\n",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "proxy_error",
+        "invoked": true
+      }
+    },
+    {
+      "id": "usage_exit_code_with_allow",
+      "description": "Exit codes other than 0 and 1 are failures, whatever stdout says.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 2
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "proxy_error",
+        "invoked": true
+      }
+    },
+    {
+      "id": "allow_with_deny_exit_code",
+      "description": "allow on stdout but exit 1: the process and the payload disagree, so deny.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "exit_mismatch",
+        "invoked": true
+      }
+    },
+    {
+      "id": "missing_binary",
+      "description": "The kei-proxy executable does not exist.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "",
+        "stderr": "",
+        "exit_code": 0,
+        "missing_binary": true
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "proxy_unavailable",
+        "invoked": false
+      }
+    },
+    {
+      "id": "timeout",
+      "description": "kei-proxy never answers within the evaluator timeout.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "",
+        "stderr": "",
+        "exit_code": 0,
+        "hang": true
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "proxy_timeout",
+        "invoked": true
+      }
+    },
+    {
+      "id": "missing_runtime_token",
+      "description": "No KEI_RUNTIME_TOKEN: deny without spawning kei-proxy.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "env": {
+        "omit_token": true
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "missing_token",
+        "invoked": false
+      }
+    }
+  ]
+}
