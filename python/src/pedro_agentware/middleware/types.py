@@ -99,13 +99,17 @@ class Decision:
     rule: str = ""
     reason: str = ""
     redacted_args: dict[str, Any] = field(default_factory=dict)
+    enrollment: dict[str, Any] | None = None
     timestamp: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "action": self.action.value,
             "rule": self.rule,
             "reason": self.reason,
             "redacted_args": self.redacted_args,
             "timestamp": self.timestamp.isoformat(),
         }
+        if self.enrollment is not None:
+            d["enrollment"] = self.enrollment
+        return d
