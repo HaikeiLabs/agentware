@@ -72,6 +72,7 @@ Invariants every port asserts on every case:
 | --- | --- | --- | --- |
 | Python | `pedro_agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` | `python/tests/kei/authorize_cases_test.py` |
 | TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; `spawnSync`, because `PolicyEvaluator.evaluate` is synchronous) | `typescript/tests/kei-evaluator.test.ts` |
+| Go | `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) | `evaluator.CLIClient` (`exec.CommandContext`, stderr discarded) | `go/kei/evaluator/evaluator_test.go` |
 
 Python-only tests (the injected-client seam: legacy four-argument clients,
 object-shaped results, arbitrary exceptions) stay in
@@ -81,6 +82,11 @@ fields). It also gained the optional `invoking_subject`, `parent_span` and
 `delegation_depth` fields and `Decision.enrollment`. The digest matches
 Python byte for byte for strings, integers, booleans, null, arrays and
 objects. Floats may serialise differently (`1.0` is `1` in JS).
+
+Go reads the same `caller.Metadata` keys as TypeScript and adds
+`Decision.Enrollment`. The table runs serially in every language. Each case
+spawns a shell, and running them all at once can exceed the table timeout
+(`timeout_ms`, 2s) on a loaded machine.
 
 The fixture-integrity checks (every
 derived case agrees with the seeded policy rule it names) run once, in
