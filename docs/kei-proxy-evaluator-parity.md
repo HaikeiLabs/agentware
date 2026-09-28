@@ -71,9 +71,17 @@ Invariants every port asserts on every case:
 | Language | Evaluator | Subprocess client | Table test |
 | --- | --- | --- | --- |
 | Python | `pedro_agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` | `python/tests/kei/authorize_cases_test.py` |
+| TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`) | `KeiProxyAuthorizeClient` (`spawnSync`, because `PolicyEvaluator.evaluate` is synchronous) | `typescript/tests/kei-evaluator.test.ts` |
 
 Python-only tests (the injected-client seam: legacy four-argument clients,
 object-shaped results, arbitrary exceptions) stay in
-`python/tests/kei/evaluator_test.py`. The fixture-integrity checks (every
+`python/tests/kei/evaluator_test.py`. TypeScript reads `span_id`, `agent_id`, `agent_version`, `framework` and
+`workspace_id` from `CallerContext.metadata` (its `CallerContext` has no such
+fields). It also gained the optional `invoking_subject`, `parent_span` and
+`delegation_depth` fields and `Decision.enrollment`. The digest matches
+Python byte for byte for strings, integers, booleans, null, arrays and
+objects. Floats may serialise differently (`1.0` is `1` in JS).
+
+The fixture-integrity checks (every
 derived case agrees with the seeded policy rule it names) run once, in
 Python.

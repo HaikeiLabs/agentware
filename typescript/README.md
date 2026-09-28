@@ -44,6 +44,37 @@ Keep channel ingress, identity verification, delegated credentials, and
 domain-specific authorization in the host application. Agentware is not a
 policy engine; a policy gate can wrap this same boundary later.
 
+## kei-proxy policy evaluator
+
+`KeiProxyEvaluator` is a `PolicyEvaluator` that runs `kei-proxy authorize`
+before each tool call and fails closed on anything other than an explicit
+`allow`/`permit` with exit 0. `KeiProxyAuthorizeClient` passes
+`KEI_RUNTIME_TOKEN` to the child through an allowlisted environment only, never
+argv.
+
+```typescript
+import {
+  KeiProxyAuthorizeClient,
+  KeiProxyEvaluator,
+  MiddlewareImpl,
+} from "@haikeilabs/agentware";
+
+const evaluator = new KeiProxyEvaluator(
+  new KeiProxyAuthorizeClient({ executable: "kei-proxy", timeoutMs: 10_000 }),
+);
+const middleware = new MiddlewareImpl(executor).withPolicy(evaluator);
+
+const decision = evaluator.evaluate("github.get_issue", { owner: "acme", repo: "pipe" }, caller);
+if (decision.enrollment) {
+  // deny + enrollment claim link: reply to the user privately; never log it.
+}
+```
+
+Reasons read `kei-proxy <class>[: <detail>]` with a class from
+`KEI_PROXY_REASON_CLASSES`. `evaluate` is synchronous (`spawnSync`), so it
+blocks for at most `timeoutMs`. The behaviour matches the Python and Go ports
+case for case; see `docs/kei-proxy-evaluator-parity.md`.
+
 ## Maintainer releases
 
 Releases are deliberately manual and use npm staged publishing. Do not run
