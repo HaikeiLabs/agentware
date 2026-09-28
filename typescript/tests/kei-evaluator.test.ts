@@ -243,3 +243,11 @@ describe("keiProxyResourcesTouched / keiProxyToolArgsDigest", () => {
     );
   });
 });
+
+describe("KeiProxyEvaluator boundary", () => {
+  test("the evaluator module never spawns the proxy", () => {
+    const src = readFileSync(resolve(process.cwd(), "src", "kei", "evaluator.ts"), "utf8");
+    expect(src).not.toContain("child_process");
+    expect(src).not.toContain("from \"./authorizeClient");
+  });
+});

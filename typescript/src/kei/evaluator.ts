@@ -6,17 +6,23 @@
  * (see `docs/kei-proxy-evaluator-parity.md`): the same proxy output yields the
  * same Decision, reason class and enrollment everywhere.
  *
- * Fail closed: only an explicit `allow`/`permit` with exit 0 allows. Proxy
- * stdout can carry a credential or an enrollment claim link and stderr is
- * free-form, so neither is ever logged or copied into a reason.
+ * Fail closed: only an explicit `allow`/`permit` with exit 0 allows. This
+ * module never spawns the proxy: `KeiProxyAuthorizeClient`
+ * (`authorizeClient.ts`) does, behind the `KeiProxyAuthorizationClient` seam.
  */
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { PolicyEvaluator } from "../middleware/policy.js";
-import { Action, type CallerContext, type Decision } from "../middleware/types.js";
+import {
+  Action,
+  type CallerContext,
+  type Decision,
+} from "../middleware/types.js";
 
 /** kei-proxy's affirmative decisions. Everything else denies. */
-export const KEI_PROXY_AFFIRMATIVE_DECISIONS: ReadonlySet<string> = new Set(["permit", "allow"]);
+export const KEI_PROXY_AFFIRMATIVE_DECISIONS: ReadonlySet<string> = new Set([
+  "permit",
+  "allow",
+]);
 
 /** Every reason reads `kei-proxy <class>` or `kei-proxy <class>: <detail>`. */
 export const KEI_PROXY_REASON_CLASSES = [
@@ -35,29 +41,6 @@ export const KEI_PROXY_REASON_CLASSES = [
 ] as const;
 
 export type KeiProxyReasonClass = (typeof KEI_PROXY_REASON_CLASSES)[number];
-
-/**
- * Parent variables the kei-proxy child may inherit. KEI_PROXY_* identity
- * variables are deliberately absent: identity travels as flags.
- */
-export const AUTHORIZE_CHILD_ENV_ALLOWLIST = [
-  "PATH",
-  "HOME",
-  "TZ",
-  "KEI_RUNTIME_TOKEN",
-  "KEI_RUNTIME_CONTROL_PLANE_URL",
-  "KEI_API_URL",
-  "KEI_PROXY_REGISTRY",
-  "KEI_PROXY_AUDIT",
-  "KEI_PROXY_AUDIT_MAX_BYTES",
-  "KEI_PROXY_PROVIDER_USER",
-  "KEI_CREDENTIAL_STORE_INSTALLATION_ID",
-  "KEI_AWS_SECRETS_MANAGER_ENDPOINT",
-] as const;
-
-export const DEFAULT_AUTHORIZE_TIMEOUT_MS = 10_000;
-
-const RUNTIME_TOKEN_ENV = "KEI_RUNTIME_TOKEN";
 
 /**
  * An authorize call that produced no usable answer. The message is built by
@@ -101,151 +84,6 @@ export interface KeiProxyAuthorizeRequest {
  */
 export interface KeiProxyAuthorizationClient {
   authorize(request: KeiProxyAuthorizeRequest): unknown;
-}
-
-export interface KeiProxyAuthorizeClientOptions {
-  /** Path or name of the kei-proxy binary. Default `kei-proxy`. */
-  executable?: string;
-  /** Milliseconds to wait for one authorize call. Default 10s. */
-  timeoutMs?: number;
-  /** Parent environment to draw allowlisted variables from. Default `process.env`. */
-  env?: Readonly<Record<string, string | undefined>>;
-  /** Variables passed to the child verbatim, for settings outside the allowlist. */
-  extraEnv?: Readonly<Record<string, string>>;
-}
-
-/**
- * Runs `kei-proxy authorize` once per call. The runtime token reaches the
- * child only through its environment, never argv.
- *
- * Uses `spawnSync` because `PolicyEvaluator.evaluate` is synchronous; the
- * event loop is blocked for at most `timeoutMs`.
- */
-export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
-  private readonly executable: string;
-  private readonly timeoutMs: number;
-  private readonly env?: Readonly<Record<string, string | undefined>>;
-  private readonly extraEnv: Readonly<Record<string, string>>;
-
-  constructor(options: KeiProxyAuthorizeClientOptions = {}) {
-    this.executable = options.executable ?? "kei-proxy";
-    this.timeoutMs = options.timeoutMs ?? DEFAULT_AUTHORIZE_TIMEOUT_MS;
-    this.env = options.env;
-    this.extraEnv = options.extraEnv ?? {};
-  }
-
-  /** The exact environment the kei-proxy child receives. */
-  childEnv(): Record<string, string> {
-    const source = this.env ?? process.env;
-    const out: Record<string, string> = {};
-    for (const key of AUTHORIZE_CHILD_ENV_ALLOWLIST) {
-      const value = source[key];
-      if (value !== undefined) out[key] = value;
-    }
-    return { ...out, ...this.extraEnv };
-  }
-
-  authorize(request: KeiProxyAuthorizeRequest): Record<string, unknown> {
-    const env = this.childEnv();
-    if (!env[RUNTIME_TOKEN_ENV]) {
-      throw new KeiProxyAuthorizeError("missing_token", `${RUNTIME_TOKEN_ENV} is not set`);
-    }
-
-    const result = spawnSync(this.executable, keiProxyAuthorizeArgv(request), {
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: this.timeoutMs,
-      killSignal: "SIGKILL",
-      maxBuffer: 1024 * 1024,
-      windowsHide: true,
-    });
-
-    if (result.error) {
-      const code = (result.error as NodeJS.ErrnoException).code;
-      if (code === "ETIMEDOUT") {
-        throw new KeiProxyAuthorizeError("proxy_timeout", `no answer within ${this.timeoutMs}ms`);
-      }
-      if (code === "ENOBUFS") {
-        throw new KeiProxyAuthorizeError("malformed_response", "stdout exceeded the size limit");
-      }
-      throw new KeiProxyAuthorizeError(
-        "proxy_unavailable",
-        `could not start kei-proxy (${code ?? "error"})`,
-      );
-    }
-    if (result.status === null) {
-      throw new KeiProxyAuthorizeError(
-        "proxy_error",
-        `kei-proxy terminated by ${result.signal ?? "signal"}`,
-      );
-    }
-    return parseKeiProxyAuthorizeOutput(result.stdout.toString("utf8"), result.status);
-  }
-}
-
-/** The argv (after the executable) for one authorize call. */
-export function keiProxyAuthorizeArgv(request: KeiProxyAuthorizeRequest): string[] {
-  const argv = [
-    "authorize",
-    "--user",
-    request.userId,
-    "--tool",
-    request.tool,
-    "--action",
-    request.action,
-    "--resource",
-    request.resource,
-  ];
-  const optional: Array<[string, string]> = [
-    ["--span-id", request.spanId],
-    ["--invoking-subject", request.invokingSubject],
-    ["--parent-span", request.parentSpan],
-    ["--delegation-depth", request.delegationDepth > 0 ? String(request.delegationDepth) : ""],
-    ["--agent-id", request.agentId],
-    ["--agent-version", request.agentVersion],
-    ["--framework", request.framework],
-    ["--tool-args-digest", request.toolArgsDigest],
-    ["--resources", request.resources.join(",")],
-  ];
-  for (const [flag, value] of optional) {
-    if (value) argv.push(flag, value);
-  }
-  return argv;
-}
-
-/** Validate one authorize result against the exit-code contract. */
-export function parseKeiProxyAuthorizeOutput(
-  stdout: string,
-  exitCode: number,
-): Record<string, unknown> {
-  if (exitCode !== 0 && exitCode !== 1) {
-    throw new KeiProxyAuthorizeError("proxy_error", `kei-proxy exited ${exitCode}`);
-  }
-  const text = stdout.trim();
-  if (!text) {
-    if (exitCode !== 0) {
-      throw new KeiProxyAuthorizeError("proxy_error", `kei-proxy exited ${exitCode}`);
-    }
-    throw new KeiProxyAuthorizeError("empty_response", "kei-proxy printed nothing");
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new KeiProxyAuthorizeError("malformed_response", "stdout is not JSON");
-  }
-  if (!isPlainObject(parsed)) {
-    throw new KeiProxyAuthorizeError("malformed_response", "stdout is not a JSON object");
-  }
-  const decision = parsed.decision;
-  if (
-    exitCode !== 0 &&
-    typeof decision === "string" &&
-    KEI_PROXY_AFFIRMATIVE_DECISIONS.has(decision.trim().toLowerCase())
-  ) {
-    throw new KeiProxyAuthorizeError("exit_mismatch", `${decision} with exit ${exitCode}`);
-  }
-  return parsed;
 }
 
 /**
@@ -333,13 +171,20 @@ export class KeiProxyEvaluator implements PolicyEvaluator {
   private readonly defaultAction: string;
   private readonly logger: KeiProxyLogger;
 
-  constructor(client: KeiProxyAuthorizationClient, options: KeiProxyEvaluatorOptions = {}) {
+  constructor(
+    client: KeiProxyAuthorizationClient,
+    options: KeiProxyEvaluatorOptions = {},
+  ) {
     this.client = client;
     this.defaultAction = options.defaultAction ?? "execute";
     this.logger = options.logger ?? defaultLogger;
   }
 
-  evaluate(toolName: string, args: Record<string, unknown>, caller: CallerContext): Decision {
+  evaluate(
+    toolName: string,
+    args: Record<string, unknown>,
+    caller: CallerContext,
+  ): Decision {
     const resources = keiProxyResourcesTouched(toolName, args);
     const userId = caller.invoking_subject || caller.user_id || "";
     const meta = caller.metadata ?? {};
@@ -365,29 +210,47 @@ export class KeiProxyEvaluator implements PolicyEvaluator {
       raw = this.client.authorize(request);
     } catch (err) {
       if (err instanceof KeiProxyAuthorizeError) {
-        this.logger("warn", `kei-proxy authorize for ${toolName} denied: ${err.reasonClass}`);
+        this.logger(
+          "warn",
+          `kei-proxy authorize for ${toolName} denied: ${err.reasonClass}`,
+        );
         return this.decision(Action.DENY, reason(err.reasonClass, err.detail));
       }
       const message = err instanceof Error ? err.message : String(err);
-      this.logger("warn", `kei-proxy authorize failed for ${toolName}, denying: ${message}`);
-      return this.decision(Action.DENY, reason("proxy_error", `authorize failed: ${message}`));
+      this.logger(
+        "warn",
+        `kei-proxy authorize failed for ${toolName}, denying: ${message}`,
+      );
+      return this.decision(
+        Action.DENY,
+        reason("proxy_error", `authorize failed: ${message}`),
+      );
     }
 
     const response = isPlainObject(raw) ? raw : {};
     const rawDecision = response.decision;
     const decision =
-      rawDecision === undefined || rawDecision === null ? "" : String(rawDecision).trim().toLowerCase();
+      rawDecision === undefined || rawDecision === null
+        ? ""
+        : String(rawDecision).trim().toLowerCase();
     const proxyReason = optionalString(response.reason);
-    const policyId = optionalString(response.policy_id) ?? optionalString(response.policy);
+    const policyId =
+      optionalString(response.policy_id) ?? optionalString(response.policy);
 
     if (KEI_PROXY_AFFIRMATIVE_DECISIONS.has(decision)) {
-      return this.decision(Action.ALLOW, reason("allow", proxyReason), policyId);
+      return this.decision(
+        Action.ALLOW,
+        reason("allow", proxyReason),
+        policyId,
+      );
     }
 
     let reasonClass: KeiProxyReasonClass;
     let detail: string | undefined;
     let enrollment: Record<string, unknown> | undefined;
-    const carried = isPlainObject(response.enrollment) ? response.enrollment : undefined;
+    const carried = isPlainObject(response.enrollment)
+      ? response.enrollment
+      : undefined;
     if (!decision) {
       reasonClass = "no_decision";
     } else if (decision === "deny") {
@@ -404,7 +267,12 @@ export class KeiProxyEvaluator implements PolicyEvaluator {
     }
 
     this.logger("debug", `kei-proxy ${reasonClass} for ${toolName}`);
-    return this.decision(Action.DENY, reason(reasonClass, detail), policyId, enrollment);
+    return this.decision(
+      Action.DENY,
+      reason(reasonClass, detail),
+      policyId,
+      enrollment,
+    );
   }
 
   private decision(
@@ -425,7 +293,9 @@ export class KeiProxyEvaluator implements PolicyEvaluator {
 }
 
 function reason(reasonClass: KeiProxyReasonClass, detail?: string): string {
-  return detail ? `kei-proxy ${reasonClass}: ${detail}` : `kei-proxy ${reasonClass}`;
+  return detail
+    ? `kei-proxy ${reasonClass}: ${detail}`
+    : `kei-proxy ${reasonClass}`;
 }
 
 function optionalString(value: unknown): string | undefined {

@@ -71,7 +71,7 @@ Invariants every port asserts on every case:
 | Language | Evaluator | Subprocess client | Table test |
 | --- | --- | --- | --- |
 | Python | `pedro_agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` | `python/tests/kei/authorize_cases_test.py` |
-| TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`) | `KeiProxyAuthorizeClient` (`spawnSync`, because `PolicyEvaluator.evaluate` is synchronous) | `typescript/tests/kei-evaluator.test.ts` |
+| TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; `spawnSync`, because `PolicyEvaluator.evaluate` is synchronous) | `typescript/tests/kei-evaluator.test.ts` |
 
 Python-only tests (the injected-client seam: legacy four-argument clients,
 object-shaped results, arbitrary exceptions) stay in
