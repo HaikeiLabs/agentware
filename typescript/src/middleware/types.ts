@@ -32,6 +32,12 @@ export interface CallerContext {
   source?: string;
   trusted: boolean;
   metadata?: Record<string, string>;
+  /** The human who originated the request; carried unchanged across delegation hops. */
+  invoking_subject?: string;
+  /** Span of the delegating caller, when this call was made by a subagent. */
+  parent_span?: string;
+  /** 0 for a direct call; incremented at each delegation hop. */
+  delegation_depth?: number;
 }
 
 export interface Decision {
@@ -39,6 +45,12 @@ export interface Decision {
   rule: string;
   reason: string;
   redacted_args?: Record<string, unknown>;
+  /**
+   * Opaque enrollment object from kei-proxy on a DENY (provider,
+   * provider_user_id, org_id, workspace_id, and optionally url/expires_at).
+   * The url is a one-time claim link: surface it to the user, never log it.
+   */
+  enrollment?: Record<string, unknown>;
   timestamp: Date;
 }
 
