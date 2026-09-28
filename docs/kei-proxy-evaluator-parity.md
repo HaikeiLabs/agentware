@@ -52,14 +52,19 @@ Invariants every port asserts on every case:
   Stdout and stderr are never logged.
 - **Token by env only.** `KEI_RUNTIME_TOKEN` reaches the child through its
   environment and never through argv. The child sees only the allowlisted
-  parent variables (`child_env.allowlist`) plus explicit extra env. Secrets
+  parent variables (`child_env.allowlist`) plus explicit extra env. The allowlist includes
+  `KEI_RUNTIME_VERSION`, which the harness sets for the runtime. Secrets
   such as `DISCORD_TOKEN` and inherited `KEI_PROXY_*` identity variables are
   stripped.
 - **Identity by flags.** `--user` is the invoking subject (the human). The
-  delegation chain (`--parent-span`, `--delegation-depth`), agent,
+  delegation chain (`--parent-span`, `--delegation-depth`), agent version,
   framework, `--tool-args-digest` (SHA-256 of the sorted-key, ASCII-escaped,
   compact JSON of the args) and `--resources` are passed as flags. The argv
   is pinned by the table.
+- **No `--agent-id`.** kei-proxy (0.1.11 and later) resolves the agent from the
+  runtime installation, so no client sends `--agent-id` (`argv_forbidden`)
+  even when the caller carries an agent id. Injected clients still receive
+  it on the request.
 
 ## Ports
 
