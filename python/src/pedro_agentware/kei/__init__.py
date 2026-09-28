@@ -31,6 +31,12 @@ from .auth import (
     TokenType,
     get_auth_provider,
 )
+from .authorize_client import (
+    AUTHORIZE_CHILD_ENV_ALLOWLIST,
+    DEFAULT_AUTHORIZE_TIMEOUT,
+    KeiProxyAuthorizeClient,
+    parse_authorize_output,
+)
 from .config import (
     BINDINGS_GRANT_PERMISSIONS,
     BOOTSTRAP_SECRET_NAME,
@@ -52,8 +58,10 @@ from .contract import (
 )
 from .evaluator import (
     AFFIRMATIVE_DECISIONS,
+    REASON_CLASSES,
     AuthorizationClient,
     AuthorizationResponse,
+    KeiProxyAuthorizeError,
     KeiProxyEvaluator,
     resources_touched,
     tool_args_digest,
@@ -120,7 +128,13 @@ __all__ = [
     "AFFIRMATIVE_DECISIONS",
     "AuthorizationClient",
     "AuthorizationResponse",
+    "AUTHORIZE_CHILD_ENV_ALLOWLIST",
+    "DEFAULT_AUTHORIZE_TIMEOUT",
+    "KeiProxyAuthorizeClient",
+    "KeiProxyAuthorizeError",
     "KeiProxyEvaluator",
+    "REASON_CLASSES",
+    "parse_authorize_output",
     "resources_touched",
     "tool_args_digest",
     "AuthProvider",

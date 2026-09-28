@@ -7,12 +7,14 @@ on:
       - 'python/**'
       - '.github/workflows/python-test.yml'
       - 'testing/contracts/runtime-link/**'
+      - 'fixtures/kei/**'
   pull_request:
     branches: [main]
     paths:
       - 'python/**'
       - '.github/workflows/python-test.yml'
       - 'testing/contracts/runtime-link/**'
+      - 'fixtures/kei/**'
 
 jobs:
   python-test:

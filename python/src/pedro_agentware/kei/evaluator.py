@@ -26,7 +26,9 @@ __all__ = [
     "AFFIRMATIVE_DECISIONS",
     "AuthorizationClient",
     "AuthorizationResponse",
+    "KeiProxyAuthorizeError",
     "KeiProxyEvaluator",
+    "REASON_CLASSES",
     "resources_touched",
 ]
 
@@ -36,6 +38,39 @@ __all__ = [
 # Everything else -- including "deny", "enrollment_required", an empty string
 # and anything unrecognised -- denies.
 AFFIRMATIVE_DECISIONS = frozenset({"permit", "allow"})
+
+# Every Decision this evaluator returns has a reason of the form
+# ``"kei-proxy <class>"`` or ``"kei-proxy <class>: <detail>"``. The classes are
+# shared with the TypeScript and Go ports (fixtures/kei/authorize-cases.v1.json)
+# so a harness can branch on them identically in every language.
+REASON_CLASSES = (
+    "allow",
+    "deny",
+    "enrollment_required",
+    "unknown_decision",
+    "no_decision",
+    "malformed_response",
+    "empty_response",
+    "proxy_error",
+    "exit_mismatch",
+    "proxy_unavailable",
+    "proxy_timeout",
+    "missing_token",
+)
+
+
+class KeiProxyAuthorizeError(Exception):
+    """A kei-proxy authorize call that produced no usable answer.
+
+    ``reason_class`` is one of :data:`REASON_CLASSES`. The message is built by
+    this library and never contains proxy stdout or stderr: stdout can carry a
+    credential or an enrollment claim link, and stderr is free-form.
+    """
+
+    def __init__(self, reason_class: str, detail: str) -> None:
+        super().__init__(detail)
+        self.reason_class = reason_class
+        self.detail = detail
 
 
 @dataclass
@@ -84,6 +119,11 @@ class AuthorizationResponse:
             policy_id=_as_optional_str(policy_id),
             enrollment=enrollment,
         )
+
+
+def _reason(reason_class: str, detail: str | None = None) -> str:
+    """Format a Decision reason as ``kei-proxy <class>[: <detail>]``."""
+    return f"kei-proxy {reason_class}: {detail}" if detail else f"kei-proxy {reason_class}"
 
 
 def _as_optional_str(value: Any) -> str | None:
@@ -183,14 +223,24 @@ class KeiProxyEvaluator:
     fails closed on every path that is not an explicit affirmative:
 
     ==========================  ============  ===========================
-    proxy decision              action        note
+    proxy decision              action        reason class / enrollment
     ==========================  ============  ===========================
-    ``permit`` / ``allow``      ``ALLOW``     the only affirmative values
-    ``deny``                    ``DENY``      proxy reason preserved
-    ``enrollment_required``     ``DENY``      proxy reason preserved
-    anything else               ``DENY``      unrecognised -> denied
-    client raised / timed out   ``DENY``      an error is never an allow
+    ``permit`` / ``allow``      ``ALLOW``     ``allow``
+    ``deny``                    ``DENY``      ``deny``; enrollment carried
+    ``enrollment_required``     ``DENY``      ``enrollment_required``;
+                                              enrollment carried
+    empty / missing             ``DENY``      ``no_decision``
+    anything else               ``DENY``      ``unknown_decision``
+    client raised / timed out   ``DENY``      the error's class; never an
+                                              allow
     ==========================  ============  ===========================
+
+    Every reason reads ``kei-proxy <class>[: <detail>]`` with a class from
+    :data:`REASON_CLASSES`. The enrollment object (which may hold a one-time
+    claim link) is carried on the Decision only when it is a JSON object, and
+    is never logged. :class:`~pedro_agentware.kei.KeiProxyAuthorizeClient` is
+    the subprocess client; the table in ``fixtures/kei/authorize-cases.v1.json``
+    pins the behaviour shared with the TypeScript and Go ports.
     """
 
     RULE = "kei-proxy"
@@ -239,13 +289,16 @@ class KeiProxyEvaluator:
                 resources=resources,
                 args=args,
             )
+        except KeiProxyAuthorizeError as exc:
+            logger.warning("kei-proxy authorize for %s denied: %s", tool_name, exc.reason_class)
+            return self._decision(Action.DENY, _reason(exc.reason_class, exc.detail))
         except Exception as exc:
             # Unreachable proxy, timeout, transport error: fail closed. An
             # exception must never become an allow.
             logger.warning("kei-proxy authorize failed for %s, denying: %s", tool_name, exc)
             return self._decision(
                 Action.DENY,
-                reason=f"kei-proxy authorize failed: {exc}",
+                reason=_reason("proxy_error", f"authorize failed: {exc}"),
             )
 
         try:
@@ -254,7 +307,7 @@ class KeiProxyEvaluator:
             logger.warning("kei-proxy returned an unreadable response for %s: %s", tool_name, exc)
             return self._decision(
                 Action.DENY,
-                reason=f"kei-proxy returned a malformed response: {exc}",
+                reason=_reason("malformed_response", f"unreadable response: {exc}"),
             )
 
         decision = response.decision.strip().lower()
@@ -262,28 +315,28 @@ class KeiProxyEvaluator:
         if decision in AFFIRMATIVE_DECISIONS:
             return self._decision(
                 Action.ALLOW,
-                reason=response.reason or f"kei-proxy returned {decision}",
+                reason=_reason("allow", response.reason),
                 policy_id=response.policy_id,
             )
 
+        enrollment = None
         if not decision:
-            reason = "kei-proxy returned no decision"
-            enrollment = None
+            reason_class, detail = "no_decision", None
         elif decision == "deny":
-            reason = response.reason or "kei-proxy denied the call"
+            reason_class, detail = "deny", response.reason
             enrollment = response.enrollment
         elif decision == "enrollment_required":
-            reason = response.reason or "kei-proxy requires enrollment before this call"
+            reason_class = "enrollment_required"
+            detail = response.reason or "enrollment is required before this call"
             enrollment = response.enrollment
         else:
-            reason = f"kei-proxy returned an unrecognised decision {decision!r}" + (
-                f": {response.reason}" if response.reason else ""
-            )
-            enrollment = None
+            reason_class = "unknown_decision"
+            detail = f"{decision!r}" + (f" ({response.reason})" if response.reason else "")
 
+        logger.debug("kei-proxy %s for %s", reason_class, tool_name)
         return self._decision(
             Action.DENY,
-            reason=reason,
+            reason=_reason(reason_class, detail),
             policy_id=response.policy_id,
             enrollment=enrollment,
         )
