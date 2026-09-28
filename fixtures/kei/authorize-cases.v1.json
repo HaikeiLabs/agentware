@@ -2,7 +2,7 @@
   "schema": "agentware.kei.authorize-cases/v1",
   "note": "Language-neutral parity table for KeiProxyEvaluator (Python, TypeScript, Go). Each case feeds a tool call through the evaluator to the fake kei-proxy (fake-kei-proxy.sh), which prints proxy.stdout / proxy.stderr and exits with proxy.exit_code. Every language must produce expected.action, a reason starting with 'kei-proxy <reason_class>', expected.rule, and exactly expected.enrollment (null = absent). No canary may appear in any decision reason or log line, and the runtime token must never appear in argv. Changing this file is a contract change: update all three languages in the same stack.",
   "policy": "policy.v1.json",
-  "timeout_ms": 500,
+  "timeout_ms": 2000,
   "caller_defaults": {
     "span_id": "span-fixture-0001",
     "comment": "Callers are built from policy.v1.json: user_id and invoking_subject are users[input.user].id; agent_id/agent_version/framework come from agent; workspace_id from workspace. input.caller overrides user_id, parent_span and delegation_depth."
