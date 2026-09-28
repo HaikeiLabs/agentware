@@ -8,7 +8,7 @@ affirmative path, and a denial that is both raised and audited.
 
 import pytest
 
-from pedro_agentware.kei import KeiProxyEvaluator, resources_touched
+from pedro_agentware.kei import KeiProxyAuthorizeError, KeiProxyEvaluator, resources_touched
 from pedro_agentware.middleware import (
     Action,
     AuditedToolClient,
@@ -59,117 +59,26 @@ def evaluate(result=None, raises: Exception | None = None, args: dict | None = N
 
 
 # --- vocabulary translation -------------------------------------------------
+#
+# The decision vocabulary (allow/permit/deny/enrollment_required/unknown,
+# enrollment carry, malformed output, exit codes, timeouts) is covered by the
+# cross-language parity table in authorize_cases_test.py, driven from
+# fixtures/kei/authorize-cases.v1.json. The cases below are Python-only: they
+# exercise the injected-client seam, which the subprocess table cannot reach.
 
 
-def test_permit_allows():
-    decision, _ = evaluate({"decision": "permit"})
-    assert decision.action == Action.ALLOW
-
-
-def test_allow_is_accepted_as_the_renamed_affirmative():
-    """kei is expected to rename permit->allow; both must work."""
-    decision, _ = evaluate({"decision": "allow"})
-    assert decision.action == Action.ALLOW
-
-
-def test_deny_denies_and_preserves_the_proxy_reason():
+def test_reason_is_prefixed_with_its_class():
     decision, _ = evaluate({"decision": "deny", "reason": "user lacks github:write"})
-    assert decision.action == Action.DENY
-    assert "user lacks github:write" in decision.reason
-    assert decision.enrollment is None
-
-
-def test_deny_carries_enrollment_when_the_proxy_emits_it():
-    """Catalog enrollment (HAI-209) reports enrollment on deny, not enrollment_required."""
-    decision, _ = evaluate(
-        {
-            "decision": "deny",
-            "reason": "connector not enrolled",
-            "enrollment": {
-                "provider": "discord",
-                "provider_user_id": "456",
-                "org_id": "org-uuid",
-                "workspace_id": "ws-uuid",
-                "url": "https://kei.example/identity/link#claim=secret",
-                "expires_at": "2026-09-28T12:00:00Z",
-            },
-        }
-    )
-    assert decision.action == Action.DENY
-    assert decision.enrollment is not None
-    assert decision.enrollment["url"] == "https://kei.example/identity/link#claim=secret"
-    assert decision.enrollment["provider"] == "discord"
-
-
-def test_enrollment_required_denies_and_preserves_the_reason():
-    """enrollment_required is a third value, and it is not an allow."""
-    decision, _ = evaluate(
-        {"decision": "enrollment_required", "reason": "connector github not enrolled"}
-    )
-    assert decision.action == Action.DENY
-    assert "connector github not enrolled" in decision.reason
-
-
-def test_enrollment_required_carries_the_enrollment_payload():
-    """The enrollment object (url, expires_at) is preserved on the DENY."""
-    decision, _ = evaluate(
-        {
-            "decision": "enrollment_required",
-            "enrollment": {
-                "provider": "discord",
-                "provider_user_id": "123",
-                "org_id": "org-uuid",
-                "workspace_id": "ws-uuid",
-                "url": "https://kei.example/identity/link#claim=secret",
-                "expires_at": "2026-09-28T12:00:00Z",
-            },
-        }
-    )
-    assert decision.action == Action.DENY
-    assert decision.enrollment is not None
-    assert decision.enrollment["url"] == "https://kei.example/identity/link#claim=secret"
-    assert decision.enrollment["expires_at"] == "2026-09-28T12:00:00Z"
-    assert decision.enrollment["provider"] == "discord"
-
-
-def test_enrollment_required_denies_without_enrollment_object():
-    """When kei-proxy omits the enrollment object, deny with no enrollment."""
-    decision, _ = evaluate({"decision": "enrollment_required"})
-    assert decision.action == Action.DENY
-    assert "enrollment" in decision.reason
-    assert decision.enrollment is None
-
-
-def test_enrollment_required_denies_when_enrollment_has_no_url():
-    """url and expires_at may be omitted; carry what is given."""
-    decision, _ = evaluate(
-        {
-            "decision": "enrollment_required",
-            "enrollment": {"provider": "discord", "provider_user_id": "123"},
-        }
-    )
-    assert decision.action == Action.DENY
-    assert decision.enrollment is not None
-    assert "url" not in decision.enrollment
+    assert decision.reason == "kei-proxy deny: user lacks github:write"
 
 
 @pytest.mark.parametrize(
     "value",
     ["", "PERMITTED", "maybe", "ALLOWED", "permit-with-conditions", "null", "0"],
 )
-def test_unknown_decision_strings_fail_closed(value):
+def test_near_miss_decision_strings_fail_closed(value):
     decision, _ = evaluate({"decision": value})
     assert decision.action == Action.DENY, f"{value!r} must not allow"
-
-
-def test_decision_is_matched_case_insensitively():
-    decision, _ = evaluate({"decision": "PERMIT"})
-    assert decision.action == Action.ALLOW
-
-
-def test_missing_decision_field_fails_closed():
-    decision, _ = evaluate({"reason": "no decision here"})
-    assert decision.action == Action.DENY
 
 
 def test_none_response_fails_closed():
@@ -208,14 +117,21 @@ def test_proxy_exception_denies_and_never_allows(exc):
 
 def test_exception_reason_names_the_failure():
     decision, _ = evaluate(raises=ConnectionError("proxy unreachable"))
+    assert decision.reason.startswith("kei-proxy proxy_error:")
     assert "proxy unreachable" in decision.reason
+
+
+def test_typed_authorize_error_keeps_its_class():
+    decision, _ = evaluate(raises=KeiProxyAuthorizeError("proxy_timeout", "no answer"))
+    assert decision.action == Action.DENY
+    assert decision.reason == "kei-proxy proxy_timeout: no answer"
 
 
 # --- policy attribution -----------------------------------------------------
 
 
-def test_policy_id_is_carried_onto_the_decision():
-    decision, _ = evaluate({"decision": "deny", "policy_id": "pol-42", "reason": "nope"})
+def test_policy_spelling_is_accepted_for_the_policy_id():
+    decision, _ = evaluate({"decision": "deny", "policy": "pol-42", "reason": "nope"})
     assert decision.rule == "pol-42"
 
 
