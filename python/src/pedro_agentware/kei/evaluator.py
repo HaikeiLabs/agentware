@@ -50,6 +50,7 @@ class AuthorizationResponse:
     decision: str = ""
     reason: str | None = None
     policy_id: str | None = None
+    enrollment: dict[str, Any] | None = None
 
     @classmethod
     def from_result(cls, result: Any) -> "AuthorizationResponse":
@@ -73,10 +74,15 @@ class AuthorizationResponse:
         if policy_id is None:
             policy_id = read("policy")
 
+        enrollment = read("enrollment")
+        if enrollment is not None and not isinstance(enrollment, dict):
+            enrollment = None
+
         return cls(
             decision=str(decision) if decision is not None else "",
             reason=_as_optional_str(read("reason")),
             policy_id=_as_optional_str(policy_id),
+            enrollment=enrollment,
         )
 
 
@@ -262,19 +268,24 @@ class KeiProxyEvaluator:
 
         if not decision:
             reason = "kei-proxy returned no decision"
+            enrollment = None
         elif decision == "deny":
             reason = response.reason or "kei-proxy denied the call"
+            enrollment = response.enrollment
         elif decision == "enrollment_required":
             reason = response.reason or "kei-proxy requires enrollment before this call"
+            enrollment = response.enrollment
         else:
             reason = f"kei-proxy returned an unrecognised decision {decision!r}" + (
                 f": {response.reason}" if response.reason else ""
             )
+            enrollment = None
 
         return self._decision(
             Action.DENY,
             reason=reason,
             policy_id=response.policy_id,
+            enrollment=enrollment,
         )
 
     def _authorize(
@@ -332,6 +343,7 @@ class KeiProxyEvaluator:
         action: Action,
         reason: str,
         policy_id: str | None = None,
+        enrollment: dict[str, Any] | None = None,
     ) -> Decision:
         """Assemble a Decision, attributing it to the proxy policy when known.
 
@@ -344,5 +356,6 @@ class KeiProxyEvaluator:
             action=action,
             rule=policy_id or self.RULE,
             reason=reason,
+            enrollment=enrollment,
             timestamp=datetime.now(),
         )

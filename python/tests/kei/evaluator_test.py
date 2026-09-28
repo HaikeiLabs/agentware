@@ -76,6 +76,29 @@ def test_deny_denies_and_preserves_the_proxy_reason():
     decision, _ = evaluate({"decision": "deny", "reason": "user lacks github:write"})
     assert decision.action == Action.DENY
     assert "user lacks github:write" in decision.reason
+    assert decision.enrollment is None
+
+
+def test_deny_carries_enrollment_when_the_proxy_emits_it():
+    """Catalog enrollment (HAI-209) reports enrollment on deny, not enrollment_required."""
+    decision, _ = evaluate(
+        {
+            "decision": "deny",
+            "reason": "connector not enrolled",
+            "enrollment": {
+                "provider": "discord",
+                "provider_user_id": "456",
+                "org_id": "org-uuid",
+                "workspace_id": "ws-uuid",
+                "url": "https://kei.example/identity/link#claim=secret",
+                "expires_at": "2026-09-28T12:00:00Z",
+            },
+        }
+    )
+    assert decision.action == Action.DENY
+    assert decision.enrollment is not None
+    assert decision.enrollment["url"] == "https://kei.example/identity/link#claim=secret"
+    assert decision.enrollment["provider"] == "discord"
 
 
 def test_enrollment_required_denies_and_preserves_the_reason():
@@ -87,10 +110,47 @@ def test_enrollment_required_denies_and_preserves_the_reason():
     assert "connector github not enrolled" in decision.reason
 
 
-def test_enrollment_required_denies_without_a_reason_from_the_proxy():
+def test_enrollment_required_carries_the_enrollment_payload():
+    """The enrollment object (url, expires_at) is preserved on the DENY."""
+    decision, _ = evaluate(
+        {
+            "decision": "enrollment_required",
+            "enrollment": {
+                "provider": "discord",
+                "provider_user_id": "123",
+                "org_id": "org-uuid",
+                "workspace_id": "ws-uuid",
+                "url": "https://kei.example/identity/link#claim=secret",
+                "expires_at": "2026-09-28T12:00:00Z",
+            },
+        }
+    )
+    assert decision.action == Action.DENY
+    assert decision.enrollment is not None
+    assert decision.enrollment["url"] == "https://kei.example/identity/link#claim=secret"
+    assert decision.enrollment["expires_at"] == "2026-09-28T12:00:00Z"
+    assert decision.enrollment["provider"] == "discord"
+
+
+def test_enrollment_required_denies_without_enrollment_object():
+    """When kei-proxy omits the enrollment object, deny with no enrollment."""
     decision, _ = evaluate({"decision": "enrollment_required"})
     assert decision.action == Action.DENY
     assert "enrollment" in decision.reason
+    assert decision.enrollment is None
+
+
+def test_enrollment_required_denies_when_enrollment_has_no_url():
+    """url and expires_at may be omitted; carry what is given."""
+    decision, _ = evaluate(
+        {
+            "decision": "enrollment_required",
+            "enrollment": {"provider": "discord", "provider_user_id": "123"},
+        }
+    )
+    assert decision.action == Action.DENY
+    assert decision.enrollment is not None
+    assert "url" not in decision.enrollment
 
 
 @pytest.mark.parametrize(
@@ -221,9 +281,7 @@ def test_legacy_proxy_receives_the_original_four_arguments():
     )
 
     assert decision.action == Action.ALLOW
-    assert proxy.calls == [
-        ("U_HUMAN", "github.read", "execute", "github:repo:acme/sales-pipeline")
-    ]
+    assert proxy.calls == [("U_HUMAN", "github.read", "execute", "github:repo:acme/sales-pipeline")]
 
 
 # --- resources_touched ------------------------------------------------------
