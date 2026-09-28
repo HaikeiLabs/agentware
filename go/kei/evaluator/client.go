@@ -3,11 +3,16 @@ package evaluator
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,12 +27,13 @@ const DefaultTimeout = 10 * time.Second
 // maxStdout bounds how much authorize output is read.
 const maxStdout = 1 << 20
 
+// maxExecutable bounds how much of a pinned executable is hashed.
+const maxExecutable = 256 << 20
+
 // AuthorizeChildEnvAllowlist lists the parent variables the kei-proxy child
-// may inherit. KEI_PROXY_* identity variables are deliberately absent:
-// identity travels as flags.
+// may inherit. PATH and HOME are deliberately absent, as are KEI_PROXY_*
+// identity variables: identity travels as flags.
 var AuthorizeChildEnvAllowlist = []string{
-	"PATH",
-	"HOME",
 	"TZ",
 	RuntimeTokenEnv,
 	"KEI_RUNTIME_CONTROL_PLANE_URL",
@@ -43,9 +49,25 @@ var AuthorizeChildEnvAllowlist = []string{
 
 // CLIClient runs `kei-proxy authorize` once per call. The runtime token
 // reaches the child only through its environment, never argv.
+//
+// The child sees only the allowlisted environment (no PATH, no HOME), so the
+// executable is resolved to an absolute path in the parent. The child runs in
+// its own process group, and a timeout SIGKILLs the whole group. With
+// ExpectedSHA256 set, the binary is re-proved before every spawn: the path
+// must equal its realpath, it is opened with O_NOFOLLOW, must be a regular
+// file, and its SHA-256 is read from that descriptor and compared in constant
+// time; any drift denies with ReasonPinMismatch without spawning. What
+// remains is the hash-then-exec race; close it by making the binary's
+// directory and its ancestors writable only by the deploy owner.
 type CLIClient struct {
-	// Executable is the path or name of the kei-proxy binary. Default "kei-proxy".
+	// Executable is the path or name of the kei-proxy binary. Default
+	// "kei-proxy". A bare name is looked up in the absolute entries of the
+	// parent PATH (Env["PATH"] when Env is set).
 	Executable string
+	// ExpectedSHA256 pins the binary to this SHA-256 (64 hex digits). The
+	// Executable must then be an absolute, symlink-free path. A malformed pin
+	// or a relative path denies every call with ReasonPinMismatch.
+	ExpectedSHA256 string
 	// Timeout bounds one call. Default DefaultTimeout.
 	Timeout time.Duration
 	// Env is the parent environment allowlisted variables are drawn from.
@@ -58,12 +80,17 @@ type CLIClient struct {
 
 var _ Client = (*CLIClient)(nil)
 
+func (c *CLIClient) lookupParent(k string) (string, bool) {
+	if c.Env != nil {
+		v, ok := c.Env[k]
+		return v, ok
+	}
+	return os.LookupEnv(k)
+}
+
 // ChildEnv returns the exact environment the kei-proxy child receives.
 func (c *CLIClient) ChildEnv() map[string]string {
-	lookup := os.LookupEnv
-	if c.Env != nil {
-		lookup = func(k string) (string, bool) { v, ok := c.Env[k]; return v, ok }
-	}
+	lookup := c.lookupParent
 	env := make(map[string]string, len(AuthorizeChildEnvAllowlist)+len(c.ExtraEnv))
 	for _, k := range AuthorizeChildEnvAllowlist {
 		if v, ok := lookup(k); ok {
@@ -82,9 +109,19 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 	if env[RuntimeTokenEnv] == "" {
 		return nil, &AuthorizeError{Class: ReasonMissingToken, Detail: RuntimeTokenEnv + " is not set"}
 	}
-	executable := c.Executable
-	if executable == "" {
-		executable = "kei-proxy"
+	name := c.Executable
+	if name == "" {
+		name = "kei-proxy"
+	}
+	if c.ExpectedSHA256 != "" {
+		if err := proveExecutable(name, c.ExpectedSHA256); err != nil {
+			return nil, err
+		}
+	}
+	parentPath, _ := c.lookupParent("PATH")
+	executable, ok := resolveExecutable(name, parentPath)
+	if !ok {
+		return nil, &AuthorizeError{Class: ReasonProxyUnavailable, Detail: "kei-proxy was not found on PATH"}
 	}
 	timeout := c.Timeout
 	if timeout <= 0 {
@@ -105,6 +142,7 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 	// stderr is free-form and may carry secrets: it is discarded.
 	cmd.Stderr = nil
 	cmd.WaitDelay = 100 * time.Millisecond
+	startInNewGroup(cmd)
 
 	runErr := cmd.Run()
 	if ctx.Err() != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -125,6 +163,72 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 		return nil, &AuthorizeError{Class: ReasonMalformedResponse, Detail: "stdout exceeded the size limit"}
 	}
 	return ParseAuthorizeOutput(stdout.Bytes(), exitCode)
+}
+
+// resolveExecutable returns an absolute path for name. Names containing a
+// separator resolve against the working directory; bare names are looked up
+// in the absolute entries of pathList (relative entries are skipped).
+func resolveExecutable(name, pathList string) (string, bool) {
+	if filepath.IsAbs(name) {
+		return name, true
+	}
+	if strings.ContainsRune(name, os.PathSeparator) || strings.ContainsRune(name, '/') {
+		abs, err := filepath.Abs(name)
+		return abs, err == nil
+	}
+	for _, dir := range filepath.SplitList(pathList) {
+		if dir == "" || !filepath.IsAbs(dir) {
+			continue
+		}
+		candidate := filepath.Join(dir, name)
+		if fi, err := os.Stat(candidate); err == nil && isExecutable(fi) {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
+func pinMismatch(detail string) *AuthorizeError {
+	return &AuthorizeError{Class: ReasonPinMismatch, Detail: detail}
+}
+
+// proveExecutable re-proves the pinned executable immediately before a spawn.
+func proveExecutable(path, pin string) error {
+	expected, err := hex.DecodeString(pin)
+	if err != nil || len(expected) != sha256.Size {
+		return pinMismatch("the pin is not 64 hex digits")
+	}
+	if !filepath.IsAbs(path) {
+		return pinMismatch("a pinned executable must be an absolute path")
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return pinMismatch("executable is missing")
+	}
+	if resolved != path {
+		return pinMismatch("executable path is not canonical")
+	}
+	f, err := openNoFollow(path)
+	if err != nil {
+		return pinMismatch("executable could not be opened without following links")
+	}
+	defer func() { _ = f.Close() }()
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return pinMismatch("executable is not a regular file")
+	}
+	h := sha256.New()
+	n, err := io.Copy(h, io.LimitReader(f, maxExecutable+1))
+	if err != nil {
+		return pinMismatch("executable could not be read")
+	}
+	if n > maxExecutable {
+		return pinMismatch("executable exceeds the size limit")
+	}
+	if subtle.ConstantTimeCompare(h.Sum(nil), expected) != 1 {
+		return pinMismatch("executable digest does not match the pin")
+	}
+	return nil
 }
 
 // AuthorizeArgv returns the argv (after the executable) for one call.

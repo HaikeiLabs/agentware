@@ -9,9 +9,12 @@
  * Fail closed: only an explicit `allow`/`permit` with exit 0 allows. This
  * module never spawns the proxy: `KeiProxyAuthorizeClient`
  * (`authorizeClient.ts`) does, behind the `KeiProxyAuthorizationClient` seam.
+ *
+ * `evaluate` is asynchronous so a harness's event loop keeps running while
+ * kei-proxy answers. It therefore does not implement the synchronous
+ * `PolicyEvaluator`; await it before running the tool.
  */
 import { createHash } from "node:crypto";
-import type { PolicyEvaluator } from "../middleware/policy.js";
 import {
   Action,
   type CallerContext,
@@ -38,6 +41,7 @@ export const KEI_PROXY_REASON_CLASSES = [
   "proxy_unavailable",
   "proxy_timeout",
   "missing_token",
+  "pin_mismatch",
 ] as const;
 
 export type KeiProxyReasonClass = (typeof KEI_PROXY_REASON_CLASSES)[number];
@@ -78,9 +82,9 @@ export interface KeiProxyAuthorizeRequest {
 }
 
 /**
- * The single call the evaluator needs. Synchronous, like
- * `PolicyEvaluator.evaluate`. Return the parsed authorize object; throw
- * `KeiProxyAuthorizeError` (or anything) to deny.
+ * The single call the evaluator needs. Return (or resolve to) the parsed
+ * authorize object; throw or reject with `KeiProxyAuthorizeError` (or
+ * anything) to deny.
  */
 export interface KeiProxyAuthorizationClient {
   authorize(request: KeiProxyAuthorizeRequest): unknown;
@@ -160,11 +164,11 @@ const defaultLogger: KeiProxyLogger = (level, message) => {
 };
 
 /**
- * A `PolicyEvaluator` over kei-proxy. Translates the proxy's decision into an
+ * A policy evaluator over kei-proxy. Translates the proxy's decision into an
  * agentware Decision and fails closed on every path that is not an explicit
  * affirmative. See `docs/kei-proxy-evaluator-parity.md` for the table.
  */
-export class KeiProxyEvaluator implements PolicyEvaluator {
+export class KeiProxyEvaluator {
   static readonly RULE = "kei-proxy";
 
   private readonly client: KeiProxyAuthorizationClient;
@@ -180,11 +184,11 @@ export class KeiProxyEvaluator implements PolicyEvaluator {
     this.logger = options.logger ?? defaultLogger;
   }
 
-  evaluate(
+  async evaluate(
     toolName: string,
     args: Record<string, unknown>,
     caller: CallerContext,
-  ): Decision {
+  ): Promise<Decision> {
     const resources = keiProxyResourcesTouched(toolName, args);
     const userId = caller.invoking_subject || caller.user_id || "";
     const meta = caller.metadata ?? {};
@@ -207,7 +211,7 @@ export class KeiProxyEvaluator implements PolicyEvaluator {
 
     let raw: unknown;
     try {
-      raw = this.client.authorize(request);
+      raw = await this.client.authorize(request);
     } catch (err) {
       if (err instanceof KeiProxyAuthorizeError) {
         this.logger(

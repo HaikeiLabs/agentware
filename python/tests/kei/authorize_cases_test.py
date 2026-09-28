@@ -6,10 +6,13 @@ case's canned stdout, stderr and exit code. The TypeScript and Go suites load
 the same files and must reach the same decision for every case.
 """
 
+import hashlib
 import json
 import logging
+import os
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -66,8 +69,11 @@ def install_fake(case: dict[str, Any], tmp_path: Path) -> Path:
     fake = tmp_path / "kei-proxy"
     if proxy.get("missing_binary"):
         return fake
-    shutil.copy(FIXTURES / "fake-kei-proxy.sh", fake)
-    fake.chmod(0o755)
+    real = tmp_path / "kei-proxy-real" if proxy.get("symlink") else fake
+    shutil.copy(FIXTURES / "fake-kei-proxy.sh", real)
+    real.chmod(0o755)
+    if proxy.get("symlink"):
+        fake.symlink_to(real)
     (tmp_path / "stdout").write_text(proxy["stdout"])
     (tmp_path / "stderr").write_text(proxy["stderr"])
     (tmp_path / "exit_code").write_text(str(proxy["exit_code"]))
@@ -76,11 +82,38 @@ def install_fake(case: dict[str, Any], tmp_path: Path) -> Path:
     return fake
 
 
+def expected_sha256(case: dict[str, Any]) -> str | None:
+    """The case's pin: ``installed`` is the digest of the fake's bytes."""
+    pin: str | None = case.get("client", {}).get("expected_sha256")
+    if pin != "installed":
+        return pin
+    return hashlib.sha256((FIXTURES / "fake-kei-proxy.sh").read_bytes()).hexdigest()
+
+
+def wait_dead(pid: int, within: float) -> bool:
+    deadline = time.monotonic() + within
+    while True:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.02)
+
+
+@pytest.fixture
+def tmp_path(tmp_path: Path) -> Path:
+    """The pin requires a symlink-free path (macOS /var is a symlink)."""
+    return tmp_path.resolve()
+
+
 def run_case(case: dict[str, Any], tmp_path: Path) -> Decision:
     client = KeiProxyAuthorizeClient(
         executable=str(install_fake(case, tmp_path)),
         timeout=TABLE["timeout_ms"] / 1000,
         env=build_env(case),
+        expected_sha256=expected_sha256(case),
     )
     return KeiProxyEvaluator(client).evaluate(
         case["input"]["tool"], case["input"]["args"], build_caller(case)
@@ -117,6 +150,9 @@ def test_authorize_case(
             assert flag not in argv, f"{flag} must not be sent"
         if "argv" in expected:
             assert argv == expected["argv"]
+    if expected.get("group_killed"):
+        pid = int((tmp_path / "hang_pid").read_text().strip())
+        assert wait_dead(pid, 2.0), "the grandchild outlived the timeout"
 
 
 def test_child_env_carries_the_token_and_only_allowlisted_vars(tmp_path: Path) -> None:
@@ -132,6 +168,61 @@ def test_child_env_carries_the_token_and_only_allowlisted_vars(tmp_path: Path) -
     # sh may add PWD/SHLVL/_ on its own; nothing else from the parent may appear.
     shell_added = {"PWD", "SHLVL", "_", "OLDPWD"}
     assert set(child) - shell_added <= set(TABLE["child_env"]["allowlist"])
+
+
+def test_the_child_sees_no_path_or_home(tmp_path: Path) -> None:
+    case = next(c for c in CASES if c["id"] == "allow_member_read")
+    run_case(case, tmp_path)
+    child = (tmp_path / "env").read_text().splitlines()
+    assert not any(line.startswith(("PATH=", "HOME=")) for line in child)
+
+
+def test_a_bare_name_is_resolved_against_the_parent_path(tmp_path: Path) -> None:
+    case = next(c for c in CASES if c["id"] == "allow_member_read")
+    install_fake(case, tmp_path)
+    client = KeiProxyAuthorizeClient(
+        executable="kei-proxy",
+        timeout=TABLE["timeout_ms"] / 1000,
+        env={"PATH": f"/nonexistent:{tmp_path}", "KEI_RUNTIME_TOKEN": CANARIES["runtime_token"]},
+    )
+    decision = KeiProxyEvaluator(client).evaluate(
+        case["input"]["tool"], case["input"]["args"], build_caller(case)
+    )
+    assert decision.action == Action.ALLOW
+    assert "PATH=" not in (tmp_path / "env").read_text()
+
+
+def test_a_pin_that_stops_matching_denies_the_next_call(tmp_path: Path) -> None:
+    case = next(c for c in CASES if c["id"] == "pinned_executable_allow")
+    fake = install_fake(case, tmp_path)
+    client = KeiProxyAuthorizeClient(
+        executable=str(fake),
+        timeout=TABLE["timeout_ms"] / 1000,
+        env=build_env(case),
+        expected_sha256=expected_sha256(case),
+    )
+    evaluator = KeiProxyEvaluator(client)
+
+    def call() -> Decision:
+        return evaluator.evaluate(case["input"]["tool"], case["input"]["args"], build_caller(case))
+
+    assert call().action == Action.ALLOW
+    fake.write_text(fake.read_text() + "\n# swapped\n")
+    (tmp_path / "argv").unlink()
+    decision = call()
+    assert decision.action == Action.DENY
+    assert decision.reason.startswith("kei-proxy pin_mismatch")
+    assert not (tmp_path / "argv").exists()
+
+
+def test_a_malformed_pin_is_refused() -> None:
+    with pytest.raises(ValueError):
+        KeiProxyAuthorizeClient(executable="/usr/bin/kei-proxy", expected_sha256="abc")
+
+
+def test_a_pin_requires_an_absolute_path() -> None:
+    with pytest.raises(ValueError):
+        KeiProxyAuthorizeClient(executable="kei-proxy", expected_sha256="a" * 64)
 
 
 def test_child_env_allowlist_matches_the_fixture() -> None:

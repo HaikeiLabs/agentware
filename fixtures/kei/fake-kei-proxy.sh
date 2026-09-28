@@ -13,30 +13,37 @@
 #
 #   argv        one argument per line
 #   env         the child environment, one NAME=value per line
+#   hang_pid    (hang only) pid of a backgrounded grandchild that holds stdout
+#               open; it must die with the process group on timeout
 #
+# Clients give the child no PATH, so every command is an absolute path and
+# the script's directory comes from parameter expansion, not dirname.
 # No network, no policy evaluation: the case decides the answer.
-dir=$(dirname "$0")
+dir=${0%/*}
 
 : > "$dir/argv"
 for arg in "$@"; do
   printf '%s\n' "$arg" >> "$dir/argv"
 done
-env > "$dir/env"
+/usr/bin/env > "$dir/env"
 
 if [ -e "$dir/hang" ]; then
-  # exec so a timeout kill reaches the process holding stdout open.
-  exec sleep 30
+  # The grandchild shares the process group and the stdout pipe: only a
+  # process-group kill ends it. exec so the direct child is a sleep too.
+  /bin/sleep 30 &
+  printf '%s\n' "$!" > "$dir/hang_pid"
+  exec /bin/sleep 30
 fi
 
 if [ -e "$dir/stdout" ]; then
-  cat "$dir/stdout"
+  /bin/cat "$dir/stdout"
 fi
 if [ -e "$dir/stderr" ]; then
-  cat "$dir/stderr" >&2
+  /bin/cat "$dir/stderr" >&2
 fi
 
 code=0
 if [ -e "$dir/exit_code" ]; then
-  code=$(cat "$dir/exit_code")
+  code=$(/bin/cat "$dir/exit_code")
 fi
 exit "$code"

@@ -5,13 +5,16 @@
  * as a real subprocess. Python and Go load the same files and must reach the
  * same decision for every case.
  */
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
   existsSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -67,13 +70,48 @@ function buildEnv(c: Json): Record<string, string> {
 function installFake(c: Json, dir: string): string {
   const fake = join(dir, "kei-proxy");
   if (c.proxy.missing_binary) return fake;
-  copyFileSync(join(FIXTURES, "fake-kei-proxy.sh"), fake);
-  chmodSync(fake, 0o755);
+  const real = c.proxy.symlink ? join(dir, "kei-proxy-real") : fake;
+  copyFileSync(join(FIXTURES, "fake-kei-proxy.sh"), real);
+  chmodSync(real, 0o755);
+  if (c.proxy.symlink) symlinkSync(real, fake);
   writeFileSync(join(dir, "stdout"), c.proxy.stdout);
   writeFileSync(join(dir, "stderr"), c.proxy.stderr);
   writeFileSync(join(dir, "exit_code"), String(c.proxy.exit_code));
   if (c.proxy.hang) writeFileSync(join(dir, "hang"), "");
   return fake;
+}
+
+/** The case's pin: `installed` is the digest of the fake's bytes. */
+function expectedSha256(c: Json): string | undefined {
+  const pin = c.client?.expected_sha256;
+  if (pin !== "installed") return pin;
+  const bytes = readFileSync(join(FIXTURES, "fake-kei-proxy.sh"));
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** A fresh temp dir with symlinks resolved (macOS /var is a symlink). */
+function caseDir(id: string): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), `kei-case-${id}-`)));
+  dirs.push(dir);
+  return dir;
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitDead(pid: number, withinMs: number): Promise<boolean> {
+  const deadline = Date.now() + withinMs;
+  while (Date.now() < deadline) {
+    if (!isAlive(pid)) return true;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  return !isAlive(pid);
 }
 
 interface Run {
@@ -87,12 +125,12 @@ afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 });
 
-function runCase(c: Json, extraEnv?: Record<string, string>): Run {
-  const dir = mkdtempSync(join(tmpdir(), `kei-case-${c.id}-`));
-  dirs.push(dir);
+async function runCase(c: Json, extraEnv?: Record<string, string>): Promise<Run> {
+  const dir = caseDir(c.id);
   const logs: string[] = [];
   const client = new KeiProxyAuthorizeClient({
     executable: installFake(c, dir),
+    expectedSha256: expectedSha256(c),
     timeoutMs: TABLE.timeout_ms,
     env: buildEnv(c),
     extraEnv,
@@ -100,16 +138,25 @@ function runCase(c: Json, extraEnv?: Record<string, string>): Run {
   const evaluator = new KeiProxyEvaluator(client, {
     logger: (level, message) => logs.push(`${level} ${message}`),
   });
-  const decision = evaluator.evaluate(c.input.tool, c.input.args, buildCaller(c));
+  const decision = await evaluator.evaluate(c.input.tool, c.input.args, buildCaller(c));
   return { decision, dir, logs };
+}
+
+function readChildEnv(dir: string): Record<string, string> {
+  return Object.fromEntries(
+    readFileSync(join(dir, "env"), "utf8")
+      .split("\n")
+      .filter((l) => l.includes("="))
+      .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+  );
 }
 
 const posix = process.platform === "win32" ? describe.skip : describe;
 
 posix("KeiProxyEvaluator authorize-cases.v1", () => {
-  test.each(CASES.map((c) => [c.id, c] as const))("%s", (_id, c) => {
+  test.each(CASES.map((c) => [c.id, c] as const))("%s", async (_id, c) => {
     const expected = c.expected;
-    const { decision, dir, logs } = runCase(c);
+    const { decision, dir, logs } = await runCase(c);
 
     expect(decision.action).toBe(expected.action as Action);
     const klass = `kei-proxy ${expected.reason_class}`;
@@ -136,18 +183,17 @@ posix("KeiProxyEvaluator authorize-cases.v1", () => {
       for (const flag of TABLE.argv_forbidden.flags as string[]) expect(argv).not.toContain(flag);
       if (expected.argv) expect(argv).toEqual(expected.argv);
     }
+    if (expected.group_killed) {
+      const pid = Number(readFileSync(join(dir, "hang_pid"), "utf8").trim());
+      expect(await waitDead(pid, 2_000)).toBe(true);
+    }
   });
 
   const allowCase = CASES.find((c) => c.id === "allow_member_read")!;
 
-  test("child env carries the token and only allowlisted vars", () => {
-    const { dir } = runCase(allowCase);
-    const child = Object.fromEntries(
-      readFileSync(join(dir, "env"), "utf8")
-        .split("\n")
-        .filter((l) => l.includes("="))
-        .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
-    );
+  test("child env carries the token and only allowlisted vars", async () => {
+    const { dir } = await runCase(allowCase);
+    const child = readChildEnv(dir);
     expect(child.KEI_RUNTIME_TOKEN).toBe(CANARIES.runtime_token);
     for (const name of TABLE.child_env.stripped as string[]) expect(child[name]).toBeUndefined();
     const shellAdded = new Set(["PWD", "SHLVL", "_", "OLDPWD"]);
@@ -157,9 +203,96 @@ posix("KeiProxyEvaluator authorize-cases.v1", () => {
     }
   });
 
-  test("extra env is passed explicitly", () => {
-    const { dir } = runCase(allowCase, { AWS_PROFILE: "fixture" });
+  test("the child sees no PATH or HOME even when the parent has them", async () => {
+    const { dir } = await runCase(allowCase);
+    const child = readChildEnv(dir);
+    expect(child.PATH).toBeUndefined();
+    expect(child.HOME).toBeUndefined();
+  });
+
+  test("extra env is passed explicitly", async () => {
+    const { dir } = await runCase(allowCase, { AWS_PROFILE: "fixture" });
     expect(readFileSync(join(dir, "env"), "utf8").split("\n")).toContain("AWS_PROFILE=fixture");
+  });
+
+  test("a bare executable name is resolved against the parent PATH", async () => {
+    const dir = caseDir("bare-name");
+    installFake(allowCase, dir);
+    const client = new KeiProxyAuthorizeClient({
+      executable: "kei-proxy",
+      timeoutMs: TABLE.timeout_ms,
+      env: { PATH: `/nonexistent:${dir}`, KEI_RUNTIME_TOKEN: CANARIES.runtime_token },
+    });
+    const decision = await new KeiProxyEvaluator(client).evaluate(
+      allowCase.input.tool,
+      allowCase.input.args,
+      buildCaller(allowCase),
+    );
+    expect(decision.action).toBe(Action.ALLOW);
+    expect(readChildEnv(dir).PATH).toBeUndefined();
+  });
+
+  test("authorize does not block the event loop", async () => {
+    const hang = CASES.find((c) => c.id === "timeout")!;
+    const dir = caseDir("event-loop");
+    const client = new KeiProxyAuthorizeClient({
+      executable: installFake(hang, dir),
+      timeoutMs: 500,
+      env: buildEnv(hang),
+    });
+    const events: string[] = [];
+    const timer = new Promise<void>((r) =>
+      setTimeout(() => {
+        events.push("timer");
+        r();
+      }, 25),
+    );
+    const decision = new KeiProxyEvaluator(client, { logger: () => undefined })
+      .evaluate(hang.input.tool, hang.input.args, buildCaller(hang))
+      .then((d) => {
+        events.push("decision");
+        return d;
+      });
+    await Promise.all([timer, decision]);
+    expect(events).toEqual(["timer", "decision"]);
+    expect((await decision).reason).toMatch(/^kei-proxy proxy_timeout/);
+  });
+
+  test("a pin that stops matching after construction denies the next call", async () => {
+    const pinned = CASES.find((c) => c.id === "pinned_executable_allow")!;
+    const dir = caseDir("pin-swap");
+    const fake = installFake(pinned, dir);
+    const client = new KeiProxyAuthorizeClient({
+      executable: fake,
+      expectedSha256: expectedSha256(pinned),
+      timeoutMs: TABLE.timeout_ms,
+      env: buildEnv(pinned),
+    });
+    const evaluator = new KeiProxyEvaluator(client, { logger: () => undefined });
+    const call = () => evaluator.evaluate(pinned.input.tool, pinned.input.args, buildCaller(pinned));
+    expect((await call()).action).toBe(Action.ALLOW);
+    writeFileSync(fake, readFileSync(fake, "utf8") + "\n# swapped\n");
+    rmSync(join(dir, "argv"));
+    const decision = await call();
+    expect(decision.action).toBe(Action.DENY);
+    expect(decision.reason).toMatch(/^kei-proxy pin_mismatch/);
+    expect(existsSync(join(dir, "argv"))).toBe(false);
+  });
+});
+
+describe("KeiProxyAuthorizeClient construction", () => {
+  const pin = "a".repeat(64);
+
+  test("a malformed pin is refused", () => {
+    expect(
+      () => new KeiProxyAuthorizeClient({ executable: "/usr/bin/kei-proxy", expectedSha256: "abc" }),
+    ).toThrow(TypeError);
+  });
+
+  test("a pin requires an absolute executable path", () => {
+    expect(
+      () => new KeiProxyAuthorizeClient({ executable: "kei-proxy", expectedSha256: pin }),
+    ).toThrow(TypeError);
   });
 });
 
@@ -176,7 +309,7 @@ describe("KeiProxyEvaluator contract constants", () => {
 describe("KeiProxyEvaluator injected client", () => {
   const caller: CallerContext = { user_id: "U123", invoking_subject: "U_HUMAN", trusted: false };
 
-  test("a throwing client denies with proxy_error", () => {
+  test("a throwing client denies with proxy_error", async () => {
     const evaluator = new KeiProxyEvaluator(
       {
         authorize: () => {
@@ -185,12 +318,22 @@ describe("KeiProxyEvaluator injected client", () => {
       },
       { logger: () => undefined },
     );
-    const decision = evaluator.evaluate("github.read", {}, caller);
+    const decision = await evaluator.evaluate("github.read", {}, caller);
     expect(decision.action).toBe(Action.DENY);
     expect(decision.reason).toBe("kei-proxy proxy_error: authorize failed: proxy unreachable");
   });
 
-  test("a typed authorize error keeps its class", () => {
+  test("a rejecting async client denies with proxy_error", async () => {
+    const evaluator = new KeiProxyEvaluator(
+      { authorize: () => Promise.reject(new Error("proxy unreachable")) },
+      { logger: () => undefined },
+    );
+    const decision = await evaluator.evaluate("github.read", {}, caller);
+    expect(decision.action).toBe(Action.DENY);
+    expect(decision.reason).toBe("kei-proxy proxy_error: authorize failed: proxy unreachable");
+  });
+
+  test("a typed authorize error keeps its class", async () => {
     const evaluator = new KeiProxyEvaluator(
       {
         authorize: () => {
@@ -199,12 +342,12 @@ describe("KeiProxyEvaluator injected client", () => {
       },
       { logger: () => undefined },
     );
-    expect(evaluator.evaluate("github.read", {}, caller).reason).toBe(
+    expect((await evaluator.evaluate("github.read", {}, caller)).reason).toBe(
       "kei-proxy proxy_timeout: no answer",
     );
   });
 
-  test("the request carries the invoking subject and derived resources", () => {
+  test("the request carries the invoking subject and derived resources", async () => {
     const seen: KeiProxyAuthorizeRequest[] = [];
     const evaluator = new KeiProxyEvaluator({
       authorize: (req) => {
@@ -212,7 +355,7 @@ describe("KeiProxyEvaluator injected client", () => {
         return { decision: "allow" };
       },
     });
-    evaluator.evaluate("github.read", { owner: "acme", repo: "pipe" }, caller);
+    await evaluator.evaluate("github.read", { owner: "acme", repo: "pipe" }, caller);
     expect(seen[0].userId).toBe("U_HUMAN");
     expect(seen[0].resource).toBe("github:repo:acme/pipe");
     expect(seen[0].action).toBe("execute");
@@ -250,5 +393,10 @@ describe("KeiProxyEvaluator boundary", () => {
     const src = readFileSync(resolve(process.cwd(), "src", "kei", "evaluator.ts"), "utf8");
     expect(src).not.toContain("child_process");
     expect(src).not.toContain("from \"./authorizeClient");
+  });
+
+  test("the authorize client never uses a synchronous spawn", () => {
+    const src = readFileSync(resolve(process.cwd(), "src", "kei", "authorizeClient.ts"), "utf8");
+    expect(src).not.toMatch(/spawnSync|execSync|execFileSync/);
   });
 });

@@ -56,6 +56,7 @@ REASON_CLASSES = (
     "proxy_unavailable",
     "proxy_timeout",
     "missing_token",
+    "pin_mismatch",
 )
 
 

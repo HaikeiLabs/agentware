@@ -158,7 +158,12 @@ nothing outside this library.
 `KeiProxyEvaluator` is a `PolicyEvaluator` that asks `kei-proxy authorize`
 before every tool call and fails closed on anything that is not an explicit
 `allow`/`permit`. `KeiProxyAuthorizeClient` runs the binary; `KEI_RUNTIME_TOKEN`
-reaches it only through its (allowlisted) environment, never argv.
+reaches it only through its (allowlisted) environment, never argv. The child
+gets no `PATH` or `HOME`, so the executable is resolved to an absolute path in
+the parent. It runs in its own session, and a timeout SIGKILLs the whole
+process group. Pass `expected_sha256=` to pin the binary: it is re-hashed from
+an `O_NOFOLLOW` descriptor before every spawn, and any drift denies with
+`kei-proxy pin_mismatch`.
 
 ```python
 from pedro_agentware.kei import KeiProxyAuthorizeClient, KeiProxyEvaluator

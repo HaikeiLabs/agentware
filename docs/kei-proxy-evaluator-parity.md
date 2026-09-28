@@ -1,7 +1,8 @@
 # KeiProxyEvaluator parity
 
-`KeiProxyEvaluator` is the fail-closed `PolicyEvaluator` that asks
-`kei-proxy authorize` before a tool call runs. Harnesses in every SDK language
+`KeiProxyEvaluator` is the fail-closed policy evaluator that asks
+`kei-proxy authorize` before a tool call runs (a `PolicyEvaluator` in Python
+and Go; in TypeScript `evaluate` returns a `Promise<Decision>`). Harnesses in every SDK language
 need the same answer for the same proxy output. One table holds them to that.
 
 ## The shared table
@@ -10,7 +11,7 @@ need the same answer for the same proxy output. One table holds them to that.
 | --- | --- |
 | `fixtures/kei/policy.v1.json` | Seeded, synthetic policy: one org, one workspace, one agent, three users (linked member, linked admin, unlinked chat user), three GitHub tools and their allow, deny and enrollment rules. |
 | `fixtures/kei/authorize-cases.v1.json` | The parity table. Each case gives a tool call, the fake proxy's stdout, stderr and exit code, and the expected action, reason class, rule and enrollment (null means absent). Some cases also pin the exact argv. |
-| `fixtures/kei/fake-kei-proxy.sh` | The fake kei-proxy. A test copies it into a temp dir next to the case's `stdout`, `stderr` and `exit_code` files (plus `hang` for the timeout case). It prints the canned answer and records its `argv` and `env`. It makes no network calls. |
+| `fixtures/kei/fake-kei-proxy.sh` | The fake kei-proxy. A test copies it into a temp dir next to the case's `stdout`, `stderr` and `exit_code` files (plus `hang` for the timeout case). It prints the canned answer and records its `argv` and `env`; in `hang` mode it backgrounds a grandchild and records its pid in `hang_pid`. It uses absolute command paths because the child has no PATH. It makes no network calls. |
 
 Every language reads these files from the repo root; there are no mirrored
 copies to drift. A change to any of them is a contract change: update all
@@ -39,6 +40,7 @@ diagnostic on stderr.
 | binary missing or not executable | DENY | `proxy_unavailable` | — |
 | no answer within the timeout | DENY | `proxy_timeout` | — |
 | no `KEI_RUNTIME_TOKEN` (the proxy is not spawned) | DENY | `missing_token` | — |
+| pinned binary drifted: digest mismatch, symlink, non-canonical path or not a regular file (the proxy is not spawned) | DENY | `pin_mismatch` | — |
 
 Every reason reads `kei-proxy <class>` or `kei-proxy <class>: <detail>`.
 `rule` is the output's `policy_id` (or `policy`) when present, else
@@ -53,9 +55,21 @@ Invariants every port asserts on every case:
 - **Token by env only.** `KEI_RUNTIME_TOKEN` reaches the child through its
   environment and never through argv. The child sees only the allowlisted
   parent variables (`child_env.allowlist`) plus explicit extra env. The allowlist includes
-  `KEI_RUNTIME_VERSION`, which the harness sets for the runtime. Secrets
-  such as `DISCORD_TOKEN` and inherited `KEI_PROXY_*` identity variables are
-  stripped.
+  `KEI_RUNTIME_VERSION`, which the harness sets for the runtime. `PATH`,
+  `HOME`, secrets such as `DISCORD_TOKEN` and inherited `KEI_PROXY_*`
+  identity variables are stripped. The client resolves the executable to an
+  absolute path in the parent (a bare name is looked up in the absolute
+  entries of the parent `PATH`), so the child needs no `PATH`.
+- **Optional binary pin** (`executable_pin`). With an expected SHA-256, the
+  client re-proves the binary before every spawn: the path must equal its
+  realpath, it is opened with `O_NOFOLLOW`, `fstat` must say regular file, and
+  the digest is streamed from that descriptor and compared in constant time.
+  Any drift is `pin_mismatch` and nothing is spawned. The hash-then-exec race
+  remains; close it by making the binary's directory and its ancestors
+  writable only by the deploy owner.
+- **Process-group kill.** The child starts in its own process group. On
+  timeout the whole group is SIGKILLed, so a grandchild holding stdout cannot
+  outlive the call (`expected.group_killed`).
 - **Identity by flags.** `--user` is the invoking subject (the human). The
   delegation chain (`--parent-span`, `--delegation-depth`), agent version,
   framework, `--tool-args-digest` (SHA-256 of the sorted-key, ASCII-escaped,
@@ -70,9 +84,9 @@ Invariants every port asserts on every case:
 
 | Language | Evaluator | Subprocess client | Table test |
 | --- | --- | --- | --- |
-| Python | `pedro_agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` | `python/tests/kei/authorize_cases_test.py` |
-| TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; `spawnSync`, because `PolicyEvaluator.evaluate` is synchronous) | `typescript/tests/kei-evaluator.test.ts` |
-| Go | `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) | `evaluator.CLIClient` (`exec.CommandContext`, stderr discarded) | `go/kei/evaluator/evaluator_test.go` |
+| Python | `pedro_agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` (`subprocess.Popen`, `start_new_session=True`, `expected_sha256=`) | `python/tests/kei/authorize_cases_test.py` |
+| TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`; async `evaluate`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; async `spawn`, `detached`, `expectedSha256`) | `typescript/tests/kei-evaluator.test.ts` |
+| Go | `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) | `evaluator.CLIClient` (`exec.CommandContext`, `Setpgid`, stderr discarded, `ExpectedSHA256`) | `go/kei/evaluator/evaluator_test.go` |
 
 Python-only tests (the injected-client seam: legacy four-argument clients,
 object-shaped results, arbitrary exceptions) stay in

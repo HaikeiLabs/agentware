@@ -7,6 +7,36 @@ coordinated separately; entries collect under **Unreleased** until then.
 
 ## Unreleased
 
+### Changed
+
+- **Breaking (TypeScript):** `KeiProxyEvaluator.evaluate` now returns
+  `Promise<Decision>`, and `KeiProxyAuthorizeClient.authorize` spawns
+  `kei-proxy` asynchronously. The synchronous `spawnSync` path is **removed**,
+  not deprecated: it blocked the Node event loop for up to `timeoutMs` on
+  every Kei-gated call. `KeiProxyEvaluator` therefore no longer implements the
+  synchronous `PolicyEvaluator`; await `evaluate` before running the tool.
+  `KeiProxyAuthorizationClient.authorize` may return a value or a promise.
+
+### Security
+
+- kei-proxy authorize clients (TypeScript, Python, Go) no longer pass `PATH`
+  or `HOME` to the child. The executable is resolved to an absolute path in the
+  parent; a bare name is looked up in the absolute entries of the parent
+  `PATH`. `AUTHORIZE_CHILD_ENV_ALLOWLIST` / `AuthorizeChildEnvAllowlist` drop
+  both names.
+- The kei-proxy child runs in its own process group (TypeScript `detached`,
+  Python `start_new_session`, Go `Setpgid`), and a timeout SIGKILLs the whole
+  group so no grandchild outlives the call.
+- Optional binary pin: TypeScript `expectedSha256`, Python `expected_sha256=`,
+  Go `CLIClient.ExpectedSHA256`. Before every spawn the path must equal its
+  realpath, is opened with `O_NOFOLLOW`, must be a regular file, and is
+  re-hashed and compared in constant time; any drift denies with the new
+  reason class `pin_mismatch` without spawning.
+- `fixtures/kei/authorize-cases.v1.json`: `pin_mismatch` reason class,
+  `executable_pin` contract, three pinned-executable cases, `group_killed`
+  on the timeout case, and `PATH`/`HOME` moved from `child_env.allowlist` to
+  `child_env.stripped`.
+
 ### Added
 
 - RuntimeLink: `RuntimeIdentity` exposes the installation's assigned agents

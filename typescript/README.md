@@ -46,33 +46,46 @@ policy engine; a policy gate can wrap this same boundary later.
 
 ## kei-proxy policy evaluator
 
-`KeiProxyEvaluator` is a `PolicyEvaluator` that runs `kei-proxy authorize`
-before each tool call and fails closed on anything other than an explicit
-`allow`/`permit` with exit 0. `KeiProxyAuthorizeClient` passes
-`KEI_RUNTIME_TOKEN` to the child through an allowlisted environment only, never
-argv.
+`KeiProxyEvaluator` runs `kei-proxy authorize` before each tool call and fails
+closed on anything other than an explicit `allow`/`permit` with exit 0.
+`evaluate` is asynchronous: the event loop keeps serving other requests while
+kei-proxy answers. Await the decision before running the tool.
+
+`KeiProxyAuthorizeClient` spawns the binary by absolute path (a bare name is
+resolved once against the parent `PATH`) with an allowlisted environment only:
+`KEI_RUNTIME_TOKEN`, `KEI_RUNTIME_CONTROL_PLANE_URL`, `KEI_RUNTIME_VERSION` and
+the other `AUTHORIZE_CHILD_ENV_ALLOWLIST` names. No `PATH`, no `HOME`, and the
+token never goes in argv. The child runs in its own process group, and a
+timeout SIGKILLs the whole group. Set `expectedSha256` to pin the binary: before
+every spawn it is opened with `O_NOFOLLOW` and re-hashed, and any drift denies
+with `kei-proxy pin_mismatch`.
 
 ```typescript
-import {
-  KeiProxyAuthorizeClient,
-  KeiProxyEvaluator,
-  MiddlewareImpl,
-} from "@haikeilabs/agentware";
+import { Action, KeiProxyAuthorizeClient, KeiProxyEvaluator } from "@haikeilabs/agentware";
 
 const evaluator = new KeiProxyEvaluator(
-  new KeiProxyAuthorizeClient({ executable: "kei-proxy", timeoutMs: 10_000 }),
+  new KeiProxyAuthorizeClient({
+    executable: "/usr/local/bin/kei-proxy",
+    expectedSha256: process.env.KEI_PROXY_SHA256, // optional pin
+    timeoutMs: 10_000,
+  }),
 );
-const middleware = new MiddlewareImpl(executor).withPolicy(evaluator);
 
-const decision = evaluator.evaluate("github.get_issue", { owner: "acme", repo: "pipe" }, caller);
+const decision = await evaluator.evaluate(
+  "github.get_issue",
+  { owner: "acme", repo: "pipe" },
+  caller,
+);
 if (decision.enrollment) {
   // deny + enrollment claim link: reply to the user privately; never log it.
 }
+if (decision.action !== Action.ALLOW) return;
 ```
 
 Reasons read `kei-proxy <class>[: <detail>]` with a class from
-`KEI_PROXY_REASON_CLASSES`. `evaluate` is synchronous (`spawnSync`), so it
-blocks for at most `timeoutMs`. The behaviour matches the Python and Go ports
+`KEI_PROXY_REASON_CLASSES`. Because `evaluate` returns a `Promise`, the
+evaluator is not a synchronous `PolicyEvaluator` and cannot be passed to
+`MiddlewareImpl.withPolicy`. The behaviour matches the Python and Go ports
 case for case; see `docs/kei-proxy-evaluator-parity.md`.
 
 ## Maintainer releases
