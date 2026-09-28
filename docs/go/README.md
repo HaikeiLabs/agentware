@@ -125,6 +125,40 @@ result, err := client.Execute(ctx, "read_file", map[string]any{"path": "/tmp/tes
 // result: audited either way; framework stamped from the client source.
 ```
 
+## kei-proxy Policy Evaluator
+
+`evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) is a
+`middleware.PolicyEvaluator` that runs `kei-proxy authorize` before each tool
+call. It fails closed on anything other than an explicit `allow`/`permit` with
+exit 0. `evaluator.CLIClient` passes `KEI_RUNTIME_TOKEN` to the child through
+an allowlisted environment only, never argv.
+
+```go
+import (
+    "time"
+
+    "github.com/soypete/pedro-agentware/go/kei/evaluator"
+    "github.com/soypete/pedro-agentware/go/middleware"
+)
+
+eval := evaluator.NewKeiProxyEvaluator(&evaluator.CLIClient{
+    Executable: "kei-proxy",
+    Timeout:    10 * time.Second,
+})
+mw := middleware.NewMiddleware(exec).WithPolicy(eval)
+
+decision := eval.Evaluate("github.get_issue", map[string]any{"owner": "acme", "repo": "pipe"}, caller)
+if decision.Enrollment != nil {
+    // deny + enrollment claim link: reply to the user privately; never log it.
+}
+```
+
+Reasons read `kei-proxy <class>[: <detail>]` with a class from
+`evaluator.ReasonClasses`. `span_id`, `agent_id`, `agent_version`, `framework`
+and `workspace_id` are read from `caller.Metadata`. The behaviour matches the
+Python and TypeScript ports case for case; see
+`docs/kei-proxy-evaluator-parity.md`.
+
 ## Condition Operators
 
 | Operator | Description |
