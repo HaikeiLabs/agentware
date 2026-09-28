@@ -64,6 +64,9 @@ type casesTable struct {
 	CallerDefaults struct {
 		SpanID string `json:"span_id"`
 	} `json:"caller_defaults"`
+	ArgvForbidden struct {
+		Flags []string `json:"flags"`
+	} `json:"argv_forbidden"`
 	ReasonClasses []string          `json:"reason_classes"`
 	Canaries      map[string]string `json:"canaries"`
 	ChildEnv      struct {
@@ -254,6 +257,13 @@ func TestAuthorizeCases(t *testing.T) {
 			for _, arg := range argv {
 				if strings.Contains(arg, table.Canaries["runtime_token"]) {
 					t.Error("runtime token appeared in argv")
+				}
+			}
+			for _, flag := range table.ArgvForbidden.Flags {
+				for _, arg := range argv {
+					if arg == flag {
+						t.Errorf("%s must not be sent", flag)
+					}
 				}
 			}
 			if want.Argv != nil && !reflect.DeepEqual(argv, want.Argv) {
