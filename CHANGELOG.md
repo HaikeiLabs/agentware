@@ -3,9 +3,7 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
-## [0.4.0] - 2026-09-26
-
-## Unreleased
+## [0.5.0] - 2026-09-28
 
 ### Changed
 
@@ -39,6 +37,23 @@ coordinated separately; entries collect under **Unreleased** until then.
 
 ### Added
 
+- **KeiProxyEvaluator** — ported to Python (`pedro_agentware.kei`), TypeScript
+  (`@haikeilabs/agentware/kei`), and Go (`go/kei/`), with a shared
+  `authorize-cases` fixture table (`testing/contracts/kei-proxy/authorize/`)
+  that every language tests against (HAI-155). The evaluator fails closed on
+  every path that is not an explicit `permit`/`allow`.
+  - Python: `KeiProxyEvaluator` with subprocess `kei-proxy authorize` client;
+    table-driven tests against the shared fixture set.
+  - TypeScript: `KeiProxyEvaluator` with dedicated CLI client module; add
+    delegation fields (`delegate()`, `DelegationDepth`, `ParentSpan`) to
+    `CallerContext` and `enrollment` to `Decision`.
+  - Go: `KeiProxyEvaluator`, `Enrollment` added to `middleware.Decision`;
+    completes the Go parity table.
+  - All three: enrollment payload on DENY so the harness can show remediation
+    even when a call is blocked.
+  - Shared fixtures include `testing/contracts/kei-proxy/authorize/cases.json`
+    and a fake proxy response harness.
+
 - RuntimeLink: `RuntimeIdentity` exposes the installation's assigned agents
   from the runtime `identity` event (HAI-172). New fields: TypeScript
   `defaultAgentId?: string` and `agents: AssignedAgent[]`; Python
@@ -58,3 +73,7 @@ coordinated separately; entries collect under **Unreleased** until then.
   - Shared contract fixture `testing/contracts/runtime-link/wire/child-events.json`
     gains agent cases; existing identity expectations now include
     `agent_id: ""` and `agents: []`.
+
+## [0.4.0] - 2026-09-26
+
+## Unreleased
