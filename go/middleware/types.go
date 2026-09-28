@@ -58,5 +58,10 @@ type Decision struct {
 	Rule         string
 	Reason       string
 	RedactedArgs map[string]any
-	Timestamp    time.Time
+	// Enrollment is kei-proxy's opaque enrollment object on a DENY
+	// (provider, provider_user_id, org_id, workspace_id and optionally
+	// url/expires_at). The url is a one-time claim link: surface it to the
+	// user, never log it. Nil when absent.
+	Enrollment map[string]any
+	Timestamp  time.Time
 }
