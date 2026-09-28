@@ -131,7 +131,11 @@ result, err := client.Execute(ctx, "read_file", map[string]any{"path": "/tmp/tes
 `middleware.PolicyEvaluator` that runs `kei-proxy authorize` before each tool
 call. It fails closed on anything other than an explicit `allow`/`permit` with
 exit 0. `evaluator.CLIClient` passes `KEI_RUNTIME_TOKEN` to the child through
-an allowlisted environment only, never argv.
+an allowlisted environment only (no `PATH` or `HOME`), never argv. The child
+runs in its own process group, and a timeout SIGKILLs the group. Set
+`ExpectedSHA256` to pin the binary: it is re-hashed from an `O_NOFOLLOW`
+descriptor before every spawn, and any drift denies with `kei-proxy
+pin_mismatch`.
 
 ```go
 import (

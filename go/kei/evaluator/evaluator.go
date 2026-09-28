@@ -40,6 +40,7 @@ const (
 	ReasonProxyUnavailable   ReasonClass = "proxy_unavailable"
 	ReasonProxyTimeout       ReasonClass = "proxy_timeout"
 	ReasonMissingToken       ReasonClass = "missing_token"
+	ReasonPinMismatch        ReasonClass = "pin_mismatch"
 )
 
 // ReasonClasses lists every ReasonClass in contract order.
@@ -47,6 +48,7 @@ var ReasonClasses = []ReasonClass{
 	ReasonAllow, ReasonDeny, ReasonEnrollmentRequired, ReasonUnknownDecision,
 	ReasonNoDecision, ReasonMalformedResponse, ReasonEmptyResponse, ReasonProxyError,
 	ReasonExitMismatch, ReasonProxyUnavailable, ReasonProxyTimeout, ReasonMissingToken,
+	ReasonPinMismatch,
 }
 
 // Rule is the Decision rule when kei-proxy supplies no policy id.

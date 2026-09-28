@@ -1,6 +1,6 @@
 {
   "schema": "agentware.kei.authorize-cases/v1",
-  "note": "Language-neutral parity table for KeiProxyEvaluator (Python, TypeScript, Go). Each case feeds a tool call through the evaluator to the fake kei-proxy (fake-kei-proxy.sh), which prints proxy.stdout / proxy.stderr and exits with proxy.exit_code. Every language must produce expected.action, a reason starting with 'kei-proxy <reason_class>', expected.rule, and exactly expected.enrollment (null = absent). No canary may appear in any decision reason or log line, and the runtime token must never appear in argv. Changing this file is a contract change: update all three languages in the same stack.",
+  "note": "Language-neutral parity table for KeiProxyEvaluator (Python, TypeScript, Go). Each case feeds a tool call through the evaluator to the fake kei-proxy (fake-kei-proxy.sh), which prints proxy.stdout / proxy.stderr and exits with proxy.exit_code. Every language must produce expected.action, a reason starting with 'kei-proxy <reason_class>', expected.rule, and exactly expected.enrollment (null = absent). No canary may appear in any decision reason or log line, and the runtime token must never appear in argv. A case may add client.expected_sha256 (see executable_pin) and proxy.symlink; expected.group_killed means the fake's backgrounded grandchild (pid in hang_pid) must be dead once the call has returned. Changing this file is a contract change: update all three languages in the same stack.",
   "policy": "policy.v1.json",
   "timeout_ms": 2000,
   "caller_defaults": {
@@ -25,7 +25,8 @@
     "exit_mismatch",
     "proxy_unavailable",
     "proxy_timeout",
-    "missing_token"
+    "missing_token",
+    "pin_mismatch"
   ],
   "canaries": {
     "runtime_token": "kh_fixture_CANARY_RUNTIME_TOKEN",
@@ -34,10 +35,8 @@
     "stderr_detail": "CANARY-STDERR-DETAIL"
   },
   "child_env": {
-    "note": "KEI_RUNTIME_VERSION is the harness-set runtime version the kei-proxy skill says the child inherits. The kei-proxy child sees only these parent variables (when set) plus any explicit extra env. KEI_RUNTIME_TOKEN reaches it only through the environment, never argv. KEI_PROXY_* identity variables are not inherited; identity travels as flags.",
+    "note": "The kei-proxy child sees only these parent variables (when set) plus any explicit extra env: no PATH, no HOME, nothing inherited by default. Clients resolve the executable to an absolute path in the parent and spawn that path, so the child needs no PATH. KEI_RUNTIME_VERSION is the harness-set runtime version the kei-proxy skill says the child inherits. KEI_RUNTIME_TOKEN reaches it only through the environment, never argv. KEI_PROXY_* identity variables are not inherited; identity travels as flags. Every name in stripped is set in the test parent environment and must not reach the child.",
     "allowlist": [
-      "PATH",
-      "HOME",
       "TZ",
       "KEI_RUNTIME_TOKEN",
       "KEI_RUNTIME_CONTROL_PLANE_URL",
@@ -51,12 +50,17 @@
       "KEI_AWS_SECRETS_MANAGER_ENDPOINT"
     ],
     "stripped": [
+      "PATH",
+      "HOME",
       "DISCORD_TOKEN",
       "OPENAI_API_KEY",
       "GITHUB_TOKEN",
       "AWS_SECRET_ACCESS_KEY",
       "KEI_PROXY_SPAN_ID"
     ]
+  },
+  "executable_pin": {
+    "note": "Optional binary pin. When a client is configured with an expected SHA-256, then before EVERY spawn it must: require an absolute path that equals its realpath (no symlink anywhere in it), open it with O_NOFOLLOW, fstat a regular file, stream the SHA-256 from that open descriptor, and compare in constant time. Any failure denies with reason class pin_mismatch and spawns nothing. A malformed pin (not 64 hex digits) or a relative path with a pin is a construction error (Go's CLIClient has no constructor, so there every call denies with pin_mismatch). In a case, client.expected_sha256 = \"installed\" means the SHA-256 of the installed fake-kei-proxy.sh bytes; any other value is used literally. proxy.symlink = true installs the fake as kei-proxy-real and points the executable (kei-proxy) at it through a symlink; the pin is the real file's digest, so only the symlink can cause the deny. Harnesses resolve their temp directory with realpath first (macOS /var is a symlink)."
   },
   "cases": [
     {
@@ -863,7 +867,7 @@
     },
     {
       "id": "timeout",
-      "description": "kei-proxy never answers within the evaluator timeout.",
+      "description": "kei-proxy never answers within the evaluator timeout; the whole process group (including a backgrounded grandchild holding stdout) is killed.",
       "derived_from": null,
       "input": {
         "user": "member",
@@ -886,7 +890,8 @@
         "rule": "kei-proxy",
         "enrollment": null,
         "reason_class": "proxy_timeout",
-        "invoked": true
+        "invoked": true,
+        "group_killed": true
       }
     },
     {
@@ -917,6 +922,120 @@
         "enrollment": null,
         "reason_class": "missing_token",
         "invoked": false
+      }
+    },
+    {
+      "id": "pinned_executable_allow",
+      "description": "The executable matches its pinned SHA-256: the call proceeds exactly as allow_member_read.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "allow",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "allow",
+        "invoked": true,
+        "argv": [
+          "authorize",
+          "--user",
+          "user-member-0001",
+          "--tool",
+          "github.get_issue",
+          "--action",
+          "github:read",
+          "--resource",
+          "github:repo:acme/sales-pipeline",
+          "--span-id",
+          "span-fixture-0001",
+          "--invoking-subject",
+          "user-member-0001",
+          "--agent-version",
+          "1.0.0",
+          "--framework",
+          "agentware",
+          "--tool-args-digest",
+          "7ed161e4e3b1613f53bbf8de4b03ff63e5fc7938b64232034e6bd2088d8e1153",
+          "--resources",
+          "github:repo:acme/sales-pipeline,github:issue:42"
+        ]
+      },
+      "client": {
+        "expected_sha256": "installed"
+      }
+    },
+    {
+      "id": "pinned_executable_digest_mismatch",
+      "description": "The executable's SHA-256 differs from the pin: deny before spawning.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "pin_mismatch",
+        "invoked": false
+      },
+      "client": {
+        "expected_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "pinned_executable_symlink",
+      "description": "The pinned path is a symlink to a binary whose digest matches: O_NOFOLLOW refuses it, deny before spawning.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"allow\"}\n",
+        "stderr": "",
+        "exit_code": 0,
+        "symlink": true
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "pin_mismatch",
+        "invoked": false
+      },
+      "client": {
+        "expected_sha256": "installed"
       }
     }
   ]

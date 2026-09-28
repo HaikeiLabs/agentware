@@ -3,6 +3,8 @@ package evaluator
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -43,7 +45,11 @@ type authorizeCase struct {
 		ExitCode      int    `json:"exit_code"`
 		Hang          bool   `json:"hang"`
 		MissingBinary bool   `json:"missing_binary"`
+		Symlink       bool   `json:"symlink"`
 	} `json:"proxy"`
+	Client struct {
+		ExpectedSHA256 string `json:"expected_sha256"`
+	} `json:"client"`
 	Env struct {
 		OmitToken bool `json:"omit_token"`
 	} `json:"env"`
@@ -55,6 +61,7 @@ type authorizeCase struct {
 		Invoked        bool           `json:"invoked"`
 		ReasonContains string         `json:"reason_contains"`
 		Argv           []string       `json:"argv"`
+		GroupKilled    bool           `json:"group_killed"`
 	} `json:"expected"`
 }
 
@@ -166,8 +173,15 @@ func installFake(t *testing.T, c authorizeCase, dir string) string {
 	if err != nil {
 		t.Fatalf("read fake proxy: %v", err)
 	}
+	target := "kei-proxy"
+	if c.Proxy.Symlink {
+		target = "kei-proxy-real"
+		if err := os.Symlink(filepath.Join(dir, target), fake); err != nil {
+			t.Fatalf("symlink: %v", err)
+		}
+	}
 	files := map[string]string{
-		"kei-proxy": string(script),
+		target:      string(script),
 		"stdout":    c.Proxy.Stdout,
 		"stderr":    c.Proxy.Stderr,
 		"exit_code": strconv.Itoa(c.Proxy.ExitCode),
@@ -189,16 +203,41 @@ type run struct {
 	logs     string
 }
 
+// expectedSHA256 is the case's pin: "installed" is the digest of the fake's bytes.
+func expectedSHA256(t *testing.T, c authorizeCase) string {
+	t.Helper()
+	if c.Client.ExpectedSHA256 != "installed" {
+		return c.Client.ExpectedSHA256
+	}
+	script, err := os.ReadFile(filepath.Join(fixtureDir, "fake-kei-proxy.sh"))
+	if err != nil {
+		t.Fatalf("read fake proxy: %v", err)
+	}
+	sum := sha256.Sum256(script)
+	return hex.EncodeToString(sum[:])
+}
+
+// caseDir is a temp dir with symlinks resolved (macOS /var is a symlink).
+func caseDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolve temp dir: %v", err)
+	}
+	return dir
+}
+
 func runCase(t *testing.T, table casesTable, policy seededPolicy, c authorizeCase, extraEnv map[string]string) run {
 	t.Helper()
-	dir := t.TempDir()
+	dir := caseDir(t)
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	client := &CLIClient{
-		Executable: installFake(t, c, dir),
-		Timeout:    time.Duration(table.TimeoutMS) * time.Millisecond,
-		Env:        buildEnv(table, c),
-		ExtraEnv:   extraEnv,
+		Executable:     installFake(t, c, dir),
+		ExpectedSHA256: expectedSHA256(t, c),
+		Timeout:        time.Duration(table.TimeoutMS) * time.Millisecond,
+		Env:            buildEnv(table, c),
+		ExtraEnv:       extraEnv,
 	}
 	eval := NewKeiProxyEvaluator(client, WithLogger(logger))
 	decision := eval.Evaluate(c.Input.Tool, c.Input.Args, buildCaller(table, policy, c))
@@ -269,6 +308,19 @@ func TestAuthorizeCases(t *testing.T) {
 			if want.Argv != nil && !reflect.DeepEqual(argv, want.Argv) {
 				t.Errorf("argv =\n%q\nwant\n%q", argv, want.Argv)
 			}
+			if want.GroupKilled {
+				data, err := os.ReadFile(filepath.Join(got.dir, "hang_pid"))
+				if err != nil {
+					t.Fatalf("read hang_pid: %v", err)
+				}
+				pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+				if err != nil {
+					t.Fatalf("parse hang_pid: %v", err)
+				}
+				if !waitDead(pid, 2*time.Second) {
+					t.Error("the grandchild outlived the timeout")
+				}
+			}
 		})
 	}
 }
@@ -320,6 +372,94 @@ func TestChildEnvCarriesTokenAndOnlyAllowlistedVars(t *testing.T) {
 	for k := range env {
 		if !allowed[k] {
 			t.Errorf("unexpected child env var %s", k)
+		}
+	}
+}
+
+func TestChildSeesNoPathOrHome(t *testing.T) {
+	skipOnWindows(t)
+	table, policy := loadTable(t)
+	got := runCase(t, table, policy, findCase(t, table, "allow_member_read"), nil)
+	env := readChildEnv(t, got.dir)
+	for _, name := range []string{"PATH", "HOME"} {
+		if _, ok := env[name]; ok {
+			t.Errorf("%s reached the child", name)
+		}
+	}
+}
+
+func TestBareNameIsResolvedAgainstParentPath(t *testing.T) {
+	skipOnWindows(t)
+	table, policy := loadTable(t)
+	c := findCase(t, table, "allow_member_read")
+	dir := caseDir(t)
+	installFake(t, c, dir)
+	client := &CLIClient{
+		Executable: "kei-proxy",
+		Timeout:    time.Duration(table.TimeoutMS) * time.Millisecond,
+		Env:        map[string]string{"PATH": "/nonexistent:" + dir, "KEI_RUNTIME_TOKEN": table.Canaries["runtime_token"]},
+	}
+	got := quietEvaluator(client).Evaluate(c.Input.Tool, c.Input.Args, buildCaller(table, policy, c))
+	if got.Action != middleware.ActionAllow {
+		t.Fatalf("action = %q (%s), want allow", got.Action, got.Reason)
+	}
+	if _, ok := readChildEnv(t, dir)["PATH"]; ok {
+		t.Error("PATH reached the child")
+	}
+}
+
+func TestPinThatStopsMatchingDeniesTheNextCall(t *testing.T) {
+	skipOnWindows(t)
+	table, policy := loadTable(t)
+	c := findCase(t, table, "pinned_executable_allow")
+	dir := caseDir(t)
+	fake := installFake(t, c, dir)
+	client := &CLIClient{
+		Executable:     fake,
+		ExpectedSHA256: expectedSHA256(t, c),
+		Timeout:        time.Duration(table.TimeoutMS) * time.Millisecond,
+		Env:            buildEnv(table, c),
+	}
+	eval := quietEvaluator(client)
+	call := func() middleware.Decision {
+		return eval.Evaluate(c.Input.Tool, c.Input.Args, buildCaller(table, policy, c))
+	}
+	if got := call(); got.Action != middleware.ActionAllow {
+		t.Fatalf("first call = %q (%s), want allow", got.Action, got.Reason)
+	}
+	f, err := os.OpenFile(fake, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatalf("open fake: %v", err)
+	}
+	if _, err := f.WriteString("\n# swapped\n"); err != nil {
+		t.Fatalf("swap fake: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close fake: %v", err)
+	}
+	if err := os.Remove(filepath.Join(dir, "argv")); err != nil {
+		t.Fatalf("remove argv: %v", err)
+	}
+	got := call()
+	if got.Action != middleware.ActionDeny || !strings.HasPrefix(got.Reason, "kei-proxy pin_mismatch") {
+		t.Errorf("after swap = %q (%s), want deny pin_mismatch", got.Action, got.Reason)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "argv")); err == nil {
+		t.Error("kei-proxy ran after the pin stopped matching")
+	}
+}
+
+func TestMisconfiguredPinDeniesWithoutSpawning(t *testing.T) {
+	cases := map[string]*CLIClient{
+		"malformed pin": {Executable: "/usr/bin/kei-proxy", ExpectedSHA256: "abc"},
+		"relative path": {Executable: "kei-proxy", ExpectedSHA256: strings.Repeat("a", 64)},
+	}
+	for name, client := range cases {
+		client.Env = map[string]string{"KEI_RUNTIME_TOKEN": "t"}
+		_, err := client.Authorize(context.Background(), AuthorizeRequest{})
+		var ae *AuthorizeError
+		if !errors.As(err, &ae) || ae.Class != ReasonPinMismatch {
+			t.Errorf("%s: err = %v, want pin_mismatch", name, err)
 		}
 	}
 }
