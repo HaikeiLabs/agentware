@@ -239,7 +239,8 @@ class KeiProxyEvaluator:
     :data:`REASON_CLASSES`. The enrollment object (which may hold a one-time
     claim link) is carried on the Decision only when it is a JSON object, and
     is never logged. :class:`~pedro_agentware.kei.KeiProxyAuthorizeClient` is
-    the subprocess client; the table in ``fixtures/kei/authorize-cases.v1.json``
+    the kei-proxy CLI client (it lives in its own module so this one never
+    spawns the proxy); the table in ``fixtures/kei/authorize-cases.v1.json``
     pins the behaviour shared with the TypeScript and Go ports.
     """
 
