@@ -153,6 +153,29 @@ Third-party agent harnesses build against `pedro_agentware` through the
 `python/tests/third_party_harness_test.py` for a complete example that imports
 nothing outside this library.
 
+## kei-proxy Policy Evaluator
+
+`KeiProxyEvaluator` is a `PolicyEvaluator` that asks `kei-proxy authorize`
+before every tool call and fails closed on anything that is not an explicit
+`allow`/`permit`. `KeiProxyAuthorizeClient` runs the binary; `KEI_RUNTIME_TOKEN`
+reaches it only through its (allowlisted) environment, never argv.
+
+```python
+from pedro_agentware.kei import KeiProxyAuthorizeClient, KeiProxyEvaluator
+from pedro_agentware.middleware import AuditedToolClient
+
+evaluator = KeiProxyEvaluator(KeiProxyAuthorizeClient(executable="kei-proxy", timeout=10.0))
+client = AuditedToolClient(evaluator=evaluator)
+
+decision = evaluator.evaluate("github.get_issue", {"owner": "acme", "repo": "pipe"}, caller)
+if decision.enrollment:  # deny + enrollment claim link: show it to the user, never log it
+    harness_dm(caller, decision.enrollment.get("url"))  # your harness's private reply
+```
+
+Reasons read `kei-proxy <class>[: <detail>]`, where the class is one of
+`REASON_CLASSES`. The behaviour is shared with the TypeScript and Go ports —
+see `docs/kei-proxy-evaluator-parity.md`.
+
 ## API Reference
 
 ### Core Classes
