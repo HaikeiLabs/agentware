@@ -31,6 +31,7 @@ var AuthorizeChildEnvAllowlist = []string{
 	"TZ",
 	RuntimeTokenEnv,
 	"KEI_RUNTIME_CONTROL_PLANE_URL",
+	"KEI_RUNTIME_VERSION",
 	"KEI_API_URL",
 	"KEI_PROXY_REGISTRY",
 	"KEI_PROXY_AUDIT",
@@ -127,6 +128,8 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 }
 
 // AuthorizeArgv returns the argv (after the executable) for one call.
+// AgentID and WorkspaceID are not sent: kei-proxy (>= 0.1.11) resolves the
+// agent from the runtime installation and workspace scope from the token.
 func AuthorizeArgv(req AuthorizeRequest) []string {
 	argv := []string{
 		"authorize",
@@ -144,7 +147,6 @@ func AuthorizeArgv(req AuthorizeRequest) []string {
 		{"--invoking-subject", req.InvokingSubject},
 		{"--parent-span", req.ParentSpan},
 		{"--delegation-depth", depth},
-		{"--agent-id", req.AgentID},
 		{"--agent-version", req.AgentVersion},
 		{"--framework", req.Framework},
 		{"--tool-args-digest", req.ToolArgsDigest},
