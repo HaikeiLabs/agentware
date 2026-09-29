@@ -104,10 +104,9 @@ type link struct {
 	startOnce sync.Once
 	stopOnce  sync.Once
 
-	// child process management
 	cmd     *exec.Cmd
+	stdin   io.WriteCloser
 	childMu sync.Mutex
-
 	// state machine
 	mu       sync.Mutex
 	state    LinkState
@@ -266,15 +265,16 @@ func (l *link) spawnAndWatch() error {
 	}
 
 	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
 		l.reason = FailureRuntimeUnavailable
 		return fmt.Errorf("start child: %w", err)
 	}
+	l.childMu.Lock()
+	l.stdin = stdin
+	l.childMu.Unlock()
 
 	l.emitLifecycleEvent(EventStarted, StateStarting, "")
 	l.emitMetrics(StateStarting, "")
-
-	// close parent stdin so child sees EOF on its stdin
-	_ = stdin.Close()
 
 	// read stderr concurrently; capture last N lines
 	stderrCtx, stderrCancel := context.WithCancel(l.ctx)
@@ -539,9 +539,14 @@ func (l *link) handleChildExit(exitCode int, waitErr error) error {
 func (l *link) buildCommand() (*exec.Cmd, error) {
 	args := []string{"runtime", "heartbeat"}
 	if l.mode == ProbeJSONL {
-		args = append(args, "--output", "jsonl")
+		args = append(
+			args,
+			"--interval", fmt.Sprintf("%ds", int(l.cfg.Interval/time.Second)),
+			"--timeout", fmt.Sprintf("%ds", int(l.cfg.BeatTimeout/time.Second)),
+			"--output", "jsonl",
+			"--parent-stdin",
+		)
 	}
-
 	cmd := exec.CommandContext(l.ctx, l.cfg.Binary.Path, args...)
 	setSysProcAttr(cmd)
 
@@ -566,6 +571,10 @@ func (l *link) buildCommand() (*exec.Cmd, error) {
 func (l *link) killChild() {
 	l.childMu.Lock()
 	defer l.childMu.Unlock()
+	if l.stdin != nil {
+		_ = l.stdin.Close()
+		l.stdin = nil
+	}
 	if l.cmd != nil && l.cmd.Process != nil {
 		killProcessGroup(l.cmd)
 		l.cmd = nil

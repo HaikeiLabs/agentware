@@ -3,6 +3,14 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
+## Unreleased
+
+### Fixed
+
+- RuntimeLink now gives the TypeScript watchdog the configured interval,
+  timeout, and grace window, and all SDKs pass configured heartbeat timing to
+  v2 `kei-proxy` children. SDKs hold the parent-stdin pipe open until shutdown.
+
 ## [0.5.0] - 2026-09-28
 
 ### Changed

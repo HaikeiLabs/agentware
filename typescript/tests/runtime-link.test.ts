@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -469,20 +470,24 @@ describe("RuntimeLink supervised runtime integration", () => {
 
   it("owns identity and heartbeat, strips child env, and cancels cleanly", async () => {
     let childEnv: Readonly<Record<string, string>> = {};
+    let childArgs: readonly string[] = [];
     const factory: RuntimeChildFactory = {
-      start: (_command, _args, env): RuntimeChild => {
+      start: (_command, args, env): RuntimeChild => {
         childEnv = env;
+        childArgs = args;
         return {
           stdout: (async function* () {
-            yield JSON.stringify({
-              v: 1,
-              event: "identity",
-              run_id: "run-1",
-              installation_id: "inst-1",
-              org_id: "org-1",
-              agent_id: "agent-1",
-              agents: [{ agent_id: "agent-1", is_default: true }],
-            }) + "\n";
+            yield (
+              JSON.stringify({
+                v: 1,
+                event: "identity",
+                run_id: "run-1",
+                installation_id: "inst-1",
+                org_id: "org-1",
+                agent_id: "agent-1",
+                agents: [{ agent_id: "agent-1", is_default: true }],
+              }) + "\n"
+            );
             yield JSON.stringify({
               v: 1,
               event: "beat",
@@ -527,6 +532,17 @@ describe("RuntimeLink supervised runtime integration", () => {
     });
     expect(link.status().state).toBe("connected");
     expect(link.status().lastCatalogOkAt).toBeInstanceOf(Date);
+    expect(childArgs).toEqual([
+      "runtime",
+      "heartbeat",
+      "--interval",
+      "15s",
+      "--timeout",
+      "0.1s",
+      "--output",
+      "jsonl",
+      "--parent-stdin",
+    ]);
     expect(childEnv).toMatchObject({
       KEI_RUNTIME_TOKEN: "token-canary",
       PATH: "/bin",
@@ -576,57 +592,112 @@ describe("RuntimeLink supervised runtime integration", () => {
     expect(link.status().state).toBe("stopped");
   });
 
-  it("restarts when a heartbeat misses beatTimeoutMs after identity", async () => {
-    let starts = 0;
-    const factory: RuntimeChildFactory = {
-      start: () => {
-        starts++;
-        return {
-          stdout: (async function* () {
-            yield JSON.stringify({
-              v: 1,
-              event: "identity",
-              run_id: `run-${starts}`,
-              installation_id: "inst-1",
-              org_id: "org-1",
-            }) + "\n";
-            await new Promise<void>(() => undefined);
-          })(),
-          exitCode: new Promise<number>(() => undefined),
-          kill: () => undefined,
-        };
-      },
-    };
-    const audit: Array<Record<string, unknown>> = [];
-    const link = newRuntimeLink(
-      {
-        ...config,
-        graceMs: 300,
-        beatTimeoutMs: 40,
-        restart: { minMs: 1_000, maxMs: 1_000, stableResetMs: 1_000 },
-      },
-      {
-        childFactory: factory,
-        audit: (event) => {
-          audit.push({ ...event });
+  it("restarts when a heartbeat misses interval, timeout, and grace after identity", async () => {
+    jest.useFakeTimers();
+    try {
+      let starts = 0;
+      const factory: RuntimeChildFactory = {
+        start: () => {
+          starts++;
+          return {
+            stdout: (async function* () {
+              yield JSON.stringify({
+                v: 1,
+                event: "identity",
+                run_id: `run-${starts}`,
+                installation_id: "inst-1",
+                org_id: "org-1",
+              }) + "\n";
+              await new Promise<void>(() => undefined);
+            })(),
+            exitCode: new Promise<number>(() => undefined),
+            kill: () => undefined,
+          };
         },
-      },
-    );
+      };
+      const audit: Array<Record<string, unknown>> = [];
+      const link = newRuntimeLink(
+        {
+          ...config,
+          intervalMs: 15_000,
+          graceMs: 300,
+          beatTimeoutMs: 40,
+          restart: { minMs: 1_000, maxMs: 1_000, stableResetMs: 1_000 },
+        },
+        {
+          childFactory: factory,
+          audit: (event) => {
+            audit.push({ ...event });
+          },
+        },
+      );
 
-    await link.start();
-    const deadline = Date.now() + 2_500;
-    while (starts < 2 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await link.start();
+      await jest.advanceTimersByTimeAsync(16_500);
+      expect(starts).toBeGreaterThanOrEqual(2);
+      expect(audit).toContainEqual(
+        expect.objectContaining({
+          state: "degraded",
+          reason: "runtime_unresponsive",
+        }),
+      );
+      await link.stop();
+    } finally {
+      jest.useRealTimers();
     }
+  });
 
-    expect(starts).toBeGreaterThanOrEqual(2);
-    expect(audit).toContainEqual(
-      expect.objectContaining({
-        state: "degraded",
-        reason: "runtime_unresponsive",
-      }),
-    );
-    await link.stop();
+  it("allows a configured interval plus timeout and grace before the next beat", async () => {
+    jest.useFakeTimers();
+    try {
+      let starts = 0;
+      const factory: RuntimeChildFactory = {
+        start: () => {
+          starts++;
+          return {
+            stdout: (async function* () {
+              yield JSON.stringify({
+                v: 1,
+                event: "identity",
+                run_id: "run-1",
+                installation_id: "inst-1",
+                org_id: "org-1",
+              }) + "\n";
+              await new Promise((resolve) => setTimeout(resolve, 60_000));
+              yield JSON.stringify({
+                v: 1,
+                event: "beat",
+                run_id: "run-1",
+                at: "2026-09-25T10:00:00Z",
+                outcome: "ok",
+              }) + "\n";
+              await new Promise<void>(() => undefined);
+            })(),
+            exitCode: new Promise<number>(() => undefined),
+            kill: () => undefined,
+          };
+        },
+      };
+      const link = newRuntimeLink(
+        {
+          ...config,
+          intervalMs: 60_000,
+          beatTimeoutMs: 10_000,
+          graceMs: 100,
+          restart: { minMs: 1_000, maxMs: 1_000, stableResetMs: 1_000 },
+        },
+        { childFactory: factory },
+      );
+
+      await link.start();
+      await jest.advanceTimersByTimeAsync(60_001);
+      expect(starts).toBe(1);
+      expect(link.status().state).toBe("connected");
+      expect(link.status().lastCatalogOkAt).toBeInstanceOf(Date);
+      await link.stop();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("preserves fail-closed allow/deny policy decisions and their audit lineage", () => {
