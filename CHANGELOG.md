@@ -3,13 +3,23 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
-## Unreleased
+## [0.6.0] - 2026-09-29
+
+### Changed
+
+- **Breaking:** Removed all legacy `KEI_HARNESS_TOKEN` / legacy bootstrap-token
+  handling across all SDKs (HAI-236). The environment names `KEI_HARNESS_TOKEN`,
+  `LEGACY_BOOTSTRAP_SECRET_NAME`, and related legacy env vars are no longer read
+  or rejected. Use `KEI_RUNTIME_TOKEN` exclusively.
 
 ### Fixed
 
-- RuntimeLink now gives the TypeScript watchdog the configured interval,
-  timeout, and grace window, and all SDKs pass configured heartbeat timing to
-  v2 `kei-proxy` children. SDKs hold the parent-stdin pipe open until shutdown.
+- RuntimeLink heartbeat watchdog: the TypeScript watchdog now respects the
+  configured interval, timeout, and grace window, eliminating the
+  `runtime_unresponsive` → `runtime_crashloop` crash loop against a 60s
+  `kei-proxy` heartbeat interval. All SDKs pass `--interval`, `--timeout`, and
+  `--parent-stdin` to `kei-proxy runtime heartbeat` child processes.
+  Requires `kei-proxy` ≥ 0.1.12.
 
 ## [0.5.0] - 2026-09-28
 
