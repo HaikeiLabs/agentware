@@ -268,8 +268,16 @@ func TestBuildCommandArgs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildCommand: %v", err)
 	}
-	if len(cmd.Args) < 3 || cmd.Args[len(cmd.Args)-2] != "--output" || cmd.Args[len(cmd.Args)-1] != "jsonl" {
-		t.Fatalf("JSONL mode args: got %v, want ... --output jsonl", cmd.Args)
+	want := []string{
+		l.cfg.Binary.Path,
+		"runtime", "heartbeat",
+		"--interval", "60s",
+		"--timeout", "10s",
+		"--output", "jsonl",
+		"--parent-stdin",
+	}
+	if strings.Join(cmd.Args, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("JSONL mode args: got %v, want %v", cmd.Args, want)
 	}
 
 	l.mode = ProbeLegacy
@@ -277,10 +285,10 @@ func TestBuildCommandArgs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildCommand: %v", err)
 	}
-	for _, a := range cmd.Args {
-		if a == "--output" {
-			t.Fatalf("legacy mode should not have --output flag; got %v", cmd.Args)
-		}
+	if strings.Join(cmd.Args, "\x00") != strings.Join(
+		[]string{l.cfg.Binary.Path, "runtime", "heartbeat"}, "\x00",
+	) {
+		t.Fatalf("legacy mode args: got %v", cmd.Args)
 	}
 }
 

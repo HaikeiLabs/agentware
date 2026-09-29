@@ -21,6 +21,7 @@ import {
 export interface RuntimeChild {
   readonly stdout: AsyncIterable<Uint8Array | string>;
   readonly exitCode: Promise<number>;
+  closeStdin?(): void;
   kill(signal?: "SIGTERM" | "SIGKILL"): void;
 }
 
@@ -52,7 +53,7 @@ export class NodeRuntimeChildFactory implements RuntimeChildFactory {
   ): RuntimeChild {
     const child = spawn(command, [...args], {
       env: { ...env },
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["pipe", "pipe", "ignore"],
       detached: process.platform !== "win32",
     });
     const stdout = child.stdout;
@@ -62,6 +63,7 @@ export class NodeRuntimeChildFactory implements RuntimeChildFactory {
       child.once("close", (code) => resolve(code ?? 1));
     });
     return {
+      closeStdin: () => child.stdin?.end(),
       stdout: (async function* () {
         for await (const chunk of stdout) yield chunk as Uint8Array;
       })(),
@@ -242,7 +244,17 @@ class RuntimeLinkImpl implements RuntimeLink {
     const factory = this.options.childFactory ?? new NodeRuntimeChildFactory();
     const child = factory.start(
       this.config.binary.path,
-      ["runtime", "heartbeat", "--output", "jsonl"],
+      [
+        "runtime",
+        "heartbeat",
+        "--interval",
+        `${this.config.intervalMs / 1000}s`,
+        "--timeout",
+        `${this.config.beatTimeoutMs / 1000}s`,
+        "--output",
+        "jsonl",
+        "--parent-stdin",
+      ],
       env,
     );
     this.child = child;
@@ -312,12 +324,20 @@ class RuntimeLinkImpl implements RuntimeLink {
           this.consecutiveFails += ev.droppedAgents;
           this.runId = ev.identity.runId;
           identitySeen = true;
-          heartbeatDeadline = Date.now() + this.config.beatTimeoutMs;
+          heartbeatDeadline =
+            Date.now() +
+            this.config.intervalMs +
+            this.config.beatTimeoutMs +
+            this.config.graceMs;
           this.transition("connected");
         } else if (ev.kind === "beat") {
           this.runId = ev.beat.runId || this.runId;
           this.lastBeatAt = this.options.now?.() ?? new Date();
-          heartbeatDeadline = Date.now() + this.config.beatTimeoutMs;
+          heartbeatDeadline =
+            Date.now() +
+            this.config.intervalMs +
+            this.config.beatTimeoutMs +
+            this.config.graceMs;
           if (ev.beat.outcome === "ok") {
             this.lastCatalogOkAt = this.lastBeatAt;
             this.consecutiveFails = 0;
@@ -345,6 +365,7 @@ class RuntimeLinkImpl implements RuntimeLink {
       }
       return "runtime_unavailable";
     } finally {
+      child.closeStdin?.();
       child.kill("SIGTERM");
       this.child = undefined;
     }

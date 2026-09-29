@@ -1116,9 +1116,18 @@ class Link:
 
     async def _spawn_child(self) -> asyncio.subprocess.Process:
         """Create and start the child process with pinned args and env."""
-        args = [self.cfg.binary.path, "runtime", "heartbeat"]
-        if self._mode_jsonl():
-            args.extend(["--output", "jsonl"])
+        args = [
+            self.cfg.binary.path,
+            "runtime",
+            "heartbeat",
+            "--interval",
+            f"{self.cfg.interval}s",
+            "--timeout",
+            f"{self.cfg.beat_timeout}s",
+            "--output",
+            "jsonl",
+            "--parent-stdin",
+        ]
 
         env = self._build_env()
 
@@ -1127,7 +1136,7 @@ class Link:
             env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            stdin=asyncio.subprocess.DEVNULL,
+            stdin=asyncio.subprocess.PIPE,
         )
         self._process = proc
         return proc
@@ -1432,12 +1441,15 @@ class Link:
 
     async def _kill_child(self) -> None:
         """Kill the child process group."""
-        if self._process is not None and self._process.returncode is None:
-            try:
-                self._process.kill()
-                await asyncio.wait_for(self._process.wait(), timeout=5)
-            except Exception:
-                pass
+        if self._process is not None:
+            if self._process.stdin is not None:
+                self._process.stdin.close()
+            if self._process.returncode is None:
+                try:
+                    self._process.kill()
+                    await asyncio.wait_for(self._process.wait(), timeout=5)
+                except Exception:
+                    pass
             self._process = None
 
     def _is_crashloop(self) -> bool:

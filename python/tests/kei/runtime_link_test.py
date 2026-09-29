@@ -334,6 +334,38 @@ def _make_link(
     return link
 
 
+async def test_spawn_child_uses_configured_timing_and_parent_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    link = _make_link(interval=60.0, beat_timeout=10.0)
+    captured: dict[str, Any] = {}
+
+    class Child:
+        stdin = object()
+
+    async def fake_create_subprocess_exec(*args: str, **kwargs: Any) -> Child:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return Child()
+
+    monkeypatch.setattr(rl.asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    await link._spawn_child()
+
+    assert captured["args"] == (
+        "/test/binary",
+        "runtime",
+        "heartbeat",
+        "--interval",
+        "60.0s",
+        "--timeout",
+        "10.0s",
+        "--output",
+        "jsonl",
+        "--parent-stdin",
+    )
+    assert captured["kwargs"]["stdin"] == asyncio.subprocess.PIPE
+
+
 async def test_new_disabled() -> None:
     link = _make_link(enabled=False)
     st = link.status()
