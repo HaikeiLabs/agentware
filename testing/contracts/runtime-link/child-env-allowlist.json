@@ -16,7 +16,6 @@
   "canaries": [
     "DISCORD_TOKEN",
     "TWILIO_AUTH_TOKEN",
-    "KEI_HARNESS_TOKEN",
     "KEI_BOOTSTRAP_TOKEN",
     "AWS_SECRET_ACCESS_KEY",
     "OPENAI_API_KEY",

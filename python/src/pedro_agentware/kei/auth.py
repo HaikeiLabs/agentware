@@ -32,16 +32,6 @@ class TokenType(str, Enum):
 
 # Canonical name of the bootstrap secret environment variable.
 BOOTSTRAP_TOKEN_ENV = "KEI_RUNTIME_TOKEN"
-_OLD_BOOTSTRAP_TOKEN_ENV = "KEI_HARNESS_TOKEN"
-
-
-def _deprecated_env_check() -> None:
-    """Reject the old env var name with a clear error (ADR-020)."""
-    if os.environ.get(_OLD_BOOTSTRAP_TOKEN_ENV) and not os.environ.get(BOOTSTRAP_TOKEN_ENV):
-        raise ValueError(
-            f"{_OLD_BOOTSTRAP_TOKEN_ENV} is deprecated and no longer accepted; "
-            f"set {BOOTSTRAP_TOKEN_ENV} instead"
-        )
 
 
 @dataclass
@@ -138,7 +128,6 @@ class OpaqueTokenProvider:
         if resolved is None and secret_provider is not None:
             resolved = secret_provider.get_secret(BOOTSTRAP_TOKEN_ENV)
         if resolved is None:
-            _deprecated_env_check()
             resolved = os.environ.get(BOOTSTRAP_TOKEN_ENV)
         if not resolved:
             raise ValueError(
@@ -214,7 +203,6 @@ class JWTTokenProvider:
         if resolved is None and secret_provider is not None:
             resolved = secret_provider.get_secret(BOOTSTRAP_TOKEN_ENV)
         if resolved is None:
-            _deprecated_env_check()
             resolved = os.environ.get(BOOTSTRAP_TOKEN_ENV)
         if not resolved:
             raise ValueError(

@@ -133,7 +133,6 @@ CHILD_ENV_ALLOWLIST: tuple[str, ...] = (
 
 ENV_ENABLED = "KEI_RUNTIME_ENABLED"
 ENV_TOKEN = "KEI_RUNTIME_TOKEN"
-ENV_LEGACY_TOKEN = "KEI_HARNESS_TOKEN"
 ENV_CONTROL_PLANE_URL = "KEI_RUNTIME_CONTROL_PLANE_URL"
 ENV_PROXY_PATH = "KEI_PROXY_PATH"
 ENV_PROXY_SHA = "KEI_PROXY_SHA"
@@ -170,7 +169,6 @@ CODE_OUT_OF_RANGE = "out_of_range"
 CODE_BEAT_TIMEOUT = "beat_timeout"
 CODE_HARNESS_KIND = "harness_kind"
 CODE_ENVELOPE = "envelope"
-CODE_LEGACY_TOKEN = "legacy_token"
 CODE_TOKEN_MISSING = "token_missing"
 CODE_CONTROL_PLANE_URL = "control_plane_url"
 CODE_BINARY = "binary"
@@ -181,7 +179,6 @@ CONFIG_ERROR_CODES: tuple[str, ...] = (
     CODE_BEAT_TIMEOUT,
     CODE_HARNESS_KIND,
     CODE_ENVELOPE,
-    CODE_LEGACY_TOKEN,
     CODE_TOKEN_MISSING,
     CODE_CONTROL_PLANE_URL,
     CODE_BINARY,
@@ -305,8 +302,6 @@ def normalize_config(cfg: RuntimeLinkConfig) -> RuntimeLinkConfig:
         raise RuntimeLinkConfigError(CODE_ENVELOPE, "harness.deployment_env")
 
     if cfg.enabled:
-        if cfg.token.env == ENV_LEGACY_TOKEN:
-            raise RuntimeLinkConfigError(CODE_LEGACY_TOKEN, "token")
         if cfg.token.env != ENV_TOKEN:
             raise RuntimeLinkConfigError(CODE_INVALID_VALUE, "token")
         _validate_control_plane_url(cfg.control_plane_url)
@@ -385,8 +380,6 @@ def config_from_env(
         log_count = _parse_env_int(ENV_LOG_COUNT, raw)
 
     has_token = bool(get(ENV_TOKEN))
-    if not has_token and get(ENV_LEGACY_TOKEN):
-        raise RuntimeLinkConfigError(CODE_LEGACY_TOKEN, ENV_LEGACY_TOKEN)
     enabled = has_token
     if raw := get(ENV_ENABLED):
         enabled = _parse_env_bool(ENV_ENABLED, raw)

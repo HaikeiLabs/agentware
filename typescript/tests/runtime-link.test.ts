@@ -167,11 +167,6 @@ describe("normalizeRuntimeLinkConfig", () => {
       { harness: { kind: "telegram", version: "", deploymentEnv: "" } },
       "harness_kind",
     ],
-    [
-      "legacy token env",
-      { token: { env: "KEI_HARNESS_TOKEN" } },
-      "legacy_token",
-    ],
     ["other token env", { token: { env: "DISCORD_TOKEN" } }, "invalid_value"],
     [
       "timeout equal to half interval",

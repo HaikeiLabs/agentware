@@ -56,7 +56,7 @@ Revisions inspected: Agentware `f5820d8`, kei-connector-runtime `origin/main e5d
 | G8 | Three copies of the bootstrap call | Assistant entrypoint, Chat `main.py`, and Chat `teams_main.py`; PDE bootstrap is manual | Fatal vs. non-fatal behavior differs (open decision D0). |
 | G9 | Harness-local control-plane-shaped routes | Chat `headless_main.py` serves `/api/v1/runtime/{whoami,heartbeat}` (PR #146) | Easy to mistake for the catalog. Violates §1 row 3. |
 | G10 | `CallerContext` lineage parity | Go has no `SpanID/AgentID/AgentVersion/Framework/WorkspaceID`; TS has no delegation fields at all | TS/Go harnesses can't populate `KEI_PROXY_*` lineage. |
-| G11 | Manifest guard misses the live credential name | `python/.../kei/config.py` `BOOTSTRAP_SECRET_NAME = "KEI_HARNESS_TOKEN"` | **RESOLVED**: `BOOTSTRAP_SECRET_NAME` changed to `"KEI_RUNTIME_TOKEN"`; `validate_manifest` now rejects both `KEI_RUNTIME_TOKEN` and the legacy `KEI_HARNESS_TOKEN`. |
+| G11 | Manifest guard misses the live credential name | `python/.../kei/config.py` `BOOTSTRAP_SECRET_NAME` used the wrong value | **RESOLVED**: `BOOTSTRAP_SECRET_NAME` is `"KEI_RUNTIME_TOKEN"`. |
 
 ## 3. SDK interface (normative)
 
@@ -136,7 +136,7 @@ The SDK reads these through `ConfigFromEnv()` / `config_from_env()` / `configFro
 | `KEI_HEARTBEAT_LOG_COUNT` | `3` | The first N beats of each run are logged at info level. |
 | `KEI_HARNESS_KIND`, `KEI_HARNESS_VERSION`, `KEI_DEPLOYMENT_ENV` | — | Envelope. An unknown `KIND` is `ErrConfigHarnessKind`. |
 
-Refused (hard `ErrConfig`, fail closed): `KEI_HARNESS_TOKEN` set **without** `KEI_RUNTIME_TOKEN` (ADR-020 / HAI-119), and a `BeatTimeout` that is ≥ `Interval/2`.
+Refused (hard `ErrConfig`, fail closed): a `BeatTimeout` that is ≥ `Interval/2`.
 
 ### 3.3 Harness integration surface
 
@@ -399,7 +399,7 @@ The split is what makes alerts actionable. Tenant-side `CatalogUnreachableFromTe
   - `Stop` is idempotent and kills the process group
   - a throwing or slow sink doesn't delay the watchdog
   - redaction: lifecycle records serialize only allowlisted keys
-  - manifest guard rejects `KEI_RUNTIME_TOKEN` and `KEI_HARNESS_TOKEN` (G11)
+  - manifest guard rejects `KEI_RUNTIME_TOKEN` (G11)
   - `CallerContext` parity fields and `delegate()`
 - **connector-runtime:**
   - `--output jsonl` golden lines
@@ -496,7 +496,7 @@ The release order is CR1 ∥ PC1 → PC2 → A2 → A3/A4 → H1/H2/H3 → PC3 e
 
 - **Binary and distribution name stays `kei-proxy`.** Per the wiki note on kei PR #480, renaming the distribution breaks CI and infra. The **repository** is `kei-connector-runtime`, and new SDK APIs use "runtime" (`RuntimeLink`, `runtime_link`). "kei-proxy" appears only as the default binary name and in the existing env var names.
 - **Env var names:** `KEI_PROXY_PATH`, `KEI_PROXY_SHA`, and `KEI_PROXY_*` lineage vars keep their names; they are the runtime's contract. No renames in this stack. Any future rename needs a dual-read period in the SDK and the runtime, and its own decision capture.
-- **Token:** only `KEI_RUNTIME_TOKEN`. `KEI_HARNESS_TOKEN` alone is refused. Both names are rejected in manifests (A1).
+- **Token:** only `KEI_RUNTIME_TOKEN`. It is also rejected in manifests (A1).
 - **Wire:** catalog v1 bodies are accepted indefinitely. Runtime v2 flags are opt-in, so older SDKs and the Assistant shell keep working. The SDK's legacy mode covers older runtimes until R1.
 - **Code:** Python `LocalProxyProcess`, `run_proxy`, and `stop_proxy` go deprecated in A1 and are removed in the next minor. PDE `JsonLinesKeiProxy` and Chat `KeiProxyClient` spawn code are removed in H2/H3. The Chat #147 client is removed in H3.
 - **Harness deploy config:** the Assistant's existing `KEI_HEARTBEAT_*` variables are the canonical schema, so H1 needs no env changes. Chat helm `runtime.*` values map onto the same names in H3.
