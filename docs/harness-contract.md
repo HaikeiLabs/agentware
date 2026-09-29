@@ -168,6 +168,10 @@ The library enforces fail-closed security. All of these result in **DENY**:
 | Missing credential | DENY - no token, no access |
 | Expired token | DENY - renewal must succeed |
 
+See `docs/fail-closed-design.md` for the full decision table, the
+`KEI_PROXY_DISABLED` contract (fail-closed, never an allow switch), and the
+governed vs non-governed tool call distinction.
+
 ---
 
 ## Control-Plane Boundary

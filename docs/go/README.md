@@ -193,3 +193,5 @@ Conditions can reference:
   to false).
 - The hermes and ADK adapters follow the same rule: no context, no trust.
 - A policy denial is an audited outcome, not a transport error.
+- `KEI_PROXY_DISABLED` denies every governed call; it is never an allow switch.
+  See `docs/fail-closed-design.md`.

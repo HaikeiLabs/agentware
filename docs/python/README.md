@@ -181,6 +181,10 @@ Reasons read `kei-proxy <class>[: <detail>]`, where the class is one of
 `REASON_CLASSES`. The behaviour is shared with the TypeScript and Go ports —
 see `docs/kei-proxy-evaluator-parity.md`.
 
+For the fail-closed design principles — the decision table,
+`KEI_PROXY_DISABLED` as fail-closed (never an allow switch), governed vs
+non-governed tool calls, and testing patterns — see `docs/fail-closed-design.md`.
+
 ## API Reference
 
 ### Core Classes
