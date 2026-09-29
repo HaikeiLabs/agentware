@@ -16,7 +16,6 @@ import (
 const (
 	EnvEnabled         = "KEI_RUNTIME_ENABLED"
 	EnvToken           = "KEI_RUNTIME_TOKEN"
-	EnvLegacyToken     = "KEI_HARNESS_TOKEN"
 	EnvControlPlaneURL = "KEI_RUNTIME_CONTROL_PLANE_URL"
 	EnvProxyPath       = "KEI_PROXY_PATH"
 	EnvProxySHA        = "KEI_PROXY_SHA"
@@ -59,7 +58,6 @@ const (
 	CodeBeatTimeout     = "beat_timeout"
 	CodeHarnessKind     = "harness_kind"
 	CodeEnvelope        = "envelope"
-	CodeLegacyToken     = "legacy_token"
 	CodeTokenMissing    = "token_missing"
 	CodeControlPlaneURL = "control_plane_url"
 	CodeBinary          = "binary"
@@ -75,7 +73,6 @@ var (
 	ErrConfigBeatTimeout     = fmt.Errorf("%w: %s", ErrConfig, CodeBeatTimeout)
 	ErrConfigHarnessKind     = fmt.Errorf("%w: %s", ErrConfig, CodeHarnessKind)
 	ErrConfigEnvelope        = fmt.Errorf("%w: %s", ErrConfig, CodeEnvelope)
-	ErrConfigLegacyToken     = fmt.Errorf("%w: %s", ErrConfig, CodeLegacyToken)
 	ErrConfigTokenMissing    = fmt.Errorf("%w: %s", ErrConfig, CodeTokenMissing)
 	ErrConfigControlPlaneURL = fmt.Errorf("%w: %s", ErrConfig, CodeControlPlaneURL)
 	ErrConfigBinary          = fmt.Errorf("%w: %s", ErrConfig, CodeBinary)
@@ -87,7 +84,6 @@ var codeSentinels = map[string]error{
 	CodeBeatTimeout:     ErrConfigBeatTimeout,
 	CodeHarnessKind:     ErrConfigHarnessKind,
 	CodeEnvelope:        ErrConfigEnvelope,
-	CodeLegacyToken:     ErrConfigLegacyToken,
 	CodeTokenMissing:    ErrConfigTokenMissing,
 	CodeControlPlaneURL: ErrConfigControlPlaneURL,
 	CodeBinary:          ErrConfigBinary,
@@ -198,11 +194,7 @@ func NormalizeConfig(cfg Config) (Config, error) {
 	}
 
 	if cfg.Enabled {
-		switch cfg.Token.Env {
-		case EnvToken:
-		case EnvLegacyToken:
-			return Config{}, configErr(CodeLegacyToken, "token")
-		default:
+		if cfg.Token.Env != "" && cfg.Token.Env != EnvToken {
 			return Config{}, configErr(CodeInvalidValue, "token")
 		}
 		if err := validateControlPlaneURL(cfg.ControlPlaneURL); err != nil {
@@ -295,9 +287,6 @@ func ConfigFromEnv(lookup LookupFunc, harness HarnessEnvelope) (Config, error) {
 	}
 
 	hasToken := get(EnvToken) != ""
-	if !hasToken && get(EnvLegacyToken) != "" {
-		return Config{}, configErr(CodeLegacyToken, EnvLegacyToken)
-	}
 	cfg.Enabled = hasToken
 	if raw := get(EnvEnabled); raw != "" {
 		enabled, err := parseEnvBool(raw)

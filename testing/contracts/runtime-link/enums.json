@@ -42,7 +42,6 @@
     "beat_timeout",
     "harness_kind",
     "envelope",
-    "legacy_token",
     "token_missing",
     "control_plane_url",
     "binary"

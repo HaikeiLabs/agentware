@@ -120,7 +120,6 @@ function isOneOf<T extends string>(
 export const RUNTIME_LINK_ENV = {
   enabled: "KEI_RUNTIME_ENABLED",
   token: "KEI_RUNTIME_TOKEN",
-  legacyToken: "KEI_HARNESS_TOKEN",
   controlPlaneUrl: "KEI_RUNTIME_CONTROL_PLANE_URL",
   proxyPath: "KEI_PROXY_PATH",
   proxySha: "KEI_PROXY_SHA",
@@ -161,7 +160,6 @@ export const RUNTIME_LINK_CONFIG_ERROR_CODES = [
   "beat_timeout",
   "harness_kind",
   "envelope",
-  "legacy_token",
   "token_missing",
   "control_plane_url",
   "binary",
@@ -270,9 +268,6 @@ export function normalizeRuntimeLinkConfig(
   }
 
   if (cfg.enabled) {
-    if (cfg.token.env === RUNTIME_LINK_ENV.legacyToken) {
-      throw new RuntimeLinkConfigError("legacy_token", "token");
-    }
     if (cfg.token.env !== RUNTIME_LINK_ENV.token) {
       throw new RuntimeLinkConfigError("invalid_value", "token");
     }
@@ -377,9 +372,6 @@ export function runtimeLinkConfigFromEnv(
   }
 
   const hasToken = get(E.token) !== "";
-  if (!hasToken && get(E.legacyToken) !== "") {
-    throw new RuntimeLinkConfigError("legacy_token", E.legacyToken);
-  }
   cfg.enabled = hasToken;
   const enabled = get(E.enabled).toLowerCase();
   if (enabled !== "") {

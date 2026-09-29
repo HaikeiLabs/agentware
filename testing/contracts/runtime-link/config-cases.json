@@ -320,18 +320,6 @@
       }
     },
     {
-      "name": "legacy_token_only_refused",
-      "env": {
-        "KEI_HARNESS_TOKEN": "canary-runtime-token-DO-NOT-LOG",
-        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",
-        "KEI_HARNESS_KIND": "pde"
-      },
-      "expect": {
-        "ok": false,
-        "error": "legacy_token"
-      }
-    },
-    {
       "name": "enabled_without_token",
       "env": {
         "KEI_RUNTIME_CONTROL_PLANE_URL": "https://catalog.example.test",

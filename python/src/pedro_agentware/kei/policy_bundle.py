@@ -16,9 +16,7 @@ Environment variables
 Legacy URL fallbacks (checked only when the runtime URL is unset):
     ``ABAC_URL``, ``KEI_API_URL``
 
-The deprecated token name ``KEI_HARNESS_TOKEN`` is no longer accepted:
-if it is set while ``KEI_RUNTIME_TOKEN`` is not, credential resolution
-fails closed (ADR-020, decision 2).
+
 """
 
 from __future__ import annotations
@@ -54,9 +52,7 @@ RUNTIME_TOKEN_ENV = "KEI_RUNTIME_TOKEN"
 # Legacy URL fallbacks — checked only when the runtime URL is unset.
 LEGACY_ABAC_URL_ENV = "ABAC_URL"
 LEGACY_KEI_API_URL_ENV = "KEI_API_URL"
-# Deprecated token name — never read as a token source; presence without
-# KEI_RUNTIME_TOKEN fails closed (ADR-020, decision 2).
-LEGACY_BOOTSTRAP_TOKEN_ENV = "KEI_HARNESS_TOKEN"
+
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -295,27 +291,11 @@ def _resolve_control_plane_url() -> str:
     )
 
 
-def _legacy_token_error() -> BundleFetchError:
-    """Error raised when only the deprecated token name is set."""
-    return BundleFetchError(
-        f"{LEGACY_BOOTSTRAP_TOKEN_ENV} is deprecated and no longer accepted; "
-        f"set {RUNTIME_TOKEN_ENV} instead."
-    )
-
-
 def _resolve_runtime_token() -> str:
-    """Resolve the runtime token from the environment.
-
-    Only ``KEI_RUNTIME_TOKEN`` is accepted.  The deprecated
-    ``KEI_HARNESS_TOKEN`` name is no longer read (ADR-020, decision 2):
-    if it is the only token set, resolution fails closed with an error
-    naming the replacement.
-    """
+    """Resolve the runtime token from the environment."""
     token = os.environ.get(RUNTIME_TOKEN_ENV)
     if token:
         return token
-    if os.environ.get(LEGACY_BOOTSTRAP_TOKEN_ENV):
-        raise _legacy_token_error()
     raise BundleFetchError(f"Runtime token not configured. Set {RUNTIME_TOKEN_ENV}.")
 
 
@@ -489,9 +469,7 @@ class PolicyBundleLifecycle:
         URL fallbacks), the lifecycle logs a warning and **allows** all
         calls (local-only mode).  This preserves
         ``docs/action-tool-boundary.md`` invariant 3 (local loop without
-        ABAC connector dependency).  The deprecated
-        ``KEI_HARNESS_TOKEN`` name never triggers local-only mode; it
-        fails closed at construction (ADR-020, decision 2).
+        ABAC connector dependency).
     """
 
     def __init__(
@@ -534,11 +512,6 @@ class PolicyBundleLifecycle:
         When no control-plane credentials are configured (runtime env
         vars unset, no legacy URL fallbacks), mark as *local-only* so
         that evaluate() allows all calls.
-
-        The deprecated ``KEI_HARNESS_TOKEN`` name is never accepted as a
-        token source (ADR-020, decision 2): if it is set while
-        ``KEI_RUNTIME_TOKEN`` is not, construction fails closed instead
-        of degrading to local-only mode.
         """
         url = self._control_plane_url
         token = self._runtime_token
@@ -547,13 +520,6 @@ class PolicyBundleLifecycle:
             self._resolved_url = url
             self._resolved_token = token
             return
-
-        if (
-            token is None
-            and os.environ.get(RUNTIME_TOKEN_ENV) is None
-            and os.environ.get(LEGACY_BOOTSTRAP_TOKEN_ENV) is not None
-        ):
-            raise _legacy_token_error()
 
         try:
             self._resolved_url = url or _resolve_control_plane_url()

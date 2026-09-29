@@ -403,7 +403,6 @@ func TestNormalizeConfigDirect(t *testing.T) {
 		code   string
 	}{
 		{"unknown kind", func(c *Config) { c.Harness.Kind = "telegram" }, CodeHarnessKind},
-		{"legacy token env", func(c *Config) { c.Token.Env = EnvLegacyToken }, CodeLegacyToken},
 		{"other token env", func(c *Config) { c.Token.Env = "DISCORD_TOKEN" }, CodeInvalidValue},
 		{"timeout equal to half interval", func(c *Config) { c.Interval = 20 * time.Second; c.BeatTimeout = 10 * time.Second }, CodeBeatTimeout},
 		{"negative grace", func(c *Config) { c.Grace = -time.Second }, CodeOutOfRange},

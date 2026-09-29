@@ -82,7 +82,6 @@ def test_config_from_env_contract(case: dict[str, Any]) -> None:
 def test_config_from_env_defaults_to_process_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         "KEI_RUNTIME_TOKEN",
-        "KEI_HARNESS_TOKEN",
         "KEI_RUNTIME_ENABLED",
         "KEI_HARNESS_KIND",
     ):
@@ -101,7 +100,6 @@ BASE = rl.RuntimeLinkConfig(
     ("changes", "code"),
     [
         ({"harness": rl.HarnessEnvelope(kind="telegram")}, "harness_kind"),
-        ({"token": rl.SecretSource(env="KEI_HARNESS_TOKEN")}, "legacy_token"),
         ({"token": rl.SecretSource(env="DISCORD_TOKEN")}, "invalid_value"),
         ({"interval": 20.0, "beat_timeout": 10.0}, "beat_timeout"),
         ({"grace": -1.0}, "out_of_range"),

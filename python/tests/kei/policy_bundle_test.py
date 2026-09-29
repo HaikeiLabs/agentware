@@ -21,7 +21,6 @@ from pedro_agentware.kei import (
 )
 from pedro_agentware.kei.policy_bundle import (
     LEGACY_ABAC_URL_ENV,
-    LEGACY_BOOTSTRAP_TOKEN_ENV,
     LEGACY_KEI_API_URL_ENV,
     _resolve_control_plane_url,
     _resolve_runtime_token,
@@ -59,7 +58,6 @@ _CREDENTIAL_ENV_VARS = (
     RUNTIME_TOKEN_ENV,
     LEGACY_ABAC_URL_ENV,
     LEGACY_KEI_API_URL_ENV,
-    LEGACY_BOOTSTRAP_TOKEN_ENV,
 )
 
 
@@ -330,7 +328,6 @@ class TestCredentialResolution:
         monkeypatch.setenv(RUNTIME_CONTROL_PLANE_URL_ENV, "http://new.example")
         monkeypatch.setenv(RUNTIME_TOKEN_ENV, "new-token")
         monkeypatch.setenv(LEGACY_ABAC_URL_ENV, "http://legacy.example")
-        monkeypatch.setenv(LEGACY_BOOTSTRAP_TOKEN_ENV, "old-token")
         assert _resolve_control_plane_url() == "http://new.example"
         assert _resolve_runtime_token() == "new-token"
 
@@ -345,22 +342,6 @@ class TestCredentialResolution:
         monkeypatch.setenv(LEGACY_KEI_API_URL_ENV, "http://kei-api.example")
         assert _resolve_control_plane_url() == "http://kei-api.example"
 
-    def test_legacy_token_fails_closed(self, monkeypatch):
-        """ADR-020 decision 2: the deprecated name is never accepted."""
-        monkeypatch.setenv(LEGACY_BOOTSTRAP_TOKEN_ENV, "legacy-token")
-        with pytest.raises(BundleFetchError, match=RUNTIME_TOKEN_ENV):
-            _resolve_runtime_token()
-
-    def test_legacy_token_only_fails_closed_at_construction(self, monkeypatch):
-        """A stale deployment setting only the legacy name must not
-        degrade to local-only mode (ADR-020, decision 2)."""
-        monkeypatch.setenv(LEGACY_BOOTSTRAP_TOKEN_ENV, "legacy-token")
-        with pytest.raises(BundleFetchError, match=RUNTIME_TOKEN_ENV):
-            PolicyBundleLifecycle(
-                control_plane_url="http://cp.example",
-                persist_path=":memory:",
-            )
-
     def test_no_url_raises(self, monkeypatch):
         monkeypatch.delenv(RUNTIME_CONTROL_PLANE_URL_ENV, raising=False)
         monkeypatch.delenv(LEGACY_ABAC_URL_ENV, raising=False)
@@ -370,7 +351,6 @@ class TestCredentialResolution:
 
     def test_no_token_raises(self, monkeypatch):
         monkeypatch.delenv(RUNTIME_TOKEN_ENV, raising=False)
-        monkeypatch.delenv(LEGACY_BOOTSTRAP_TOKEN_ENV, raising=False)
         with pytest.raises(BundleFetchError, match="not configured"):
             _resolve_runtime_token()
 
@@ -708,7 +688,6 @@ class TestEdgeCases:
         monkeypatch.delenv(RUNTIME_CONTROL_PLANE_URL_ENV, raising=False)
         monkeypatch.delenv(RUNTIME_TOKEN_ENV, raising=False)
         monkeypatch.delenv(LEGACY_ABAC_URL_ENV, raising=False)
-        monkeypatch.delenv(LEGACY_BOOTSTRAP_TOKEN_ENV, raising=False)
         lc = PolicyBundleLifecycle(persist_path=":memory:")
         assert lc.is_local_only
 

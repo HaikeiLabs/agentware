@@ -28,9 +28,6 @@ from pydantic import BaseModel, Field
 # any form are rejected (fail closed).
 BOOTSTRAP_SECRET_NAME = "KEI_RUNTIME_TOKEN"
 
-# Legacy bootstrap secret name (HAI-119 / ADR-020). The old name is also
-# rejected in manifests; only KEI_RUNTIME_TOKEN is accepted.
-LEGACY_BOOTSTRAP_SECRET_NAME = "KEI_HARNESS_TOKEN"
 
 # Tool bindings are self-reported routing metadata. They never grant
 # permissions; enforcement remains with the middleware policy layer.
@@ -115,9 +112,7 @@ def validate_manifest(manifest: HarnessManifest) -> list[str]:
 
     # Fail closed: the bootstrap secret must never appear in the manifest,
     # neither as a value-bearing entry nor as a resolvable reference.
-    # Both the current name (KEI_RUNTIME_TOKEN) and the legacy name
-    # (KEI_HARNESS_TOKEN) are rejected.
-    forbidden_names = {BOOTSTRAP_SECRET_NAME, LEGACY_BOOTSTRAP_SECRET_NAME}
+    forbidden_names = {BOOTSTRAP_SECRET_NAME}
     for name in manifest.secret_refs:
         if name.upper() in forbidden_names:
             errors.append(

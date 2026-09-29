@@ -130,8 +130,7 @@ SHA is **required** when `deployment_env` is `"prod"`.
 
 Names the env var that holds the runtime token. The SDK **never reads the
 value** — it passes the env var name to the child process, which reads it
-directly from its own environment. Only `KEI_RUNTIME_TOKEN` is accepted;
-`KEI_HARNESS_TOKEN` alone is refused with `legacy_token`.
+directly from its own environment. Only `KEI_RUNTIME_TOKEN` is accepted.
 
 | Field | Python | Go | TypeScript |
 | --- | --- | --- | --- |
@@ -284,7 +283,6 @@ offending value, so a misplaced secret cannot leak through an error message.
 | `beat_timeout` | `beat_timeout` is ≤ 0 or ≥ `interval/2` |
 | `harness_kind` | Kind is not in the closed set (or is empty when enabled) |
 | `envelope` | Version or deployment_env violates its pattern |
-| `legacy_token` | Only `KEI_HARNESS_TOKEN` is present (must be `KEI_RUNTIME_TOKEN`) |
 | `token_missing` | `KEI_RUNTIME_ENABLED=true` but no token is set |
 | `control_plane_url` | URL is missing, has credentials, or has an invalid scheme |
 | `binary` | Binary path is empty or SHA is missing/invalid |
