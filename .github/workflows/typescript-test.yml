@@ -30,8 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd typescript
-          rm -rf node_modules
-          npm install
+          npm ci
       - name: Run TypeScript lint
         run: |
           cd typescript
