@@ -51,6 +51,12 @@ export interface Decision {
    * The url is a one-time claim link: surface it to the user, never log it.
    */
   enrollment?: Record<string, unknown>;
+  /**
+   * Opaque connect object from kei-proxy on a DENY (url, provider,
+   * connector_id, expires_at, reason). The url is a one-time claim link:
+   * surface it to the user, never log it.
+   */
+  connect?: Record<string, unknown>;
   timestamp: Date;
 }
 

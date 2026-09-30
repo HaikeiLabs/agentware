@@ -252,8 +252,12 @@ export class KeiProxyEvaluator {
     let reasonClass: KeiProxyReasonClass;
     let detail: string | undefined;
     let enrollment: Record<string, unknown> | undefined;
+    let connect: Record<string, unknown> | undefined;
     const carried = isPlainObject(response.enrollment)
       ? response.enrollment
+      : undefined;
+    const carriedConnect = isPlainObject(response.connect)
+      ? response.connect
       : undefined;
     if (!decision) {
       reasonClass = "no_decision";
@@ -261,10 +265,12 @@ export class KeiProxyEvaluator {
       reasonClass = "deny";
       detail = proxyReason;
       enrollment = carried;
+      connect = carriedConnect;
     } else if (decision === "enrollment_required") {
       reasonClass = "enrollment_required";
       detail = proxyReason ?? "enrollment is required before this call";
       enrollment = carried;
+      connect = carriedConnect;
     } else {
       reasonClass = "unknown_decision";
       detail = `'${decision}'` + (proxyReason ? ` (${proxyReason})` : "");
@@ -276,6 +282,7 @@ export class KeiProxyEvaluator {
       reason(reasonClass, detail),
       policyId,
       enrollment,
+      connect,
     );
   }
 
@@ -284,6 +291,7 @@ export class KeiProxyEvaluator {
     reasonText: string,
     policyId?: string,
     enrollment?: Record<string, unknown>,
+    connect?: Record<string, unknown>,
   ): Decision {
     const out: Decision = {
       action,
@@ -292,6 +300,7 @@ export class KeiProxyEvaluator {
       timestamp: new Date(),
     };
     if (enrollment !== undefined) out.enrollment = enrollment;
+    if (connect !== undefined) out.connect = connect;
     return out;
   }
 }

@@ -100,6 +100,7 @@ class Decision:
     reason: str = ""
     redacted_args: dict[str, Any] = field(default_factory=dict)
     enrollment: dict[str, Any] | None = None
+    connect: dict[str, Any] | None = None
     timestamp: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -112,4 +113,6 @@ class Decision:
         }
         if self.enrollment is not None:
             d["enrollment"] = self.enrollment
+        if self.connect is not None:
+            d["connect"] = self.connect
         return d

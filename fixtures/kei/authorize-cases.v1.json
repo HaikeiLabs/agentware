@@ -31,6 +31,7 @@
   "canaries": {
     "runtime_token": "kh_fixture_CANARY_RUNTIME_TOKEN",
     "enrollment_url": "https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM",
+    "connect_url": "https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM",
     "credential_value": "CANARY-CREDENTIAL-VALUE",
     "stderr_detail": "CANARY-STDERR-DETAIL"
   },
@@ -563,6 +564,168 @@
         "action": "deny",
         "rule": "kei-proxy",
         "enrollment": null,
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_with_connect",
+      "description": "Plain deny with a connect object (exit 1). Connect is carried verbatim, mirroring enrollment.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"member lacks github:write\",\"connect\":{\"url\":\"https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM\",\"provider\":\"linear\",\"connector_id\":\"conn-linear-0001\",\"expires_at\":\"2026-09-28T12:00:00Z\",\"reason\":\"connector not provisioned\"}}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "connect": {
+          "url": "https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM",
+          "provider": "linear",
+          "connector_id": "conn-linear-0001",
+          "expires_at": "2026-09-28T12:00:00Z",
+          "reason": "connector not provisioned"
+        },
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_with_connect_and_enrollment",
+      "description": "Deny with both enrollment and connect objects. Both are carried independently.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"policy denied\",\"enrollment\":{\"provider\":\"discord\",\"provider_user_id\":\"discord-unlinked-0001\",\"org_id\":\"org-fixture-0001\",\"workspace_id\":\"ws-fixture-0001\",\"url\":\"https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM\",\"expires_at\":\"2026-09-28T12:00:00Z\"},\"connect\":{\"url\":\"https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM\",\"provider\":\"linear\",\"connector_id\":\"conn-linear-0001\",\"expires_at\":\"2026-09-28T12:00:00Z\",\"reason\":\"connector not provisioned\"}}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": {
+          "provider": "discord",
+          "provider_user_id": "discord-unlinked-0001",
+          "org_id": "org-fixture-0001",
+          "workspace_id": "ws-fixture-0001",
+          "url": "https://kei.fixture.test/identity/link#claim=CANARY-ENROLLMENT-CLAIM",
+          "expires_at": "2026-09-28T12:00:00Z"
+        },
+        "connect": {
+          "url": "https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM",
+          "provider": "linear",
+          "connector_id": "conn-linear-0001",
+          "expires_at": "2026-09-28T12:00:00Z",
+          "reason": "connector not provisioned"
+        },
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "deny_with_connect_without_url",
+      "description": "Deny with connect object missing the url field.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"member lacks github:write\",\"connect\":{\"provider\":\"linear\",\"connector_id\":\"conn-linear-0001\"}}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "connect": {
+          "provider": "linear",
+          "connector_id": "conn-linear-0001"
+        },
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "connect_not_an_object",
+      "description": "Connect is a string instead of an object — evaluator must drop to None/undefined.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"member lacks github:write\",\"connect\":\"https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "connect": null,
+        "reason_class": "deny",
+        "invoked": true
+      }
+    },
+    {
+      "id": "connect_is_an_array",
+      "description": "Connect is an array instead of an object — evaluator must drop to None/undefined.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"member lacks github:write\",\"connect\":[{\"url\":\"https://kei.fixture.test/connect/link#claim=CANARY-CONNECT-CLAIM\",\"provider\":\"linear\",\"connector_id\":\"conn-linear-0001\",\"expires_at\":\"2026-09-28T12:00:00Z\",\"reason\":\"connector not provisioned\"}]}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "connect": null,
         "reason_class": "deny",
         "invoked": true
       }
