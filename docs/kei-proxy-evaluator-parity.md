@@ -30,22 +30,22 @@ stdout is one JSON object, `decision` plus optional `reason`, `service`,
 and exits 1 for `deny`. Every error also exits 1, with nothing on stdout and a
 diagnostic on stderr.
 
-| Proxy result | Action | Reason class | Enrollment |
-| --- | --- | --- | --- |
-| `allow` / `permit` (any case), exit 0 | ALLOW | `allow` | — |
-| `deny` | DENY | `deny` | carried when it is a JSON object |
-| `enrollment_required` (legacy) | DENY | `enrollment_required` | carried when it is a JSON object |
-| `decision` missing, null or `""` | DENY | `no_decision` | — |
-| any other decision, or a non-string one | DENY | `unknown_decision` | — |
-| `allow` with exit 1 | DENY | `exit_mismatch` | — |
-| exit code other than 0 or 1 | DENY | `proxy_error` | — |
-| exit 1 with empty stdout | DENY | `proxy_error` | — |
-| exit 0 with empty stdout | DENY | `empty_response` | — |
-| stdout not JSON, or JSON but not an object | DENY | `malformed_response` | — |
-| binary missing or not executable | DENY | `proxy_unavailable` | — |
-| no answer within the timeout | DENY | `proxy_timeout` | — |
-| no `KEI_RUNTIME_TOKEN` (the proxy is not spawned) | DENY | `missing_token` | — |
-| pinned binary drifted: digest mismatch, symlink, non-canonical path or not a regular file (the proxy is not spawned) | DENY | `pin_mismatch` | — |
+| Proxy result | Action | Reason class | Enrollment | Connect |
+| --- | --- | --- | --- | --- |
+| `allow` / `permit` (any case), exit 0 | ALLOW | `allow` | — | — |
+| `deny` | DENY | `deny` | carried when a JSON object | carried when a JSON object |
+| `enrollment_required` (legacy) | DENY | `enrollment_required` | carried when a JSON object | carried when a JSON object |
+| `decision` missing, null or `""` | DENY | `no_decision` | — | — |
+| any other decision, or a non-string one | DENY | `unknown_decision` | — | — |
+| `allow` with exit 1 | DENY | `exit_mismatch` | — | — |
+| exit code other than 0 or 1 | DENY | `proxy_error` | — | — |
+| exit 1 with empty stdout | DENY | `proxy_error` | — | — |
+| exit 0 with empty stdout | DENY | `empty_response` | — | — |
+| stdout not JSON, or JSON but not an object | DENY | `malformed_response` | — | — |
+| binary missing or not executable | DENY | `proxy_unavailable` | — | — |
+| no answer within the timeout | DENY | `proxy_timeout` | — | — |
+| no `KEI_RUNTIME_TOKEN` (the proxy is not spawned) | DENY | `missing_token` | — | — |
+| pinned binary drifted: digest mismatch, symlink, non-canonical path or not a regular file (the proxy is not spawned) | DENY | `pin_mismatch` | — | — |
 
 Every reason reads `kei-proxy <class>` or `kei-proxy <class>: <detail>`.
 `rule` is the output's `policy_id` (or `policy`) when present, else
@@ -54,9 +54,9 @@ Every reason reads `kei-proxy <class>` or `kei-proxy <class>: <detail>`.
 Invariants every port asserts on every case:
 
 - **Fail closed.** Only an explicit affirmative with exit 0 allows.
-- **No leaks.** The enrollment claim URL, the allow-path credential, stderr
-  and the runtime token never appear in a Decision reason or in a log line.
-  Stdout and stderr are never logged.
+- **No leaks.** The enrollment claim URL, the connect claim URL, the allow-path
+  credential, stderr and the runtime token never appear in a Decision reason or
+  in a log line. Stdout and stderr are never logged.
 - **Token by env only.** `KEI_RUNTIME_TOKEN` reaches the child through its
   environment and never through argv. The child sees only the allowlisted
   parent variables (`child_env.allowlist`) plus explicit extra env. The allowlist includes

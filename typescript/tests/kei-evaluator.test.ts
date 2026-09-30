@@ -167,6 +167,11 @@ posix("KeiProxyEvaluator authorize-cases.v1", () => {
     } else {
       expect(decision.enrollment).toEqual(expected.enrollment);
     }
+    if (expected.connect === null || expected.connect === undefined) {
+      expect(decision.connect).toBeUndefined();
+    } else {
+      expect(decision.connect).toEqual(expected.connect);
+    }
     if (expected.reason_contains) expect(decision.reason).toContain(expected.reason_contains);
 
     const logText = logs.join("\n");

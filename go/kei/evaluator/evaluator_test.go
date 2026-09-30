@@ -58,6 +58,7 @@ type authorizeCase struct {
 		ReasonClass    string         `json:"reason_class"`
 		Rule           string         `json:"rule"`
 		Enrollment     map[string]any `json:"enrollment"`
+		Connect        map[string]any `json:"connect"`
 		Invoked        bool           `json:"invoked"`
 		ReasonContains string         `json:"reason_contains"`
 		Argv           []string       `json:"argv"`
@@ -271,6 +272,9 @@ func TestAuthorizeCases(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got.decision.Enrollment, want.Enrollment) {
 				t.Errorf("enrollment = %v, want %v", got.decision.Enrollment, want.Enrollment)
+			}
+			if !reflect.DeepEqual(got.decision.Connect, want.Connect) {
+				t.Errorf("connect = %v, want %v", got.decision.Connect, want.Connect)
 			}
 			if want.ReasonContains != "" && !strings.Contains(got.decision.Reason, want.ReasonContains) {
 				t.Errorf("reason %q does not contain %q", got.decision.Reason, want.ReasonContains)

@@ -134,6 +134,7 @@ def test_authorize_case(
     assert decision.reason == klass or decision.reason.startswith(klass + ":"), decision.reason
     assert decision.rule == expected["rule"]
     assert decision.enrollment == expected["enrollment"]
+    assert decision.connect == expected.get("connect")
     if "reason_contains" in expected:
         assert expected["reason_contains"] in decision.reason
 

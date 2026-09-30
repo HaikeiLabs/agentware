@@ -173,10 +173,10 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 		var ae *AuthorizeError
 		if errors.As(err, &ae) {
 			e.logger.Warn("kei-proxy authorize denied", "tool", toolName, "class", string(ae.Class))
-			return decision(middleware.ActionDeny, reason(ae.Class, ae.Detail), "", nil)
+			return decision(middleware.ActionDeny, reason(ae.Class, ae.Detail), "", nil, nil)
 		}
 		e.logger.Warn("kei-proxy authorize failed, denying", "tool", toolName, "error", err)
-		return decision(middleware.ActionDeny, reason(ReasonProxyError, "authorize failed: "+err.Error()), "", nil)
+		return decision(middleware.ActionDeny, reason(ReasonProxyError, "authorize failed: "+err.Error()), "", nil, nil)
 	}
 
 	normalized := ""
@@ -190,22 +190,24 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 	}
 
 	if isAffirmative(normalized) {
-		return decision(middleware.ActionAllow, reason(ReasonAllow, proxyReason), policyID, nil)
+		return decision(middleware.ActionAllow, reason(ReasonAllow, proxyReason), policyID, nil, nil)
 	}
 
 	carried, _ := response["enrollment"].(map[string]any)
+	connectCarried, _ := response["connect"].(map[string]any)
 	var (
 		class      ReasonClass
 		detail     string
 		enrollment map[string]any
+		connect    map[string]any
 	)
 	switch normalized {
 	case "":
 		class = ReasonNoDecision
 	case "deny":
-		class, detail, enrollment = ReasonDeny, proxyReason, carried
+		class, detail, enrollment, connect = ReasonDeny, proxyReason, carried, connectCarried
 	case "enrollment_required":
-		class, detail, enrollment = ReasonEnrollmentRequired, proxyReason, carried
+		class, detail, enrollment, connect = ReasonEnrollmentRequired, proxyReason, carried, connectCarried
 		if detail == "" {
 			detail = "enrollment is required before this call"
 		}
@@ -218,10 +220,10 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 	}
 
 	e.logger.Debug("kei-proxy denied", "tool", toolName, "class", string(class))
-	return decision(middleware.ActionDeny, reason(class, detail), policyID, enrollment)
+	return decision(middleware.ActionDeny, reason(class, detail), policyID, enrollment, connect)
 }
 
-func decision(action middleware.Action, reasonText, policyID string, enrollment map[string]any) middleware.Decision {
+func decision(action middleware.Action, reasonText, policyID string, enrollment, connect map[string]any) middleware.Decision {
 	rule := policyID
 	if rule == "" {
 		rule = Rule
@@ -231,6 +233,7 @@ func decision(action middleware.Action, reasonText, policyID string, enrollment 
 		Rule:       rule,
 		Reason:     reasonText,
 		Enrollment: enrollment,
+		Connect:    connect,
 		Timestamp:  time.Now(),
 	}
 }

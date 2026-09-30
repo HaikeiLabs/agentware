@@ -87,6 +87,7 @@ class AuthorizationResponse:
     reason: str | None = None
     policy_id: str | None = None
     enrollment: dict[str, Any] | None = None
+    connect: dict[str, Any] | None = None
 
     @classmethod
     def from_result(cls, result: Any) -> "AuthorizationResponse":
@@ -114,11 +115,16 @@ class AuthorizationResponse:
         if enrollment is not None and not isinstance(enrollment, dict):
             enrollment = None
 
+        connect = read("connect")
+        if connect is not None and not isinstance(connect, dict):
+            connect = None
+
         return cls(
             decision=str(decision) if decision is not None else "",
             reason=_as_optional_str(read("reason")),
             policy_id=_as_optional_str(policy_id),
             enrollment=enrollment,
+            connect=connect,
         )
 
 
@@ -322,15 +328,18 @@ class KeiProxyEvaluator:
             )
 
         enrollment = None
+        connect = None
         if not decision:
             reason_class, detail = "no_decision", None
         elif decision == "deny":
             reason_class, detail = "deny", response.reason
             enrollment = response.enrollment
+            connect = response.connect
         elif decision == "enrollment_required":
             reason_class = "enrollment_required"
             detail = response.reason or "enrollment is required before this call"
             enrollment = response.enrollment
+            connect = response.connect
         else:
             reason_class = "unknown_decision"
             detail = f"{decision!r}" + (f" ({response.reason})" if response.reason else "")
@@ -341,6 +350,7 @@ class KeiProxyEvaluator:
             reason=_reason(reason_class, detail),
             policy_id=response.policy_id,
             enrollment=enrollment,
+            connect=connect,
         )
 
     def _authorize(
@@ -399,6 +409,7 @@ class KeiProxyEvaluator:
         reason: str,
         policy_id: str | None = None,
         enrollment: dict[str, Any] | None = None,
+        connect: dict[str, Any] | None = None,
     ) -> Decision:
         """Assemble a Decision, attributing it to the proxy policy when known.
 
@@ -412,5 +423,6 @@ class KeiProxyEvaluator:
             rule=policy_id or self.RULE,
             reason=reason,
             enrollment=enrollment,
+            connect=connect,
             timestamp=datetime.now(),
         )

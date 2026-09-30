@@ -63,5 +63,9 @@ type Decision struct {
 	// url/expires_at). The url is a one-time claim link: surface it to the
 	// user, never log it. Nil when absent.
 	Enrollment map[string]any
-	Timestamp  time.Time
+	// Connect is kei-proxy's opaque connect object on a DENY (url, provider,
+	// connector_id, expires_at, reason). The url is a one-time claim link:
+	// surface it to the user, never log it. Nil when absent.
+	Connect   map[string]any
+	Timestamp time.Time
 }
