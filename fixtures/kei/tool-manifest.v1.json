@@ -1,0 +1,44 @@
+{
+  "tools": [
+    {
+      "name": "github.get_issue",
+      "service": "github",
+      "description": "Fetch an issue from a GitHub repository",
+      "action": "read",
+      "resources": ["repo:haikeilabs/*", "issue:*"],
+      "enabled": true
+    },
+    {
+      "name": "github.list_issues",
+      "service": "github",
+      "description": "List issues in a GitHub repository",
+      "action": "read",
+      "resources": ["repo:haikeilabs/*", "issue:*"],
+      "enabled": true
+    },
+    {
+      "name": "linear.get_issue",
+      "service": "linear",
+      "description": "Fetch an issue from Linear",
+      "action": "read",
+      "resources": ["team:*", "issue:*"],
+      "enabled": true
+    },
+    {
+      "name": "send_email",
+      "service": "email",
+      "description": "Send an email message",
+      "action": "write",
+      "resources": [],
+      "enabled": true
+    },
+    {
+      "name": "slack.post_message",
+      "service": "slack",
+      "description": "Post a message to a Slack channel",
+      "action": "write",
+      "resources": ["channel:*"],
+      "enabled": true
+    }
+  ]
+}
