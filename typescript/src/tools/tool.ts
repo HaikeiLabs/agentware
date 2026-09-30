@@ -35,6 +35,16 @@ export interface ExtendedTool extends Tool {
   examples(): ToolExample[];
 }
 
+export interface KeiScope {
+  service: string;
+  action: string;
+  resources: string[];
+}
+
+export interface GovernedTool extends Tool {
+  keiScope(): KeiScope;
+}
+
 export class BaseTool implements Tool {
   readonly name: string;
   readonly description: string;

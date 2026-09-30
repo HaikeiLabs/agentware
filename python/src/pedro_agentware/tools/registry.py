@@ -1,6 +1,9 @@
 """Tool registry for managing available tools."""
 
+import json
 from typing import Any
+
+from .tool import GovernedTool
 
 
 class ToolRegistry:
@@ -34,6 +37,31 @@ class ToolRegistry:
             if hasattr(tool, "input_schema"):
                 schemas[name] = tool.input_schema()
         return schemas
+
+    def export_kei_tool_manifest(self) -> str:
+        """Export the Kei tool manifest as a JSON string.
+
+        Only tools implementing GovernedTool are included. The output is
+        deterministic (sorted by name) and matches the catalog's
+        POST /api/v1/tools create body shape.
+        """
+        entries = []
+        names = sorted(name for name, tool in self._tools.items() if isinstance(tool, GovernedTool))
+        for name in names:
+            tool = self._tools[name]
+            scope = tool.kei_scope()
+            entry = {
+                "name": name,
+                "service": scope.service,
+                "description": tool.description,
+                "action": scope.action,
+                "resources": list(scope.resources),
+                "enabled": True,
+            }
+            entries.append(entry)
+
+        manifest = {"tools": entries}
+        return json.dumps(manifest, indent=2)
 
     def clear(self) -> None:
         """Clear all tools."""
