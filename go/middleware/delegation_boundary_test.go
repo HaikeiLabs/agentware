@@ -20,7 +20,6 @@ var delegationEnvelope = map[string]string{
 	"action":       "execute",
 	"resource":     "github:repo:acme-corp/sales-pipeline",
 	"trace_id":     "trace-2f8a9c",
-	"approval_id":  "apr-2026-0007",
 }
 
 const (

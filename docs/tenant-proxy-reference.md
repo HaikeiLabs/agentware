@@ -65,10 +65,9 @@ enforcement point**:
   references, never as materialized credentials).
 - It invokes provider adapters and returns data **only inside the tenant
   runtime**.
-- It is the explicit approval/governance boundary for agent actions that cross
-  out of the local loop (a proxy/approval protocol carrying delegation context:
-  `invoking_subject`, `agent_id`, tenant/workspace, `trace_id`, idempotency key,
-  approval id).
+- It is the explicit authorization/execution boundary for agent actions that cross
+  out of the local loop (a proxy protocol carrying delegation context:
+  `invoking_subject`, `agent_id`, tenant/workspace, `trace_id`, idempotency key).
 
 ## ABAC is a decision point, not a data service
 

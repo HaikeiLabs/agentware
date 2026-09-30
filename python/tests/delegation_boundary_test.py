@@ -1,17 +1,16 @@
-"""Delegation-boundary contract tests: the proxy/approval delegation envelope.
+"""Delegation-boundary contract tests: the proxy delegation envelope.
 
 These pin the agentware side of the delegation protocol documented in
 ``docs/tenant-proxy-reference.md``:
 
-> a proxy/approval protocol carrying delegation context: ``invoking_subject``,
-> ``agent_id``, tenant/workspace, ``trace_id``, idempotency key, approval id.
+> a proxy protocol carrying delegation context: ``invoking_subject``,
+> ``agent_id``, tenant/workspace, ``trace_id``, idempotency key.
 
 The original human subject is first-class on :class:`CallerContext`
 (``invoking_subject``); the extended envelope (organization, workspace,
-``agent_id``, ``connector_id``, capability, action, resource, ``trace_id`` and
-the *optional* ``approval_id``) rides in ``CallerContext.metadata`` so it
-survives every delegation hop and reaches the decision point and executor
-unchanged.
+``agent_id``, ``connector_id``, capability, action, resource, and
+``trace_id``) rides in ``CallerContext.metadata`` so it survives every
+delegation hop and reaches the decision point and executor unchanged.
 
 The tests prove:
 
@@ -20,8 +19,7 @@ The tests prove:
 - **attribution** — authorization and audit resolve to the original human
   subject, never to the subagent's ``agent_id`` or a forged identity;
 - **fail closed** — a missing caller, a missing envelope, or a forged context
-  is never promoted to an allow; ``approval_id`` may be absent, required
-  envelope fields may not.
+  is never promoted to an allow; every envelope field is required.
 
 No Kei invocation envelope, connector contract, migration, deployment, or
 credential is modified: these tests assert the boundary that exists.
@@ -61,10 +59,7 @@ METADATA_ENVELOPE_FIELDS = {
     "action",
     "resource",
     "trace_id",
-    "approval_id",
 }
-# approval_id is the only optional envelope field.
-REQUIRED_ENVELOPE_FIELDS = METADATA_ENVELOPE_FIELDS - {"approval_id"}
 
 
 def _deny_all() -> SimplePolicyEvaluator:
@@ -107,10 +102,8 @@ class TestDelegationEnvelopePreserved:
         child = human.delegate("span-1")
 
         child.metadata["trace_id"] = "forged-trace"
-        child.metadata["approval_id"] = "forged-approval"
 
         assert human.metadata["trace_id"] == ENVELOPE["trace_id"]
-        assert human.metadata["approval_id"] == ENVELOPE["approval_id"]
 
     def test_envelope_survives_a_metadata_override_on_delegate(self):
         human = _human_context()
@@ -199,7 +192,6 @@ class TestForgedAndIncompleteContextFailsClosed:
                 "action": ENVELOPE["action"],
                 "resource": ENVELOPE["resource"],
                 "trace_id": "forged-trace",
-                "approval_id": "forged-approval",
             },
         )
 
@@ -236,7 +228,7 @@ class TestForgedAndIncompleteContextFailsClosed:
         assert client.records()[0].decision.action == Action.DENY
 
     @pytest.mark.asyncio
-    async def test_missing_trace_id_fails_closed_but_approval_id_is_optional(self):
+    async def test_missing_trace_id_fails_closed(self):
         class RequireTrace:
             def evaluate(self, tool_name, args, caller):
                 if not caller.metadata.get("trace_id"):
@@ -258,19 +250,11 @@ class TestForgedAndIncompleteContextFailsClosed:
                 caller=missing_trace,
             )
 
-        # approval_id is optional: the full envelope minus approval_id passes.
-        ok = _human_context()
-        ok.metadata.pop("approval_id")
-        assert "approval_id" not in ok.metadata
-        result = await client.Execute("t", {}, ok.user_id, "C1", None, lambda **k: "ran", caller=ok)
-        assert result == "ran"
-
     @pytest.mark.asyncio
     async def test_forged_metadata_cannot_stand_in_for_a_missing_required_field(self):
-        """A forged approval/trace key in metadata never fabricates the real one."""
+        """A forged metadata key cannot fabricate a required field."""
         missing_trace = _human_context()
         missing_trace.metadata.pop("trace_id")
-        missing_trace.metadata["approval_id"] = "forged-approval"
 
         assert missing_trace.metadata.get("trace_id") is None
         assert missing_trace.invoking_subject == ENVELOPE["invoking_subject"]
