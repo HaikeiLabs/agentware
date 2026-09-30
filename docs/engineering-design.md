@@ -830,7 +830,7 @@ and audit metadata. **ABAC** is a metadata policy decision point only.
   invokes provider adapters, and returns data only inside the tenant runtime.
   Mutations such as GitHub/CRM/Linear writes are agent capabilities executed in
   the harness/agentware/agents local tool loop; the proxy is the explicit
-  approval/governance boundary for them.
+  authorization/execution boundary for them.
 
 ### Contraindications
 
