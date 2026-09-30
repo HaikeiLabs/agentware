@@ -94,4 +94,44 @@ coordinated separately; entries collect under **Unreleased** until then.
 
 ## [0.4.0] - 2026-09-26
 
-## Unreleased
+## [0.7.0] - 2026-09-30
+
+### Added
+
+- **Kei tool manifest export (HAI-271):** New `KeiScope` and `GovernedTool`
+  types and `ExportKeiToolManifest` / `export_kei_tool_manifest` /
+  `exportKeiToolManifest` in Go (`go/tools/tool.go`, `go/tools/registry.go`),
+  Python (`pedro_agentware.tools/tool.py`, `pedro_agentware.tools/registry.py`),
+  and TypeScript (`src/tools/tool.ts`, `src/tools/registry.ts`). Produces a
+  structured manifest mapping tool definitions to their required scopes and
+  connectors for Kei registration. Includes shared fixture
+  `fixtures/kei/tool-manifest.v1.json` and design doc
+  `docs/kei-tool-manifest.md`.
+
+- **`connect` field on `Decision` (HAI-266):** All SDKs now carry an opaque
+  `connect` block from `kei-proxy` on `deny` and `enrollment_required`
+  decisions, mirroring `enrollment`. The payload (url, provider,
+  connector_id, expires_at, reason) is a one-time claim link — surface it to
+  the user, never log it. `KeiProxyEvaluator` passes the field through in all
+  three languages.
+
+### Changed
+
+- **Breaking:** Removed `approval_id` from the delegation envelope (ADR-027).
+  The Kei call-approval protocol no longer exists — approvals grant access and
+  are not per-call signals. The field is dropped from delegation-envelope
+  fixtures (`fixtures/kei/delegation-envelope-v1.json`) and delegation-boundary
+  tests in Go, Python, and TypeScript. Proxy boundary docs updated to describe
+  the proxy as an authorization/execution boundary without the per-call
+  approval concept.
+
+### Documentation
+
+- New `docs/fail-closed-design.md` covering the `KeiProxyEvaluator` decision
+  table, `KEI_PROXY_DISABLED` (fail-closed — never an allow switch), the
+  governed vs non-governed tool call distinction, and test injection patterns
+  for all three language ports.
+
+### Chores
+
+- `typescript/`: untrack `node_modules/` from git, switch CI to `npm ci`.
