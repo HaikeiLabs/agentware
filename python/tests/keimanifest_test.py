@@ -25,9 +25,11 @@ class GovernedAddTool(BaseTool):
 
     def kei_scope(self) -> KeiScope:
         return KeiScope(
+            source="github",
+            required_capabilities=["issue.read"],
+            resource_types=[{"type": "issue", "parent_type": "repository"}],
+            operation_class="read",
             service="github",
-            action="read",
-            resources=["repo:haikeilabs/*", "issue:*"],
         )
 
 
@@ -45,9 +47,11 @@ class GovernedListTool(BaseTool):
 
     def kei_scope(self) -> KeiScope:
         return KeiScope(
+            source="github",
+            required_capabilities=["issue.read"],
+            resource_types=[{"type": "issue", "parent_type": "repository"}],
+            operation_class="read",
             service="github",
-            action="read",
-            resources=["repo:haikeilabs/*", "issue:*"],
         )
 
 
@@ -65,9 +69,11 @@ class GovernedLinearTool(BaseTool):
 
     def kei_scope(self) -> KeiScope:
         return KeiScope(
+            source="linear",
+            required_capabilities=["issue.read"],
+            resource_types=[{"type": "issue", "parent_type": "team"}],
+            operation_class="read",
             service="linear",
-            action="read",
-            resources=["team:*", "issue:*"],
         )
 
 
@@ -85,9 +91,11 @@ class GovernedSlackTool(BaseTool):
 
     def kei_scope(self) -> KeiScope:
         return KeiScope(
+            source="github",
+            required_capabilities=["issue.comment"],
+            resource_types=[{"type": "issue", "parent_type": "repository"}],
+            operation_class="write",
             service="slack",
-            action="write",
-            resources=["channel:*"],
         )
 
 
@@ -105,9 +113,11 @@ class GovernedEmailTool(BaseTool):
 
     def kei_scope(self) -> KeiScope:
         return KeiScope(
+            source="github",
+            required_capabilities=["issue.create"],
+            resource_types=[],
+            operation_class="write",
             service="email",
-            action="write",
-            resources=[],
         )
 
 
@@ -130,7 +140,7 @@ class UngovernedEchoTool(BaseTool):
 
 def fixture_path() -> str:
     return os.path.join(
-        os.path.dirname(__file__), "..", "..", "fixtures", "kei", "tool-manifest.v1.json"
+        os.path.dirname(__file__), "..", "..", "fixtures", "kei", "tool-manifest.v2.json"
     )
 
 
@@ -144,25 +154,31 @@ def test_export_matches_fixture():
     registry.register(GovernedAddTool())
     registry.register(GovernedListTool())
     registry.register(GovernedLinearTool())
-    registry.register(GovernedSlackTool())
-    registry.register(GovernedEmailTool())
     registry.register(UngovernedEchoTool())
 
     manifest_str = registry.export_kei_tool_manifest()
     manifest = json.loads(manifest_str)
     expected = load_fixture()
 
-    assert manifest == expected, (
-        f"Manifest does not match fixture\n--- got:\n{json.dumps(manifest, indent=2)}\n"
-        f"--- want:\n{json.dumps(expected, indent=2)}"
-    )
+    assert manifest == expected, f"Manifest does not match fixture: {manifest} != {expected}"
+    assert manifest_str == open(fixture_path(), encoding="utf-8").read().rstrip("\n")
+
+
+def test_v1_export_requires_explicit_option():
+    registry = ToolRegistry()
+    registry.register(GovernedAddTool())
+    manifest = json.loads(registry.export_kei_tool_manifest(version=1))
+    assert "schema" not in manifest
+    assert manifest["tools"][0]["action"] == "read"
 
 
 def test_export_empty_registry():
     registry = ToolRegistry()
     manifest_str = registry.export_kei_tool_manifest()
     manifest = json.loads(manifest_str)
-    assert manifest == {"tools": []}, f"Expected empty tools, got {manifest}"
+    assert manifest == {"schema": "kei.tool-manifest/v2", "tools": []}, (
+        f"Expected empty tools, got {manifest}"
+    )
 
 
 def test_export_only_governed_tools():
@@ -170,19 +186,23 @@ def test_export_only_governed_tools():
     registry.register(UngovernedEchoTool())
     manifest_str = registry.export_kei_tool_manifest()
     manifest = json.loads(manifest_str)
-    assert manifest == {"tools": []}, "Ungoverned tools should not appear in manifest"
+    assert manifest == {"schema": "kei.tool-manifest/v2", "tools": []}, (
+        "Ungoverned tools should not appear in manifest"
+    )
 
 
 def test_kei_scope_dataclass():
-    scope = KeiScope(service="test", action="write", resources=["r1", "r2"])
-    assert scope.service == "test"
-    assert scope.action == "write"
-    assert scope.resources == ["r1", "r2"]
+    scope = KeiScope(
+        source="github", required_capabilities=["issue.create"], operation_class="write"
+    )
+    assert scope.source == "github"
+    assert scope.operation_class == "write"
+    assert scope.required_capabilities == ["issue.create"]
 
 
 def test_kei_scope_default_resources():
-    scope = KeiScope(service="test", action="read")
-    assert scope.resources == []
+    scope = KeiScope(source="github", required_capabilities=["issue.read"])
+    assert scope.resource_types == []
 
 
 def test_governed_tool_protocol_check():

@@ -12,6 +12,7 @@
     "url": "https://github.com/HaikeiLabs/agentware/issues"
   },
   "main": "dist/index.js",
+  "bin": { "agentware-lint-tools": "dist/tools/lint-cli.js" },
   "types": "dist/index.d.ts",
   "exports": {
     ".": {

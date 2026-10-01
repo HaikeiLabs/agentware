@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -42,45 +43,21 @@ func TestExportKeiToolManifest_FixtureMatch(t *testing.T) {
 		name:        "github.get_issue",
 		description: "Fetch an issue from a GitHub repository",
 		scope: KeiScope{
-			Service:   "github",
-			Action:    "read",
-			Resources: []string{"repo:haikeilabs/*", "issue:*"},
+			Source: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, OperationClass: "read", Service: "github",
 		},
 	})
 	registry.Register(&governedTool{
 		name:        "github.list_issues",
 		description: "List issues in a GitHub repository",
 		scope: KeiScope{
-			Service:   "github",
-			Action:    "read",
-			Resources: []string{"repo:haikeilabs/*", "issue:*"},
+			Source: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, OperationClass: "read", Service: "github",
 		},
 	})
 	registry.Register(&governedTool{
 		name:        "linear.get_issue",
 		description: "Fetch an issue from Linear",
 		scope: KeiScope{
-			Service:   "linear",
-			Action:    "read",
-			Resources: []string{"team:*", "issue:*"},
-		},
-	})
-	registry.Register(&governedTool{
-		name:        "slack.post_message",
-		description: "Post a message to a Slack channel",
-		scope: KeiScope{
-			Service:   "slack",
-			Action:    "write",
-			Resources: []string{"channel:*"},
-		},
-	})
-	registry.Register(&governedTool{
-		name:        "send_email",
-		description: "Send an email message",
-		scope: KeiScope{
-			Service:   "email",
-			Action:    "write",
-			Resources: nil, // should become empty slice
+			Source: "linear", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "team"}}, OperationClass: "read", Service: "linear",
 		},
 	})
 
@@ -96,7 +73,7 @@ func TestExportKeiToolManifest_FixtureMatch(t *testing.T) {
 	}
 
 	// Read the fixture
-	fixturePath := filepath.Join("..", "..", "fixtures", "kei", "tool-manifest.v1.json")
+	fixturePath := filepath.Join("..", "..", "fixtures", "kei", "tool-manifest.v2.json")
 	fixtureData, err := os.ReadFile(filepath.Clean(fixturePath))
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)
@@ -117,6 +94,9 @@ func TestExportKeiToolManifest_FixtureMatch(t *testing.T) {
 	if string(gotJSON) != string(fixtureJSON) {
 		t.Errorf("ExportKeiToolManifest() output does not match fixture\n--- got:\n%s\n--- want:\n%s", gotJSON, fixtureJSON)
 	}
+	if !bytes.Equal(bytes.TrimSpace(got), bytes.TrimSpace(fixtureData)) {
+		t.Fatalf("serialized manifest differs from shared fixture\n%s", got)
+	}
 }
 
 func TestExportKeiToolManifest_EmptyRegistry(t *testing.T) {
@@ -131,6 +111,22 @@ func TestExportKeiToolManifest_EmptyRegistry(t *testing.T) {
 	}
 	if len(m.Tools) != 0 {
 		t.Errorf("expected empty tools list, got %d tools", len(m.Tools))
+	}
+}
+
+func TestV1ExportRequiresExplicitOption(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&governedTool{name: "github.get_issue", description: "get issue", scope: KeiScope{Source: "github", Service: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}}, OperationClass: "read"}})
+	raw, err := r.ExportKeiToolManifest(ManifestV1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := parsed["schema"]; ok {
+		t.Fatal("v1 manifest unexpectedly has schema")
 	}
 }
 
@@ -153,12 +149,8 @@ func TestExportKeiToolManifest_UngovernedExcluded(t *testing.T) {
 
 func TestKeiToolManifestEntry_JSONShape(t *testing.T) {
 	entry := KeiToolManifestEntry{
-		Name:        "test_tool",
-		Service:     "test_service",
-		Description: "A test tool",
-		Action:      "read",
-		Resources:   []string{"res:*"},
-		Enabled:     true,
+		Name: "test_tool", Source: "github", RequiredCapabilities: []string{"issue.read"},
+		Description: "A test tool", OperationClass: "read", ResourceTypes: []KeiResourceType{{Type: "issue"}}, Enabled: true,
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
@@ -171,11 +163,11 @@ func TestKeiToolManifestEntry_JSONShape(t *testing.T) {
 	if decoded["name"] != "test_tool" {
 		t.Errorf("expected name test_tool, got %v", decoded["name"])
 	}
-	if decoded["service"] != "test_service" {
-		t.Errorf("expected service test_service, got %v", decoded["service"])
+	if decoded["source"] != "github" {
+		t.Errorf("expected source github, got %v", decoded["source"])
 	}
-	if decoded["action"] != "read" {
-		t.Errorf("expected action read, got %v", decoded["action"])
+	if decoded["operation_class"] != "read" {
+		t.Errorf("expected operation_class read, got %v", decoded["operation_class"])
 	}
 	if decoded["enabled"] != true {
 		t.Errorf("expected enabled true, got %v", decoded["enabled"])

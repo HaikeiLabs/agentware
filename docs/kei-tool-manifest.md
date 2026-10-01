@@ -1,178 +1,92 @@
 # Kei Tool Manifest
 
-A governed tool declares its Kei scope (service, action, resource patterns) in
-the agentware SDK. The `ToolsRegistry` can then export a JSON manifest that an
-admin loads into the Kei policy catalog's tool registry once, offline.
-Agentware never calls the catalog tool API at runtime, and harnesses never pass
-an authorize resource — the catalog decides resources from the declared scope.
+**Tool call** = a function used by an agent.
 
-## Flow
+**Capability** = an operation performed on a data store.
 
-```
-1. Declare  →  tool implements GovernedTool with a KeiScope
-2. Export   →  registry.ExportKeiToolManifest() produces JSON
-3. Load     →  admin POSTs the JSON to POST /api/v1/tools
-               (via kei CLI, skill, or direct API)
-```
+A tool call declares its `required_capabilities`. The catalog compiles a tool call into its required capabilities, and permits the call only when every capability is permitted (AND semantics). A capability is evaluated independently against policy. Decisions use the NIST ABAC terms `permit` and `deny`; `allow` is retired.
 
-## 1. Declare scope on a tool
+## Manifest v2
 
-### Go
+The current export uses `"schema": "kei.tool-manifest/v2"`. Each governed tool declares:
 
-```go
-import "github.com/soypete/pedro-agentware/go/tools"
+- `source`: the data source, required for connector-backed tools and a policy dimension.
+- `required_capabilities`: a non-empty list of source-declared capability identifiers for governed tools. All listed capabilities must be permitted.
+- `resource_types`: resource type identifiers, optionally paired with `parent_type`. These are plain identifiers only: no globs and no parent text embedded inside `type`. Instance and parent constraints belong in policy.
+- `operation_class`: `read` or `write`.
+- `service`: optional credential lookup key. It is not a policy dimension.
 
-type getIssueTool struct{}
+Exports sort tool names, required capabilities, and resource types deterministically. The shared fixture is `fixtures/kei/tool-manifest.v2.json`. The prior schema is available only through an explicit v1 export option for the transition; new integrations should use v2.
 
-func (t *getIssueTool) Name() string                        { return "github.get_issue" }
-func (t *getIssueTool) Description() string                 { return "Fetch an issue from a GitHub repository" }
-func (t *getIssueTool) Execute(ctx context.Context, args map[string]any) (*tools.Result, error) {
-    // execution logic
-    return &tools.Result{Success: true, Data: issue}, nil
-}
-func (t *getIssueTool) KeiScope() tools.KeiScope {
-    return tools.KeiScope{
-        Service:   "github",
-        Action:    "read",
-        Resources: []string{"repo:haikeilabs/*", "issue:*"},
-    }
-}
-```
+## Exporting
 
-### Python
-
-```python
-from pedro_agentware.tools import GovernedTool, KeiScope, Result
-
-class GetIssueTool:
-    @property
-    def name(self) -> str:
-        return "github.get_issue"
-
-    @property
-    def description(self) -> str:
-        return "Fetch an issue from a GitHub repository"
-
-    def execute(self, args: dict) -> Result:
-        # execution logic
-        return Result(success=True, data=issue)
-
-    def kei_scope(self) -> KeiScope:
-        return KeiScope(
-            service="github",
-            action="read",
-            resources=["repo:haikeilabs/*", "issue:*"],
-        )
-```
-
-### TypeScript
-
-```typescript
-import { GovernedTool, KeiScope, Result } from "@haikeilabs/agentware";
-
-const getIssueTool: GovernedTool = {
-  name: "github.get_issue",
-  description: "Fetch an issue from a GitHub repository",
-  execute(args: Record<string, unknown>): Result {
-    // execution logic
-    return new Result(true, issue);
-  },
-  keiScope(): KeiScope {
-    return { service: "github", action: "read", resources: ["repo:haikeilabs/*", "issue:*"] };
-  },
-};
-```
-
-## 2. Export the manifest
-
-Register governed tools (and any plain, non-governed tools — they are excluded
-from the manifest) on a `ToolRegistry`, then export.
-
-### Go
+Declare a `KeiScope` on each governed tool, register it, and export it with the SDK's tool registry. Go:
 
 ```go
-registry := tools.NewToolRegistry()
-registry.Register(&getIssueTool{})
-// ... register other tools
-
-manifestJSON, err := registry.ExportKeiToolManifest()
-// manifestJSON is indented JSON, sorted by tool name
+manifest, err := registry.ExportKeiToolManifest() // v2
+legacy, err := registry.ExportKeiToolManifest(tools.ManifestV1) // explicit transition export
 ```
 
-### Python
+Python:
 
 ```python
-from pedro_agentware.tools import ToolRegistry
-
-registry = ToolRegistry()
-registry.register(get_issue_tool)
-
-manifest_json = registry.export_kei_tool_manifest()
-# manifest_json is a pretty-printed JSON string, sorted by tool name
+manifest = registry.export_kei_tool_manifest()  # v2
+legacy = registry.export_kei_tool_manifest(version=1)  # explicit transition export
 ```
 
-### TypeScript
+TypeScript:
 
 ```typescript
-import { ToolRegistry } from "@haikeilabs/agentware";
-
-const registry = new ToolRegistry();
-registry.register(getIssueTool);
-
-const manifest = registry.exportKeiToolManifest();
-const manifestJSON = JSON.stringify(manifest, null, 2);
+const manifest = registry.exportKeiToolManifest(); // v2
+const legacy = registry.exportKeiToolManifest(1); // explicit transition export
 ```
 
-### Output shape
+## Loading and runtime boundary
 
-```json
-{
-  "tools": [
-    {
-      "name": "github.get_issue",
-      "service": "github",
-      "description": "Fetch an issue from a GitHub repository",
-      "action": "read",
-      "resources": ["repo:haikeilabs/*", "issue:*"],
-      "enabled": true
-    }
-  ]
-}
-```
+The harness ships the exported file as `KEI_TOOL_MANIFEST`. Loading happens through the **kei-proxy bootstrap sync (HAI-273)**. `kei tools import` does not exist. Agentware does not call the catalog tool API at runtime. The distributed proxy remains the connector/provider runtime and enforcement point; the control plane receives metadata only. Provider payloads/results, customer content, credentials, embeddings, and indexes stay in the tenant runtime.
 
-The fields `id`, `workspace_id`, `org_id`, `version`, `created_at`, and
-`updated_at` are server-generated and omitted from the export.
+The harness sends the tool name for authorization. It does not send an instance resource or resolve credentials from `service`; resource constraints are policy decisions, and the proxy performs credential lookup and provider execution.
 
-## 3. Admin loads the manifest
+## Linting manifests
 
-The manifest is loaded **once, offline** into the Kei policy catalog via
-`POST /api/v1/tools`. An admin typically does this through the `kei` CLI or a
-Kei skill.
+All SDK linters use the same rules and capability snapshot, `fixtures/kei/connector-capabilities.v0.5.0.json`. They reject missing source or capabilities, undeclared source capabilities, duplicate names, unsorted/non-deterministic exports, globs or embedded parents in resource types, `allow`, and approval fields. Output is JSON; errors return exit status 1.
 
 ```bash
-kei tools import --file manifest.json
+# From the repository root
+PYTHONPATH=python/src python -m pedro_agentware.lint_tools fixtures/kei/tool-manifest.v2.json
+(cd go && go run ./cmd/lint-tools ../fixtures/kei/tool-manifest.v2.json)
+(cd typescript && npm run build && node dist/tools/lint-cli.js ../fixtures/kei/tool-manifest.v2.json)
+# Published TypeScript package: npx agentware-lint-tools KEI_TOOL_MANIFEST
 ```
 
-After loading, the catalog is the authoritative source for resource patterns
-per tool name. The harness never sends an `authorize --resource` flag; it only
-sends `--tool <name>`. The catalog resolves the resources from the registered
-scope at decision time.
+### Refreshing the capability table
 
-## Runtime boundary
+The table is generated from the `contract.CapabilitiesFor` provider declarations in `kei-connector-contracts` v0.5.0. Check out that exact tag/version and run:
 
-- **Agentware never calls `POST /api/v1/tools` at runtime.** The manifest
-  export is a build-time / deployment-time action, not a runtime one.
-- **Harnesses never pass an authorize resource.** The `authorize` call from a
-  harness sends the tool name only (`--tool`); the catalog is authoritative for
-  resource patterns.
-- **Non-governed tools are excluded.** Tools that do not implement
-  `GovernedTool` / `kei_scope()` / `keiScope()` are silently omitted from the
-  manifest. They continue to work locally but are not registered in the catalog.
-- **Deterministic output.** Entries are sorted by tool name so the manifest can
-  be committed and diffed.
-- **Opt-in.** Existing tools compile unchanged. Only tools that explicitly
-  declare a `KeiScope` appear in the manifest.
+```bash
+python scripts/generate-connector-capabilities.py /path/to/kei-connector-contracts-v0.5.0
+```
 
-See the shared fixture at `fixtures/kei/tool-manifest.v1.json` for a complete
-example with five governed tools across GitHub, Linear, email, and Slack
-services.
+Review the generated diff and update the pinned version in the fixture filename and this document when deliberately moving to a later contract version.
+
+## Harness CI example
+
+Each harness uses its own registry initialization to export the file that it will ship as `KEI_TOOL_MANIFEST`, then runs the Python linter in the same job:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
+  - run: python -m pip install ./python
+  # Replace this harness-owned exporter with its registry bootstrap module.
+  - run: python -m my_harness.export_manifest --output KEI_TOOL_MANIFEST
+  - run: python -m pedro_agentware.lint_tools KEI_TOOL_MANIFEST
+  - uses: actions/upload-artifact@v4
+    with:
+      name: kei-tool-manifest
+      path: KEI_TOOL_MANIFEST
+```
+
+The exporter must write deterministic v2 JSON. The linter's non-zero status blocks the job before an image is built.

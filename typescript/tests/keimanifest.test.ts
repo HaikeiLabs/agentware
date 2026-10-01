@@ -1,4 +1,5 @@
 import { ToolRegistry, BaseTool, Result } from "../src/tools/index.js";
+import { lintKeiToolManifest } from "../src/tools/lint.js";
 import type { GovernedTool, KeiScope } from "../src/tools/index.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -17,9 +18,11 @@ class GovernedGetIssueTool extends BaseTool implements GovernedTool {
 
   keiScope(): KeiScope {
     return {
+      source: "github",
+      required_capabilities: ["issue.read"],
+      resource_types: [{ type: "issue", parent_type: "repository" }],
+      operation_class: "read",
       service: "github",
-      action: "read",
-      resources: ["repo:haikeilabs/*", "issue:*"],
     };
   }
 }
@@ -35,9 +38,11 @@ class GovernedListIssuesTool extends BaseTool implements GovernedTool {
 
   keiScope(): KeiScope {
     return {
+      source: "github",
+      required_capabilities: ["issue.read"],
+      resource_types: [{ type: "issue", parent_type: "repository" }],
+      operation_class: "read",
       service: "github",
-      action: "read",
-      resources: ["repo:haikeilabs/*", "issue:*"],
     };
   }
 }
@@ -53,9 +58,11 @@ class GovernedLinearTool extends BaseTool implements GovernedTool {
 
   keiScope(): KeiScope {
     return {
+      source: "linear",
+      required_capabilities: ["issue.read"],
+      resource_types: [{ type: "issue", parent_type: "team" }],
+      operation_class: "read",
       service: "linear",
-      action: "read",
-      resources: ["team:*", "issue:*"],
     };
   }
 }
@@ -71,9 +78,11 @@ class GovernedSlackTool extends BaseTool implements GovernedTool {
 
   keiScope(): KeiScope {
     return {
+      source: "github",
+      required_capabilities: ["issue.comment"],
+      resource_types: [{ type: "issue", parent_type: "repository" }],
+      operation_class: "write",
       service: "slack",
-      action: "write",
-      resources: ["channel:*"],
     };
   }
 }
@@ -89,9 +98,11 @@ class GovernedEmailTool extends BaseTool implements GovernedTool {
 
   keiScope(): KeiScope {
     return {
+      source: "github",
+      required_capabilities: ["issue.create"],
+      resource_types: [],
+      operation_class: "write",
       service: "email",
-      action: "write",
-      resources: [],
     };
   }
 }
@@ -113,7 +124,7 @@ function loadFixture(): unknown {
     "..",
     "fixtures",
     "kei",
-    "tool-manifest.v1.json"
+    "tool-manifest.v2.json",
   );
   return JSON.parse(readFileSync(fixturePath, "utf-8"));
 }
@@ -124,26 +135,45 @@ describe("KeiToolManifest", () => {
     registry.register(new GovernedGetIssueTool());
     registry.register(new GovernedListIssuesTool());
     registry.register(new GovernedLinearTool());
-    registry.register(new GovernedSlackTool());
-    registry.register(new GovernedEmailTool());
     registry.register(new UngovernedEchoTool());
 
     const manifest = registry.exportKeiToolManifest();
     const expected = loadFixture();
 
     expect(manifest).toEqual(expected);
+    const fixtureText = readFileSync(
+      join(__dirname, "..", "..", "fixtures", "kei", "tool-manifest.v2.json"),
+      "utf8",
+    ).trim();
+    expect(JSON.stringify(manifest, null, 2)).toBe(fixtureText);
   });
 
   it("should produce empty tools for empty registry", () => {
     const registry = new ToolRegistry();
     const manifest = registry.exportKeiToolManifest();
-    expect(manifest).toEqual({ tools: [] });
+    expect(manifest).toEqual({ schema: "kei.tool-manifest/v2", tools: [] });
   });
 
   it("should exclude ungoverned tools", () => {
     const registry = new ToolRegistry();
     registry.register(new UngovernedEchoTool());
     const manifest = registry.exportKeiToolManifest();
-    expect(manifest).toEqual({ tools: [] });
+    expect(manifest).toEqual({ schema: "kei.tool-manifest/v2", tools: [] });
+  });
+
+  it("lints the shared v2 fixture", () => {
+    const raw = readFileSync(
+      join(__dirname, "..", "..", "fixtures", "kei", "tool-manifest.v2.json"),
+      "utf8",
+    );
+    expect(lintKeiToolManifest(raw)).toEqual([]);
+  });
+
+  it("keeps v1 behind an explicit export option", () => {
+    const registry = new ToolRegistry();
+    registry.register(new GovernedGetIssueTool());
+    const legacy = registry.exportKeiToolManifest(1);
+    expect("schema" in legacy).toBe(false);
+    expect(legacy.tools[0].action).toBe("read");
   });
 });

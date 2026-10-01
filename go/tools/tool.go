@@ -20,14 +20,19 @@ type ToolExample struct {
 	Explanation string
 }
 
-// KeiScope declares which Kei service, action, and resource patterns a tool
-// touches. Tools that declare a scope are included in the Kei tool manifest
-// that an admin loads into the catalog's tool registry. The harness never
-// passes authorize resources; the catalog decides resources from the scope.
+// KeiScope declares the data source, capabilities, and resource types a tool uses.
 type KeiScope struct {
-	Service   string   `json:"service"`
-	Action    string   `json:"action"`
-	Resources []string `json:"resources"`
+	Source               string            `json:"source"`
+	RequiredCapabilities []string          `json:"required_capabilities"`
+	ResourceTypes        []KeiResourceType `json:"resource_types"`
+	OperationClass       string            `json:"operation_class"`
+	Service              string            `json:"service,omitempty"`
+}
+
+// KeiResourceType identifies a resource kind and optional parent kind.
+type KeiResourceType struct {
+	Type       string `json:"type"`
+	ParentType string `json:"parent_type,omitempty"`
 }
 
 // GovernedTool is a Tool that declares its Kei governance scope. Only

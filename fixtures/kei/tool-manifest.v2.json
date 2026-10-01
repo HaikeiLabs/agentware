@@ -1,0 +1,56 @@
+{
+  "schema": "kei.tool-manifest/v2",
+  "tools": [
+    {
+      "name": "github.get_issue",
+      "source": "github",
+      "required_capabilities": [
+        "issue.read"
+      ],
+      "resource_types": [
+        {
+          "type": "issue",
+          "parent_type": "repository"
+        }
+      ],
+      "operation_class": "read",
+      "service": "github",
+      "description": "Fetch an issue from a GitHub repository",
+      "enabled": true
+    },
+    {
+      "name": "github.list_issues",
+      "source": "github",
+      "required_capabilities": [
+        "issue.read"
+      ],
+      "resource_types": [
+        {
+          "type": "issue",
+          "parent_type": "repository"
+        }
+      ],
+      "operation_class": "read",
+      "service": "github",
+      "description": "List issues in a GitHub repository",
+      "enabled": true
+    },
+    {
+      "name": "linear.get_issue",
+      "source": "linear",
+      "required_capabilities": [
+        "issue.read"
+      ],
+      "resource_types": [
+        {
+          "type": "issue",
+          "parent_type": "team"
+        }
+      ],
+      "operation_class": "read",
+      "service": "linear",
+      "description": "Fetch an issue from Linear",
+      "enabled": true
+    }
+  ]
+}
