@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 
 @runtime_checkable
@@ -58,14 +58,24 @@ class BaseTool(ABC):
 class KeiScope:
     """Governance scope for a tool in the Kei policy catalog.
 
-    Declares which service, action, and resource patterns a governed tool
-    touches. The harness never passes authorize resources; the catalog
-    decides resources from the scope.
+    Declares the source, required operations, and resource types for a governed tool.
     """
 
-    service: str
-    action: str
-    resources: list[str] = field(default_factory=list)
+    source: str
+    required_capabilities: list[str]
+    resource_types: list["KeiResourceType"] = field(default_factory=list)
+    operation_class: str = "read"
+    service: str | None = None
+
+
+class _KeiResourceTypeWithOptionalParent(TypedDict, total=False):
+    parent_type: str
+
+
+class KeiResourceType(_KeiResourceTypeWithOptionalParent):
+    """Plain resource type identifier with an optional parent type."""
+
+    type: str
 
 
 @runtime_checkable

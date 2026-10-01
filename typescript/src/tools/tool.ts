@@ -15,7 +15,7 @@ export type AnyTool = Tool | AsyncTool;
 
 export async function executeTool(
   tool: AnyTool,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Result> {
   const result = tool.execute(args);
   if (result instanceof Promise) {
@@ -36,9 +36,16 @@ export interface ExtendedTool extends Tool {
 }
 
 export interface KeiScope {
-  service: string;
-  action: string;
-  resources: string[];
+  source: string;
+  required_capabilities: string[];
+  resource_types: KeiResourceType[];
+  operation_class: "read" | "write";
+  service?: string;
+}
+
+export interface KeiResourceType {
+  type: string;
+  parent_type?: string;
 }
 
 export interface GovernedTool extends Tool {

@@ -1,0 +1,69 @@
+{
+  "crm": [
+    "investor.list",
+    "investor.read",
+    "investor.update",
+    "lead.create",
+    "lead.read",
+    "lead.update"
+  ],
+  "freshbooks": [
+    "client.read",
+    "expense.read",
+    "invoice.read",
+    "payment.read"
+  ],
+  "github": [
+    "check.read",
+    "issue.comment",
+    "issue.create",
+    "issue.read",
+    "issue.update",
+    "pull_request.create",
+    "pull_request.read",
+    "pull_request.update",
+    "repository.read",
+    "workflow.read"
+  ],
+  "gmail": [
+    "message.get",
+    "message.search"
+  ],
+  "google_drive": [
+    "docs.read",
+    "drive.metadata.read",
+    "drive.search"
+  ],
+  "http_api": [
+    "http.get",
+    "http.head"
+  ],
+  "linear": [
+    "cycle.read",
+    "issue.create",
+    "issue.read",
+    "issue.update",
+    "project.read",
+    "team.read"
+  ],
+  "mercury": [
+    "account.read",
+    "balance.read",
+    "transaction.read"
+  ],
+  "notion": [
+    "database.query",
+    "page.read",
+    "search"
+  ],
+  "s3": [
+    "object.list",
+    "object.read"
+  ],
+  "tito": [
+    "event.get",
+    "event.list",
+    "release.list",
+    "ticket.summary"
+  ]
+}

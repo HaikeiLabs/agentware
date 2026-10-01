@@ -7,10 +7,16 @@ export {
   Result,
   ToolExample,
   KeiScope,
+  KeiResourceType,
   GovernedTool,
   executeTool,
 } from "./tool.js";
-export { ToolRegistry, KeiToolManifestEntry, KeiToolManifest } from "./registry.js";
+export {
+  ToolRegistry,
+  KeiToolManifestEntry,
+  KeiToolManifest,
+} from "./registry.js";
+export { lintKeiToolManifest } from "./lint.js";
 export { wrapTool, ToolAbortedError, ToolTimeoutError } from "./async.js";
 export type {
   AsyncToolHandler,

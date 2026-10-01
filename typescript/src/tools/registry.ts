@@ -1,16 +1,30 @@
-import type { AnyTool, GovernedTool } from "./tool.js";
+import type { AnyTool, GovernedTool, KeiResourceType } from "./tool.js";
 
 export interface KeiToolManifestEntry {
   name: string;
-  service: string;
+  source: string;
+  required_capabilities: string[];
+  resource_types: KeiResourceType[];
+  operation_class: "read" | "write";
+  service?: string;
   description: string;
-  action: string;
-  resources: string[];
   enabled: boolean;
 }
 
 export interface KeiToolManifest {
+  schema: "kei.tool-manifest/v2";
   tools: KeiToolManifestEntry[];
+}
+
+export interface KeiToolManifestV1 {
+  tools: Array<{
+    name: string;
+    service: string;
+    description: string;
+    action: string;
+    resources: string[];
+    enabled: boolean;
+  }>;
 }
 
 export class ToolRegistry {
@@ -26,7 +40,7 @@ export class ToolRegistry {
 
   all(): AnyTool[] {
     return Array.from(this.tools.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
+      a.name.localeCompare(b.name),
     );
   }
 
@@ -38,13 +52,19 @@ export class ToolRegistry {
     const schemas: Record<string, Record<string, unknown>> = {};
     for (const [name, tool] of this.tools) {
       if ("inputSchema" in tool) {
-        schemas[name] = (tool as unknown as { inputSchema(): Record<string, unknown> }).inputSchema();
+        schemas[name] = (
+          tool as unknown as { inputSchema(): Record<string, unknown> }
+        ).inputSchema();
       }
     }
     return schemas;
   }
 
-  exportKeiToolManifest(): KeiToolManifest {
+  exportKeiToolManifest(version: 1): KeiToolManifestV1;
+  exportKeiToolManifest(version?: 2): KeiToolManifest;
+  exportKeiToolManifest(
+    version: 1 | 2 = 2,
+  ): KeiToolManifest | KeiToolManifestV1 {
     const names: string[] = [];
     for (const [name, tool] of this.tools) {
       if (this.isGoverned(tool)) {
@@ -52,23 +72,53 @@ export class ToolRegistry {
       }
     }
     names.sort();
+    if (version === 1) {
+      return {
+        tools: names.map((name) => {
+          const tool = this.tools.get(name) as GovernedTool;
+          const scope = tool.keiScope();
+          return {
+            name,
+            service: scope.service ?? scope.source,
+            description: tool.description,
+            action: scope.operation_class,
+            resources: scope.resource_types.map((item) => item.type).sort(),
+            enabled: true,
+          };
+        }),
+      };
+    }
     const tools: KeiToolManifestEntry[] = names.map((name) => {
       const tool = this.tools.get(name) as GovernedTool;
       const scope = tool.keiScope();
       return {
         name,
-        service: scope.service,
+        source: scope.source,
+        required_capabilities: [...scope.required_capabilities].sort(),
+        resource_types: [...scope.resource_types].sort((a, b) => {
+          if (a.type !== b.type) return a.type < b.type ? -1 : 1;
+          const leftParent = a.parent_type ?? "";
+          const rightParent = b.parent_type ?? "";
+          return leftParent === rightParent
+            ? 0
+            : leftParent < rightParent
+              ? -1
+              : 1;
+        }),
+        operation_class: scope.operation_class,
+        ...(scope.service ? { service: scope.service } : {}),
         description: tool.description,
-        action: scope.action,
-        resources: [...scope.resources],
         enabled: true,
       };
     });
-    return { tools };
+    return { schema: "kei.tool-manifest/v2", tools };
   }
 
   private isGoverned(tool: AnyTool): tool is GovernedTool {
-    return "keiScope" in tool && typeof (tool as unknown as GovernedTool).keiScope === "function";
+    return (
+      "keiScope" in tool &&
+      typeof (tool as unknown as GovernedTool).keiScope === "function"
+    );
   }
 
   clear(): void {
