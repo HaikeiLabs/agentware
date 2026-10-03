@@ -11,6 +11,7 @@ import (
 type QwenFormatter struct{}
 
 var qwenToolCallRegex = regexp.MustCompile(`<tool_call>\s*<tool name="([^"]+)">\s*(.*?)\s*</tool>\s*</tool_call>`)
+var qwenAnyToolRegex = regexp.MustCompile(`<tool\b[^>]*>`)
 
 func (f *QwenFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
 	if len(toolsList) == 0 {
@@ -87,6 +88,11 @@ func (f *QwenFormatter) ModelFamily() string {
 func (f *QwenFormatter) ValidateFormat(response string) error {
 	if response == "" {
 		return nil
+	}
+
+	anyTool := qwenAnyToolRegex.FindString(response)
+	if anyTool != "" && !qwenToolCallRegex.MatchString(response) {
+		return fmt.Errorf("invalid tool tag: missing 'name' attribute")
 	}
 
 	matches := qwenToolCallRegex.FindAllStringSubmatch(response, -1)

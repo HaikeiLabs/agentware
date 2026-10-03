@@ -1,0 +1,65 @@
+{
+  "family": "qwen",
+  "description": "Qwen/QwQ reasoning model response format",
+  "reasoning_field": "reasoning_content",
+  "thinking_tags": ["<thinking>", "</thinking>"],
+  "notes": "Qwen models with reasoning (QwQ, Qwen3) use 'reasoning_content' field in the API response. They may also include <thinking>...</thinking> tags inline in the content text. Both patterns are handled by the reasoning adapter.",
+  "examples": [
+    {
+      "name": "reasoning_content with thinking tags",
+      "raw_response": {
+        "id": "chatcmpl-qwen-001",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "<thinking>The user wants weather for Tokyo. I'll use my get_weather function.</thinking>\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}",
+              "reasoning_content": "The user wants weather for Tokyo. I'll use my get_weather function.\n\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}"
+            },
+            "finish_reason": "tool_calls"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "The user wants weather for Tokyo. I'll use my get_weather function.\n\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}",
+      "expected_clean_content": "<thinking>The user wants weather for Tokyo. I'll use my get_weather function.</thinking>\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}"
+    },
+    {
+      "name": "text response with thinking tags",
+      "raw_response": {
+        "id": "chatcmpl-qwen-002",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "<thinking>Simple greeting, no tool needed.</thinking>\nHello! How can I help you today?",
+              "reasoning_content": "Simple greeting, no tool needed."
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "Simple greeting, no tool needed.",
+      "expected_clean_content": "<thinking>Simple greeting, no tool needed.</thinking>\nHello! How can I help you today?"
+    },
+    {
+      "name": "no reasoning field",
+      "raw_response": {
+        "id": "chatcmpl-qwen-003",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Hello! How can I help you today?"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "",
+      "expected_clean_content": "Hello! How can I help you today?"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "family": "anthropic",
+  "description": "Anthropic Claude XML tool-use format (text-mode <function_calls>)",
+  "format_definitions": [
+    {
+      "name": "two tools",
+      "expected": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name, e.g. 'Tokyo'\"},\"unit\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"default\":\"celsius\"}},\"required\":[\"location\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"search_web\",\"description\":\"Search the web for information\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"}},\"required\":[\"query\"]}}}]"
+    }
+  ],
+  "parse_calls": [
+    {
+      "name": "single call",
+      "input": "<function_calls><invoke tool=\"get_weather\">{\"location\":\"Tokyo\",\"unit\":\"celsius\"}</invoke></function_calls>",
+      "expected": [
+        {"name": "get_weather", "args": {"location": "Tokyo", "unit": "celsius"}}
+      ]
+    },
+    {
+      "name": "multiple calls",
+      "input": "<function_calls><invoke tool=\"get_weather\">{\"location\":\"Paris\"}</invoke><invoke tool=\"search_web\">{\"query\":\"weather forecast\"}</invoke></function_calls>",
+      "expected": [
+        {"name": "get_weather", "args": {"location": "Paris"}},
+        {"name": "search_web", "args": {"query": "weather forecast"}}
+      ]
+    },
+    {
+      "name": "empty response",
+      "input": "",
+      "expected": []
+    },
+    {
+      "name": "no function_calls block",
+      "input": "I'll look that up for you.",
+      "expected": []
+    }
+  ],
+  "format_result": [
+    {
+      "name": "success",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": "Sunny, 22°C"},
+      "expected": "<function_results><result tool=\"get_weather\">Sunny, 22°C</result></function_results>"
+    },
+    {
+      "name": "error",
+      "tool_name": "get_weather",
+      "result": {"success": false, "error": "API unavailable"},
+      "expected": "<function_results><result tool=\"get_weather\">Error: API unavailable</result></function_results>"
+    }
+  ],
+  "validate_format": [
+    {"name": "valid", "input": "<function_calls><invoke tool=\"get_weather\">{}</invoke></function_calls>", "valid": true},
+    {"name": "empty", "input": "", "valid": true},
+    {"name": "missing tool attribute", "input": "<function_calls><invoke>{}</invoke></function_calls>", "valid": false}
+  ]
+}

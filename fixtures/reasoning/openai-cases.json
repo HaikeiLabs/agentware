@@ -1,0 +1,72 @@
+{
+  "family": "openai",
+  "description": "OpenAI o1/o3 reasoning model response format",
+  "reasoning_field": "reasoning_content",
+  "thinking_tags": null,
+  "notes": "OpenAI o-series models return reasoning_content as a top-level field alongside content in the response choice. Tool calls appear as separate choices with type=tool_calls. No inline thinking tags.",
+  "examples": [
+    {
+      "name": "reasoning with content",
+      "raw_response": {
+        "id": "chatcmpl-abc123",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "The weather in Tokyo is 22°C and sunny.",
+              "reasoning_content": "The user asked about weather. I need to call get_weather for Tokyo. First checking the city name... Tokyo is valid. Proceeding to call the tool."
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "The user asked about weather. I need to call get_weather for Tokyo. First checking the city name... Tokyo is valid. Proceeding to call the tool.",
+      "expected_clean_content": "The weather in Tokyo is 22°C and sunny."
+    },
+    {
+      "name": "reasoning with tool calls",
+      "raw_response": {
+        "id": "chatcmpl-def456",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "reasoning_content": "I need to search the web for current weather data. Using search_web with query 'Tokyo weather 2024'.",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": { "name": "search_web", "arguments": "{\"query\": \"Tokyo weather\"}" }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "I need to search the web for current weather data. Using search_web with query 'Tokyo weather 2024'.",
+      "expected_clean_content": null
+    },
+    {
+      "name": "no reasoning field",
+      "raw_response": {
+        "id": "chatcmpl-ghi789",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Hello! How can I help you today?"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "",
+      "expected_clean_content": "Hello! How can I help you today?"
+    }
+  ]
+}

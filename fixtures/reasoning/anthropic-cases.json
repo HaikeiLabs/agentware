@@ -1,0 +1,66 @@
+{
+  "family": "anthropic",
+  "description": "Anthropic Claude extended thinking response format",
+  "reasoning_field": "thinking",
+  "thinking_tags": null,
+  "notes": "Claude 3.5+ Sonnet and Claude 3 Opus support extended thinking. In the Messages API, thinking content appears as a content block with type='thinking' and a 'thinking' text field. The adapter recognizes both 'thinking' and 'thinking_content' as reasoning fields in structured responses.",
+  "examples": [
+    {
+      "name": "thinking with tool use",
+      "raw_response": {
+        "id": "msg_01abcdef",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The user wants the weather for Tokyo. I have a get_weather tool available. Let me parse the request: location is Tokyo. They didn't specify a unit, so I'll use celsius as default.",
+            "signature": "sig_abc123"
+          },
+          {
+            "type": "tool_use",
+            "name": "get_weather",
+            "input": { "location": "Tokyo", "unit": "celsius" },
+            "id": "toolu_abc123"
+          }
+        ],
+        "role": "assistant"
+      },
+      "expected_extracted_reasoning": "The user wants the weather for Tokyo. I have a get_weather tool available. Let me parse the request: location is Tokyo. They didn't specify a unit, so I'll use celsius as default.",
+      "expected_clean_content": null
+    },
+    {
+      "name": "thinking with text response",
+      "raw_response": {
+        "id": "msg_02def456",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The user just said hello. This is a simple greeting, no tool needed. I'll respond politely.",
+            "signature": "sig_def456"
+          },
+          {
+            "type": "text",
+            "text": "Hello! How can I help you today?"
+          }
+        ],
+        "role": "assistant"
+      },
+      "expected_extracted_reasoning": "The user just said hello. This is a simple greeting, no tool needed. I'll respond politely.",
+      "expected_clean_content": "Hello! How can I help you today?"
+    },
+    {
+      "name": "no thinking (standard mode)",
+      "raw_response": {
+        "id": "msg_03ghi789",
+        "content": [
+          {
+            "type": "text",
+            "text": "I'll look up the weather for Tokyo."
+          }
+        ],
+        "role": "assistant"
+      },
+      "expected_extracted_reasoning": "",
+      "expected_clean_content": "I'll look up the weather for Tokyo."
+    }
+  ]
+}
