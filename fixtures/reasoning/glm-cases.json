@@ -1,0 +1,60 @@
+{
+  "family": "glm",
+  "description": "GLM/ChatGLM reasoning model response format",
+  "reasoning_field": "reasoning_content",
+  "thinking_tags": null,
+  "notes": "GLM-4 and ChatGLM models use 'reasoning_content' as the native field for chain-of-thought reasoning, following the same pattern as OpenAI and DeepSeek. No inline thinking tags are used; reasoning is always in the structured field.",
+  "examples": [
+    {
+      "name": "reasoning_content field with tool calls",
+      "raw_response": {
+        "id": "chatcmpl-glm-001",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "reasoning_content": "The user is asking about the weather in Tokyo. I should call get_weather with location=Tokyo.",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": { "name": "get_weather", "arguments": "{\"location\": \"Tokyo\", \"unit\": \"celsius\"}" }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "The user is asking about the weather in Tokyo. I should call get_weather with location=Tokyo.",
+      "expected_clean_content": null
+    },
+    {
+      "name": "reasoning with text content",
+      "raw_response": {
+        "id": "chatcmpl-glm-002",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "The weather in Tokyo is 22°C and sunny.",
+              "reasoning_content": "Checking weather data for Tokyo... Data retrieved. Formatting response."
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "Checking weather data for Tokyo... Data retrieved. Formatting response.",
+      "expected_clean_content": "The weather in Tokyo is 22°C and sunny."
+    },
+    {
+      "name": "no reasoning field",
+      "raw_response": "Hello! How can I help you today?",
+      "expected_extracted_reasoning": "",
+      "expected_clean_content": "Hello! How can I help you today?"
+    }
+  ]
+}

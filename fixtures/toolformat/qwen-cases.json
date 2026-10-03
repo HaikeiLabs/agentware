@@ -1,0 +1,57 @@
+{
+  "family": "qwen",
+  "description": "Qwen XML tool-call format (<tool_call>...</tool_call>)",
+  "format_definitions": [
+    {
+      "name": "two tools",
+      "expected": "<tool_description>\n<tool_name>get_weather</tool_name>\n<description>Get current weather for a location</description>\n<parameters>{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name, e.g. 'Tokyo'\"},\"unit\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"default\":\"celsius\"}},\"required\":[\"location\"]}</parameters>\n</tool_description>\n<tool_description>\n<tool_name>search_web</tool_name>\n<description>Search the web for information</description>\n<parameters>{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"}},\"required\":[\"query\"]}</parameters>\n</tool_description>\n"
+    }
+  ],
+  "parse_calls": [
+    {
+      "name": "single call",
+      "input": "<tool_call><tool name=\"get_weather\">{\"location\":\"Tokyo\",\"unit\":\"celsius\"}</tool></tool_call>",
+      "expected": [
+        {"name": "get_weather", "args": {"location": "Tokyo", "unit": "celsius"}}
+      ]
+    },
+    {
+      "name": "multiple calls",
+      "input": "<tool_call><tool name=\"get_weather\">{\"location\":\"Paris\"}</tool></tool_call><tool_call><tool name=\"search_web\">{\"query\":\"forecast\"}</tool></tool_call>",
+      "expected": [
+        {"name": "get_weather", "args": {"location": "Paris"}},
+        {"name": "search_web", "args": {"query": "forecast"}}
+      ]
+    },
+    {
+      "name": "empty response",
+      "input": "",
+      "expected": []
+    },
+    {
+      "name": "no tool calls",
+      "input": "Let me check the weather.",
+      "expected": []
+    }
+  ],
+  "format_result": [
+    {
+      "name": "success",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": "Sunny, 22°C"},
+      "expected": "<tool_response>\n<tool_name>get_weather</tool_name>\n<result>Sunny, 22°C</result>\n</tool_response>"
+    },
+    {
+      "name": "error",
+      "tool_name": "get_weather",
+      "result": {"success": false, "error": "API unavailable"},
+      "expected": "<tool_response>\n<tool_name>get_weather</tool_name>\n<error>API unavailable</error>\n</tool_response>"
+    }
+  ],
+  "validate_format": [
+    {"name": "valid", "input": "<tool_call><tool name=\"get_weather\">{}</tool></tool_call>", "valid": true},
+    {"name": "empty", "input": "", "valid": true},
+    {"name": "missing name attr", "input": "<tool_call><tool>{}</tool></tool_call>", "valid": false},
+    {"name": "malformed JSON args", "input": "<tool_call><tool name=\"get_weather\">{bad}</tool></tool_call>", "valid": false}
+  ]
+}

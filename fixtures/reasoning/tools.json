@@ -1,0 +1,29 @@
+{
+  "family": "shared",
+  "description": "Tool definitions used across reasoning fixtures",
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get current weather for a location",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": { "type": "string", "description": "City name" },
+          "unit": { "type": "string", "enum": ["celsius", "fahrenheit"], "default": "celsius" }
+        },
+        "required": ["location"]
+      }
+    },
+    {
+      "name": "search_web",
+      "description": "Search the web for information",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Search query" }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}

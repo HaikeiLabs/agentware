@@ -1,0 +1,28 @@
+{
+  "description": "Shared tool definitions used by all model-family formatters",
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get current weather for a location",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "location": { "type": "string", "description": "City name, e.g. 'Tokyo'" },
+          "unit": { "type": "string", "enum": ["celsius", "fahrenheit"], "default": "celsius" }
+        },
+        "required": ["location"]
+      }
+    },
+    {
+      "name": "search_web",
+      "description": "Search the web for information",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Search query" }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}

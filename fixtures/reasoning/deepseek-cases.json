@@ -1,0 +1,46 @@
+{
+  "family": "deepseek",
+  "description": "DeepSeek reasoning model response format",
+  "reasoning_field": "reasoning_content",
+  "thinking_tags": ["[THINK]", "[/THINK]"],
+  "notes": "DeepSeek-R1 and other DeepSeek reasoning models use 'reasoning_content' as the native field for chain-of-thought. In text-completion mode they wrap reasoning in [THINK]...[/THINK] tags. The reasoning adapter handles both patterns.",
+  "examples": [
+    {
+      "name": "reasoning_content field",
+      "raw_response": {
+        "id": "chatcmpl-ds-001",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Based on the weather data, Tokyo is 22°C and sunny.",
+              "reasoning_content": "The user asked about Tokyo weather. I have the get_weather tool. Calling it with location=Tokyo, unit=celsius."
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "The user asked about Tokyo weather. I have the get_weather tool. Calling it with location=Tokyo, unit=celsius.",
+      "expected_clean_content": "Based on the weather data, Tokyo is 22°C and sunny."
+    },
+    {
+      "name": "text mode with THINK tags",
+      "raw_response": " [THINK]\nThe user wants weather for Tokyo. I'll look up coordinates first.\n[/THINK]\n{\"tool\": \"search_web\", \"args\": {\"query\": \"Tokyo weather\"}}",
+      "expected_extracted_reasoning": "\nThe user wants weather for Tokyo. I'll look up coordinates first.\n",
+      "expected_clean_content": "\n{\"tool\": \"search_web\", \"args\": {\"query\": \"Tokyo weather\"}}"
+    },
+    {
+      "name": "unbalanced THINK tag (fail-closed)",
+      "raw_response": "[THINK]\nThe user wants weather for Tokyo.",
+      "expected_extracted_reasoning": null,
+      "expected_clean_content": null
+    },
+    {
+      "name": "no reasoning",
+      "raw_response": "Hello! How can I help you today?",
+      "expected_extracted_reasoning": "",
+      "expected_clean_content": "Hello! How can I help you today?"
+    }
+  ]
+}

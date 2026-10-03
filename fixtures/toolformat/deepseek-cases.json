@@ -1,0 +1,44 @@
+{
+  "family": "deepseek",
+  "description": "DeepSeek uses standard OpenAI-compatible JSON function-calling format",
+  "format_definitions": [
+    {
+      "name": "two tools",
+      "expected": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name, e.g. 'Tokyo'\"},\"unit\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"default\":\"celsius\"}},\"required\":[\"location\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"search_web\",\"description\":\"Search the web for information\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"}},\"required\":[\"query\"]}}}]"
+    }
+  ],
+  "parse_calls": [
+    {
+      "name": "single call",
+      "input": "[{\"id\":\"call_1\",\"name\":\"get_weather\",\"arguments\":{\"location\":\"Tokyo\",\"unit\":\"celsius\"}}]",
+      "expected": [
+        {"id": "call_1", "name": "get_weather", "args": {"location": "Tokyo", "unit": "celsius"}}
+      ]
+    },
+    {
+      "name": "empty response",
+      "input": "",
+      "expected": []
+    }
+  ],
+  "format_result": [
+    {
+      "name": "success",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": "Sunny, 22°C"},
+      "expected": "Sunny, 22°C"
+    },
+    {
+      "name": "error",
+      "tool_name": "get_weather",
+      "result": {"success": false, "error": "API unavailable"},
+      "expected": "Error: API unavailable"
+    }
+  ],
+  "validate_format": [
+    {"name": "valid", "input": "[{\"id\":\"c1\",\"name\":\"get_weather\",\"arguments\":{\"loc\":\"NYC\"}}]", "valid": true},
+    {"name": "empty", "input": "", "valid": true},
+    {"name": "invalid JSON", "input": "not json", "valid": false},
+    {"name": "missing name", "input": "[{\"id\":\"c1\",\"arguments\":{\"loc\":\"NYC\"}}]", "valid": false}
+  ]
+}
