@@ -122,7 +122,7 @@ func TestV3ConnectorRouteWinsOverLocalDispatchHandler(t *testing.T) {
 	})
 	r.Register(&plainTool{name: "github.get_issue", description: "Get issue"}, KeiToolRegistration{
 		Service: "github", Source: "github", OperationClass: "read",
-		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{ConnectorID: "binding-1"}},
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "agent-1", ConnectorID: "binding-1"}},
 		RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}},
 	})
 	got, err := r.ExportKeiToolManifest(ManifestV3)
@@ -153,6 +153,18 @@ func TestV3ConnectorRouteWinsOverLocalDispatchHandler(t *testing.T) {
 	}
 	if _, ok := harness["resource_types"]; ok {
 		t.Fatal("harness entry contains connector resources")
+	}
+}
+
+func TestV3ExportRejectsConnectorRouteWithoutAgentID(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&plainTool{name: "github.read", description: "Read"}, KeiToolRegistration{
+		Service: "github", Source: "github", OperationClass: "read",
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{ConnectorID: "binding-1"}},
+		RequiredCapabilities: []string{"issue.read"},
+	})
+	if _, err := r.ExportKeiToolManifest(ManifestV3); err == nil {
+		t.Fatal("expected connector route without agent_id to fail")
 	}
 }
 

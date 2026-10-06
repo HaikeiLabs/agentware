@@ -1,7 +1,7 @@
 import type { AnyTool, GovernedTool, KeiResourceType } from "./tool.js";
 
 export type KeiToolRoute =
-  | { connector_binding: { connector_id: string } }
+  | { connector_binding: { agent_id: string; connector_id: string } }
   | { harness_executor: { executor: string; registration: string } };
 
 /** Trusted metadata attached to the same registry entry used for dispatch. */
@@ -134,7 +134,7 @@ export class ToolRegistry {
     if (!value.service?.trim() || !value.source?.trim()) throw new Error("v3 registration requires non-empty service and source");
     if (value.operation_class !== "read" && value.operation_class !== "write") throw new Error("invalid operation_class");
     if ("connector_binding" in value.route) {
-      if (!value.route.connector_binding.connector_id?.trim() || !value.required_capabilities?.length || value.required_capabilities.some((v) => !v.trim())) throw new Error("connector route requires binding and non-empty capabilities");
+      if (!value.route.connector_binding.agent_id?.trim() || !value.route.connector_binding.connector_id?.trim() || !value.required_capabilities?.length || value.required_capabilities.some((v) => !v.trim())) throw new Error("connector route requires binding and non-empty capabilities");
     } else if (!value.route.harness_executor.executor?.trim() || !value.route.harness_executor.registration?.trim() || value.required_capabilities !== undefined || value.resource_types !== undefined) {
       throw new Error("harness route requires identity and omits connector-only fields");
     }

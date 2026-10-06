@@ -100,6 +100,7 @@ type ToolRoute struct {
 	HarnessExecutor  *HarnessExecutorRoute  `json:"harness_executor,omitempty"`
 }
 type ConnectorBindingRoute struct {
+	AgentID     string `json:"agent_id"`
 	ConnectorID string `json:"connector_id"`
 }
 type HarnessExecutorRoute struct {
@@ -226,7 +227,7 @@ func (r *ToolRegistry) exportV3() ([]byte, error) {
 		}
 		entry := manifestV3Entry{Name: name, Service: reg.Service, Source: reg.Source, OperationClass: reg.OperationClass, Route: reg.Route, Description: r.tools[name].Description(), Enabled: true}
 		if connector != nil {
-			if strings.TrimSpace(connector.ConnectorID) == "" || len(reg.RequiredCapabilities) == 0 {
+			if strings.TrimSpace(connector.AgentID) == "" || strings.TrimSpace(connector.ConnectorID) == "" || len(reg.RequiredCapabilities) == 0 {
 				return nil, errors.New("connector route requires binding and non-empty capabilities")
 			}
 			for _, cap := range reg.RequiredCapabilities {

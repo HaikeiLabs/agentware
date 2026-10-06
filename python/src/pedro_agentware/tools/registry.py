@@ -106,7 +106,7 @@ class ToolRegistry:
             raise ValueError("route must contain exactly one branch")
         if connector is not None:
             caps = value.get("required_capabilities")
-            if not connector.get("connector_id", "").strip() or not caps or any(not item.strip() for item in caps):
+            if not connector.get("agent_id", "").strip() or not connector.get("connector_id", "").strip() or not caps or any(not item.strip() for item in caps):
                 raise ValueError("connector route requires binding and non-empty capabilities")
             return
         if harness is None or not harness.get("executor", "").strip() or not harness.get("registration", "").strip():

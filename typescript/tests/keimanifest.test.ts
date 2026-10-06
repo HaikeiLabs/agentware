@@ -177,19 +177,19 @@ describe("KeiToolManifest", () => {
     });
     registry.register(new GovernedGetIssueTool(), {
       service: "github", source: "github", operation_class: "read",
-      route: { connector_binding: { connector_id: "binding-1" } },
+      route: { connector_binding: { agent_id: "agent-1", connector_id: "binding-1" } },
       required_capabilities: ["issue.read"],
       resource_types: [{ type: "issue", parent_type: "repository" }],
     });
     expect(typeof registry.get("github.get_issue")?.execute).toBe("function");
     const connectorEntry = registry.exportKeiToolManifest(3).tools[0];
-    expect(connectorEntry.route).toEqual({ connector_binding: { connector_id: "binding-1" } });
+    expect(connectorEntry.route).toEqual({ connector_binding: { agent_id: "agent-1", connector_id: "binding-1" } });
     expect("harness_executor" in connectorEntry.route).toBe(false);
     expect(registry.exportKeiToolManifest(3)).toEqual({
       schema: "kei.tool-manifest/v3",
       tools: [
         { name: "github.get_issue", service: "github", source: "github", operation_class: "read",
-          route: { connector_binding: { connector_id: "binding-1" } }, required_capabilities: ["issue.read"],
+          route: { connector_binding: { agent_id: "agent-1", connector_id: "binding-1" } }, required_capabilities: ["issue.read"],
           resource_types: [{ type: "issue", parent_type: "repository" }], description: "Fetch an issue from a GitHub repository", enabled: true },
         { name: "local_echo", service: "local", source: "harness", operation_class: "write",
           route: { harness_executor: { executor: "pi", registration: "local_echo" } }, description: "Echo input back", enabled: true },
@@ -202,6 +202,13 @@ describe("KeiToolManifest", () => {
     registry.register(new UngovernedEchoTool(), { service: "", source: "harness", operation_class: "write",
       route: { harness_executor: { executor: "pi", registration: "local_echo" } } });
     expect(() => registry.exportKeiToolManifest(3)).toThrow("non-empty service and source");
+  });
+
+  it("rejects connector routes without explicit agent identity", () => {
+    const registry = new ToolRegistry();
+    registry.register(new GovernedGetIssueTool(), { service: "github", source: "github", operation_class: "read",
+      route: { connector_binding: { connector_id: "binding-1" } } as any, required_capabilities: ["issue.read"] });
+    expect(() => registry.exportKeiToolManifest(3)).toThrow("connector route requires binding");
   });
 
   it("keeps v1 behind an explicit export option", () => {
