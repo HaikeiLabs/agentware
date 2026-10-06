@@ -114,6 +114,71 @@ func TestExportKeiToolManifest_EmptyRegistry(t *testing.T) {
 	}
 }
 
+func TestV3ConnectorRouteWinsOverLocalDispatchHandler(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&plainTool{name: "local.echo", description: "Echo"}, KeiToolRegistration{
+		Service: "local", Source: "harness", OperationClass: "write",
+		Route: ToolRoute{HarnessExecutor: &HarnessExecutorRoute{Executor: "pi", Registration: "local.echo"}},
+	})
+	r.Register(&plainTool{name: "github.get_issue", description: "Get issue"}, KeiToolRegistration{
+		Service: "github", Source: "github", OperationClass: "read",
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "agent-1", ConnectorID: "binding-1"}},
+		RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}},
+	})
+	got, err := r.ExportKeiToolManifest(ManifestV3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(got, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest["schema"] != "kei.tool-manifest/v3" {
+		t.Fatalf("schema = %v", manifest["schema"])
+	}
+	entries := manifest["tools"].([]any)
+	connector := entries[0].(map[string]any)
+	if _, ok := r.Get("github.get_issue"); !ok {
+		t.Fatal("connector-bound tool lost its local dispatch handler")
+	}
+	if _, routeHasHandler := connector["route"].(map[string]any)["harness_executor"]; routeHasHandler {
+		t.Fatal("connector binding did not take precedence over the tool's harness Execute handler")
+	}
+	if _, routeHasBinding := connector["route"].(map[string]any)["connector_binding"]; !routeHasBinding {
+		t.Fatal("connector registration was not exported")
+	}
+	harness := entries[1].(map[string]any)
+	if _, ok := harness["required_capabilities"]; ok {
+		t.Fatal("harness entry contains connector capabilities")
+	}
+	if _, ok := harness["resource_types"]; ok {
+		t.Fatal("harness entry contains connector resources")
+	}
+}
+
+func TestV3ExportRejectsConnectorRouteWithoutAgentID(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&plainTool{name: "github.read", description: "Read"}, KeiToolRegistration{
+		Service: "github", Source: "github", OperationClass: "read",
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{ConnectorID: "binding-1"}},
+		RequiredCapabilities: []string{"issue.read"},
+	})
+	if _, err := r.ExportKeiToolManifest(ManifestV3); err == nil {
+		t.Fatal("expected connector route without agent_id to fail")
+	}
+}
+
+func TestV3ExportRejectsEmptyService(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&plainTool{name: "local.echo", description: "Echo"}, KeiToolRegistration{
+		Source: "harness", OperationClass: "write",
+		Route: ToolRoute{HarnessExecutor: &HarnessExecutorRoute{Executor: "pi", Registration: "local.echo"}},
+	})
+	if _, err := r.ExportKeiToolManifest(ManifestV3); err == nil {
+		t.Fatal("expected invalid registration error")
+	}
+}
+
 func TestV1ExportRequiresExplicitOption(t *testing.T) {
 	r := NewToolRegistry()
 	r.Register(&governedTool{name: "github.get_issue", description: "get issue", scope: KeiScope{Source: "github", Service: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}}, OperationClass: "read"}})

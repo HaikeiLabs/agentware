@@ -164,6 +164,57 @@ def test_export_matches_fixture():
     assert manifest_str == open(fixture_path(), encoding="utf-8").read().rstrip("\n")
 
 
+def test_v3_connector_route_wins_over_local_dispatch_handler():
+    registry = ToolRegistry()
+    registry.register(UngovernedEchoTool(), {
+        "service": "local", "source": "harness", "operation_class": "write",
+        "route": {"harness_executor": {"executor": "pi", "registration": "local_echo"}},
+    })
+    registry.register(GovernedAddTool(), {
+        "service": "github", "source": "github", "operation_class": "read",
+        "route": {"connector_binding": {"agent_id": "agent-1", "connector_id": "binding-1"}},
+        "required_capabilities": ["issue.read"],
+        "resource_types": [{"type": "issue", "parent_type": "repository"}],
+    })
+    entries = json.loads(registry.export_kei_tool_manifest(version=3))["tools"]
+    assert entries[0]["name"] == "github.get_issue"
+    assert isinstance(registry.get("github.get_issue")[0], GovernedAddTool)  # local execute handler remains registered
+    assert entries[0]["route"] == {"connector_binding": {"agent_id": "agent-1", "connector_id": "binding-1"}}
+    assert "harness_executor" not in entries[0]["route"]  # connector route wins
+    assert entries[1]["route"] == {"harness_executor": {"executor": "pi", "registration": "local_echo"}}
+    assert "required_capabilities" not in entries[1]
+    assert "resource_types" not in entries[1]
+
+
+def test_v3_connector_route_requires_agent_identity():
+    registry = ToolRegistry()
+    registry.register(GovernedAddTool(), {
+        "service": "github", "source": "github", "operation_class": "read",
+        "route": {"connector_binding": {"connector_id": "binding-1"}},
+        "required_capabilities": ["issue.read"],
+    })
+    try:
+        registry.export_kei_tool_manifest(version=3)
+    except ValueError as exc:
+        assert "connector route" in str(exc)
+    else:
+        raise AssertionError("connector route without agent_id was exported")
+
+
+def test_v3_export_rejects_empty_service_or_source():
+    registry = ToolRegistry()
+    registry.register(UngovernedEchoTool(), {
+        "service": "", "source": "harness", "operation_class": "write",
+        "route": {"harness_executor": {"executor": "pi", "registration": "local_echo"}},
+    })
+    try:
+        registry.export_kei_tool_manifest(version=3)
+    except ValueError as exc:
+        assert "service and source" in str(exc)
+    else:
+        raise AssertionError("invalid route registration was exported")
+
+
 def test_v1_export_requires_explicit_option():
     registry = ToolRegistry()
     registry.register(GovernedAddTool())
