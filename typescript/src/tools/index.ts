@@ -15,6 +15,9 @@ export {
   ToolRegistry,
   KeiToolManifestEntry,
   KeiToolManifest,
+  KeiToolManifestV3,
+  KeiToolRegistration,
+  KeiToolRoute,
 } from "./registry.js";
 export { lintKeiToolManifest } from "./lint.js";
 export { wrapTool, ToolAbortedError, ToolTimeoutError } from "./async.js";

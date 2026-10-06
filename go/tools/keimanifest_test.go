@@ -114,6 +114,49 @@ func TestExportKeiToolManifest_EmptyRegistry(t *testing.T) {
 	}
 }
 
+func TestV3ExportUsesExplicitDispatchRegistration(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&plainTool{name: "local.echo", description: "Echo"}, KeiToolRegistration{
+		Service: "local", Source: "harness", OperationClass: "write",
+		Route: ToolRoute{HarnessExecutor: &HarnessExecutorRoute{Executor: "pi", Registration: "local.echo"}},
+	})
+	r.Register(&plainTool{name: "github.get_issue", description: "Get issue"}, KeiToolRegistration{
+		Service: "github", Source: "github", OperationClass: "read",
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{ConnectorID: "binding-1"}},
+		RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}},
+	})
+	got, err := r.ExportKeiToolManifest(ManifestV3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(got, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest["schema"] != "kei.tool-manifest/v3" {
+		t.Fatalf("schema = %v", manifest["schema"])
+	}
+	entries := manifest["tools"].([]any)
+	harness := entries[1].(map[string]any)
+	if _, ok := harness["required_capabilities"]; ok {
+		t.Fatal("harness entry contains connector capabilities")
+	}
+	if _, ok := harness["resource_types"]; ok {
+		t.Fatal("harness entry contains connector resources")
+	}
+}
+
+func TestV3ExportRejectsEmptyService(t *testing.T) {
+	r := NewToolRegistry()
+	r.Register(&plainTool{name: "local.echo", description: "Echo"}, KeiToolRegistration{
+		Source: "harness", OperationClass: "write",
+		Route: ToolRoute{HarnessExecutor: &HarnessExecutorRoute{Executor: "pi", Registration: "local.echo"}},
+	})
+	if _, err := r.ExportKeiToolManifest(ManifestV3); err == nil {
+		t.Fatal("expected invalid registration error")
+	}
+}
+
 func TestV1ExportRequiresExplicitOption(t *testing.T) {
 	r := NewToolRegistry()
 	r.Register(&governedTool{name: "github.get_issue", description: "get issue", scope: KeiScope{Source: "github", Service: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}}, OperationClass: "read"}})

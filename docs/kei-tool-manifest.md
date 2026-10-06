@@ -16,7 +16,13 @@ The current export uses `"schema": "kei.tool-manifest/v2"`. Each governed tool d
 - `operation_class`: `read` or `write`.
 - `service`: optional credential lookup key. It is not a policy dimension.
 
-Exports sort tool names, required capabilities, and resource types deterministically. The shared fixture is `fixtures/kei/tool-manifest.v2.json`. The prior schema is available only through an explicit v1 export option for the transition; new integrations should use v2.
+Exports sort tool names, required capabilities, and resource types deterministically. The shared fixture is `fixtures/kei/tool-manifest.v2.json`. The prior schema is available only through an explicit v1 export option for the transition. V2 remains the default for compatibility; v3 is available as an explicit export when the runtime/catalog typed-route contract is deployed.
+
+## Manifest v3: explicit typed dispatch routes
+
+V3 (`kei.tool-manifest/v3`) is exported explicitly with `ManifestV3`, `version=3`, or `exportKeiToolManifest(3)`. Each entry carries non-empty `service` and `source`, `operation_class`, and an explicit `route` attached to the same `ToolRegistry` entry used for dispatch. Registration identity is never inferred from tool names, empty metadata, or runtime calls. A connector route is `{ "connector_binding": { "connector_id": "..." } }` and requires non-empty `required_capabilities`; optional `resource_types` are connector-only. A harness route is `{ "harness_executor": { "executor": "...", "registration": "..." } }` and omits both connector-only fields. Plain tools remain registerable without route metadata and continue working locally; they are omitted from v3 until explicitly registered with typed metadata. No control-plane request occurs per tool decision.
+
+V2 export remains the default and unchanged.
 
 ## Exporting
 
