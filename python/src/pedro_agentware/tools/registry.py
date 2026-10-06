@@ -99,7 +99,7 @@ class ToolRegistry:
             raise ValueError("v3 registration requires non-empty service and source")
         if value.get("operation_class") not in ("read", "write"):
             raise ValueError("invalid operation_class")
-        route = value.get("route", {})
+        route = value.get("route") or {}
         connector = route.get("connector_binding")
         harness = route.get("harness_executor")
         if (connector is None) == (harness is None):
