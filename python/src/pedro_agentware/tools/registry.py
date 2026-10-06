@@ -108,9 +108,11 @@ class ToolRegistry:
             caps = value.get("required_capabilities")
             if not connector.get("connector_id", "").strip() or not caps or any(not item.strip() for item in caps):
                 raise ValueError("connector route requires binding and non-empty capabilities")
-        elif (not harness.get("executor", "").strip() or not harness.get("registration", "").strip()
-              or "required_capabilities" in value or "resource_types" in value):
-            raise ValueError("harness route requires identity and omits connector-only fields")
+            return
+        if harness is None or not harness.get("executor", "").strip() or not harness.get("registration", "").strip():
+            raise ValueError("harness route requires explicit identity")
+        if "required_capabilities" in value or "resource_types" in value:
+            raise ValueError("harness route omits connector-only fields")
 
     def clear(self) -> None:
         self._tools.clear()
