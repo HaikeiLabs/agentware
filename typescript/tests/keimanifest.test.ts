@@ -169,7 +169,7 @@ describe("KeiToolManifest", () => {
     expect(lintKeiToolManifest(raw)).toEqual([]);
   });
 
-  it("exports v3 routes only from explicit dispatch registrations", () => {
+  it("prefers a connector route when the registered tool also has local execute", () => {
     const registry = new ToolRegistry();
     registry.register(new UngovernedEchoTool(), {
       service: "local", source: "harness", operation_class: "write",
@@ -181,6 +181,10 @@ describe("KeiToolManifest", () => {
       required_capabilities: ["issue.read"],
       resource_types: [{ type: "issue", parent_type: "repository" }],
     });
+    expect(typeof registry.get("github.get_issue")?.execute).toBe("function");
+    const connectorEntry = registry.exportKeiToolManifest(3).tools[0];
+    expect(connectorEntry.route).toEqual({ connector_binding: { connector_id: "binding-1" } });
+    expect("harness_executor" in connectorEntry.route).toBe(false);
     expect(registry.exportKeiToolManifest(3)).toEqual({
       schema: "kei.tool-manifest/v3",
       tools: [

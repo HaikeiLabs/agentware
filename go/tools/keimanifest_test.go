@@ -114,7 +114,7 @@ func TestExportKeiToolManifest_EmptyRegistry(t *testing.T) {
 	}
 }
 
-func TestV3ExportUsesExplicitDispatchRegistration(t *testing.T) {
+func TestV3ConnectorRouteWinsOverLocalDispatchHandler(t *testing.T) {
 	r := NewToolRegistry()
 	r.Register(&plainTool{name: "local.echo", description: "Echo"}, KeiToolRegistration{
 		Service: "local", Source: "harness", OperationClass: "write",
@@ -137,6 +137,16 @@ func TestV3ExportUsesExplicitDispatchRegistration(t *testing.T) {
 		t.Fatalf("schema = %v", manifest["schema"])
 	}
 	entries := manifest["tools"].([]any)
+	connector := entries[0].(map[string]any)
+	if _, ok := r.Get("github.get_issue"); !ok {
+		t.Fatal("connector-bound tool lost its local dispatch handler")
+	}
+	if _, routeHasHandler := connector["route"].(map[string]any)["harness_executor"]; routeHasHandler {
+		t.Fatal("connector binding did not take precedence over the tool's harness Execute handler")
+	}
+	if _, routeHasBinding := connector["route"].(map[string]any)["connector_binding"]; !routeHasBinding {
+		t.Fatal("connector registration was not exported")
+	}
 	harness := entries[1].(map[string]any)
 	if _, ok := harness["required_capabilities"]; ok {
 		t.Fatal("harness entry contains connector capabilities")

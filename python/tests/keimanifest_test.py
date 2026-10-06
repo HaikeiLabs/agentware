@@ -164,7 +164,7 @@ def test_export_matches_fixture():
     assert manifest_str == open(fixture_path(), encoding="utf-8").read().rstrip("\n")
 
 
-def test_v3_export_uses_only_explicit_dispatch_registration():
+def test_v3_connector_route_wins_over_local_dispatch_handler():
     registry = ToolRegistry()
     registry.register(UngovernedEchoTool(), {
         "service": "local", "source": "harness", "operation_class": "write",
@@ -178,6 +178,9 @@ def test_v3_export_uses_only_explicit_dispatch_registration():
     })
     entries = json.loads(registry.export_kei_tool_manifest(version=3))["tools"]
     assert entries[0]["name"] == "github.get_issue"
+    assert isinstance(registry.get("github.get_issue")[0], GovernedAddTool)  # local execute handler remains registered
+    assert entries[0]["route"] == {"connector_binding": {"connector_id": "binding-1"}}
+    assert "harness_executor" not in entries[0]["route"]  # connector route wins
     assert entries[1]["route"] == {"harness_executor": {"executor": "pi", "registration": "local_echo"}}
     assert "required_capabilities" not in entries[1]
     assert "resource_types" not in entries[1]
