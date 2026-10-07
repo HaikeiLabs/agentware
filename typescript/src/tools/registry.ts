@@ -158,8 +158,9 @@ export class ToolRegistry {
     if (new TextEncoder().encode(JSON.stringify(args)).length > 65536 || new TextEncoder().encode(JSON.stringify(plan.context_schema)).length > 65536) throw new Error("serialized schema exceeds 64 KiB");
     if (!Array.isArray(plan.operations) || plan.operations.length < 1 || plan.operations.length > 32) throw new Error("operations must contain 1..32 entries");
     const props = (args.properties ?? {}) as Record<string, unknown>, context = (plan.context_schema.properties ?? {}) as Record<string, unknown>;
+    if (!caps.length || new Set(caps).size !== caps.length || caps.some(c=>!c.trim())) throw new Error("empty or duplicate registered capability");
     const checkRef = (v: KeiValueRef): void => {
-      if (!v || (v.from === "args" ? !!v.field || !v.pointer || !/^\/[^/]+$/.test(v.pointer) || !(v.pointer.slice(1) in props) : v.from === "context" ? !!v.pointer || !v.field || !(v.field in context) : true)) throw new Error("invalid typed ref");
+      if (!v || Object.keys(v).some(k=>!["from","pointer","field","type"].includes(k)) || (v.from === "args" ? !!v.field || !v.pointer || !/^\/[^/]+$/.test(v.pointer) || !(v.pointer.slice(1) in props) : v.from === "context" ? !!v.pointer || !v.field || !(v.field in context) : true)) throw new Error("invalid typed ref");
       const key = v.from === "args" ? v.pointer!.slice(1) : v.field!; const schema = (v.from === "args" ? props : context)[key] as any;
       if (!v.type || v.type !== schema?.type || v.type === "object" || v.type === "array") throw new Error("reference type does not match scalar schema property");
     };
@@ -179,6 +180,7 @@ export class ToolRegistry {
         const residual=template.replaceAll("{resource.id}","").replaceAll("{parent.id}","");
         if (/[{}]/.test(residual) || (resource.id && !template)) throw new Error("invalid provider resource template");
       }
+      if (!("provider_input" in op)) throw new Error("provider_input is required");
       if (new TextEncoder().encode(JSON.stringify(op.provider_input)).length > 65536) throw new Error("provider_input exceeds 64 KiB");
       checkTemplate(op.provider_input);
     }

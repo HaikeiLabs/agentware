@@ -244,6 +244,12 @@ class ToolRegistry:
         if not isinstance(ops, list) or not 1 <= len(ops) <= 32:
             raise ValueError("operations must contain 1..32 entries")
         args_props, context_props = args["properties"], context_schema["properties"]
+        if (
+            not caps
+            or len(set(caps)) != len(caps)
+            or any(not isinstance(c, str) or not c.strip() for c in caps)
+        ):
+            raise ValueError("empty or duplicate registered capability")
 
         def ref(v: Any) -> None:
             if not isinstance(v, dict) or set(v) - {"from", "pointer", "field", "type"}:
@@ -366,6 +372,8 @@ class ToolRegistry:
                 if "{" in residual or "}" in residual or (res.get("id") is not None and not text):
                     raise ValueError("invalid provider resource template")
             provider_input = op.get("provider_input")
+            if "provider_input" not in op:
+                raise ValueError("provider_input is required")
             if len(json.dumps(provider_input, separators=(",", ":")).encode()) > 65536:
                 raise ValueError("provider_input exceeds 64 KiB")
             template(provider_input)
