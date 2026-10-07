@@ -189,7 +189,7 @@ func (t *extendedGovernedTool) Examples() []ToolExample { return nil }
 func TestV4ExportMatchesFixtureAndRequiresExplicitSelection(t *testing.T) {
 	r := NewToolRegistry()
 	tool := &extendedGovernedTool{governedTool{name: "github.get_issue", description: "Fetch issue", scope: KeiScope{}}}
-	r.Register(tool, KeiToolRegistration{Service: "github", Source: "github", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "agent-1", ConnectorID: "github-1"}}, RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"repository": map[string]any{"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}}, "required": []any{"repository"}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "get-issue", Capability: "issue.read", Resource: KeiPlannedResource{Type: "issue", ID: KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}, Parent: &KeiPlannedParent{Type: "repository", ID: KeiValueRef{From: "context", Field: "repository", Type: "string"}}}, ProviderResourceTemplate: "repos/{parent.id}/issues/{resource.id}", ProviderInput: map[string]any{}}}}})
+	r.Register(tool, KeiToolRegistration{Service: "github", Source: "github", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "agent-1", ConnectorID: "github-1"}}, RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"repository": map[string]any{"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}}, "required": []any{"repository"}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "get-issue", Capability: "issue.read", Resource: &KeiPlannedResource{Type: "issue", ID: &KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}, Parent: &KeiPlannedParent{Type: "repository", ID: &KeiValueRef{From: "context", Field: "repository", Type: "string"}}}, ProviderResourceTemplate: "repos/{parent.id}/issues/{resource.id}", ProviderInput: map[string]any{}}}}})
 	if _, err := r.ExportKeiToolManifest(); err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestV4ExportMatchesFixtureAndRequiresExplicitSelection(t *testing.T) {
 func newV4TestRegistry(ref KeiValueRef, providerInput any) *ToolRegistry {
 	r := NewToolRegistry()
 	tool := &extendedGovernedTool{governedTool{name: "x", description: "x"}}
-	r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, ResourceTypes: []KeiResourceType{{Type: "item"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"ctx": map[string]any{"type": "string"}}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "one", Capability: "cap", Resource: KeiPlannedResource{Type: "item", ID: ref}, ProviderResourceTemplate: "items/{resource.id}", ProviderInput: providerInput}}}})
+	r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, ResourceTypes: []KeiResourceType{{Type: "item"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"ctx": map[string]any{"type": "string"}}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "one", Capability: "cap", Resource: &KeiPlannedResource{Type: "item", ID: &ref}, ProviderResourceTemplate: "items/{resource.id}", ProviderInput: providerInput}}}})
 	return r
 }
 
@@ -217,6 +217,38 @@ func TestV4RejectsMismatchedRefTypeAndUndeclaredContext(t *testing.T) {
 	for _, ref := range []KeiValueRef{{From: "args", Pointer: "/issue_number", Type: "string"}, {From: "context", Field: "missing", Type: "string"}} {
 		if _, err := newV4TestRegistry(ref, map[string]any{}).ExportKeiToolManifest(ManifestV4); err == nil {
 			t.Fatalf("expected invalid ref rejection: %+v", ref)
+		}
+	}
+}
+
+func TestV4SupportsResourceLessAndParentOnlyCollectionOperations(t *testing.T) {
+	makeRegistry := func(resourceTypes []KeiResourceType, operation KeiToolOperation, context map[string]any) *ToolRegistry {
+		r := NewToolRegistry()
+		tool := &extendedGovernedTool{governedTool{name: "x", description: "x"}}
+		r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, ResourceTypes: resourceTypes, Plan: &KeiToolPlan{ContextSchema: context, Operations: []KeiToolOperation{operation}}})
+		return r
+	}
+	closed := func(props map[string]any) map[string]any {
+		return map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+	}
+	if _, err := makeRegistry(nil, KeiToolOperation{ID: "no-resource", Capability: "cap", ProviderInput: map[string]any{}}, closed(map[string]any{})).ExportKeiToolManifest(ManifestV4); err != nil {
+		t.Fatalf("resource-less operation failed: %v", err)
+	}
+	parentID := KeiValueRef{From: "context", Field: "folder", Type: "string"}
+	op := KeiToolOperation{ID: "list", Capability: "cap", Resource: &KeiPlannedResource{Type: "item", Parent: &KeiPlannedParent{Type: "folder", ID: &parentID}}, ProviderResourceTemplate: "folders/{parent.id}/items", ProviderInput: map[string]any{}}
+	if _, err := makeRegistry([]KeiResourceType{{Type: "item", ParentType: "folder"}}, op, closed(map[string]any{"folder": map[string]any{"type": "string"}})).ExportKeiToolManifest(ManifestV4); err != nil {
+		t.Fatalf("parent-only collection failed: %v", err)
+	}
+}
+
+func TestV4SupportsBoundedArraySchemasAndRejectsStructuredRefs(t *testing.T) {
+	schema := map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"labels": map[string]any{"type": "array", "maxItems": 8, "items": map[string]any{"type": "string", "maxLength": 40}}}}
+	if err := validateClosedObjectSchema(schema); err != nil {
+		t.Fatalf("bounded array schema rejected: %v", err)
+	}
+	for _, ref := range []KeiValueRef{{From: "args", Pointer: "/labels", Type: "array"}, {From: "context", Field: "nested", Type: "object"}} {
+		if err := validateV4Ref(ref, map[string]any{"properties": map[string]any{"labels": map[string]any{"type": "array"}}}, map[string]any{"nested": map[string]any{"type": "object"}}); err == nil {
+			t.Fatalf("structured ref accepted: %+v", ref)
 		}
 	}
 }

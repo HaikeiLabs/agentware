@@ -104,20 +104,20 @@ type KeiToolPlan struct {
 	Operations    []KeiToolOperation `json:"operations"`
 }
 type KeiToolOperation struct {
-	ID                       string             `json:"id"`
-	Capability               string             `json:"capability"`
-	Resource                 KeiPlannedResource `json:"resource"`
-	ProviderResourceTemplate string             `json:"provider_resource_template"`
-	ProviderInput            any                `json:"provider_input"`
+	ID                       string              `json:"id"`
+	Capability               string              `json:"capability"`
+	Resource                 *KeiPlannedResource `json:"resource,omitempty"`
+	ProviderResourceTemplate string              `json:"provider_resource_template,omitempty"`
+	ProviderInput            any                 `json:"provider_input"`
 }
 type KeiPlannedResource struct {
 	Type   string            `json:"type"`
-	ID     KeiValueRef       `json:"id"`
+	ID     *KeiValueRef      `json:"id,omitempty"`
 	Parent *KeiPlannedParent `json:"parent,omitempty"`
 }
 type KeiPlannedParent struct {
-	Type string      `json:"type"`
-	ID   KeiValueRef `json:"id"`
+	Type string       `json:"type"`
+	ID   *KeiValueRef `json:"id,omitempty"`
 }
 type KeiValueRef struct {
 	From    string `json:"from"`
@@ -334,7 +334,7 @@ func validateClosedObjectSchema(schema map[string]any) error {
 	return nil
 }
 
-var v4SchemaKeywords = map[string]bool{"type": true, "properties": true, "required": true, "additionalProperties": true, "minimum": true, "maximum": true, "minLength": true, "maxLength": true, "pattern": true, "enum": true}
+var v4SchemaKeywords = map[string]bool{"type": true, "properties": true, "required": true, "additionalProperties": true, "minimum": true, "maximum": true, "minLength": true, "maxLength": true, "minItems": true, "maxItems": true, "items": true, "pattern": true, "enum": true}
 
 func validateSchemaNode(schema map[string]any, depth int) error {
 	if depth > 16 {
@@ -345,8 +345,21 @@ func validateSchemaNode(schema map[string]any, depth int) error {
 			return fmt.Errorf("unsupported schema keyword %q", key)
 		}
 	}
-	if typ, ok := schema["type"]; !ok || typ != "object" && typ != "string" && typ != "integer" && typ != "number" && typ != "boolean" {
+	if typ, ok := schema["type"]; !ok || typ != "object" && typ != "array" && typ != "string" && typ != "integer" && typ != "number" && typ != "boolean" {
 		return errors.New("unsupported or missing schema type")
+	}
+	if schema["type"] == "array" {
+		maxItems, ok := numericSchemaValue(schema["maxItems"])
+		if !ok || maxItems < 0 || maxItems > 256 {
+			return errors.New("array maxItems must be bounded to 0..256")
+		}
+		items, ok := schema["items"].(map[string]any)
+		if !ok {
+			return errors.New("array items schema must be an object")
+		}
+		if err := validateSchemaNode(items, depth+1); err != nil {
+			return err
+		}
 	}
 	if schema["type"] == "object" {
 		if schema["additionalProperties"] != false {
@@ -367,6 +380,21 @@ func validateSchemaNode(schema map[string]any, depth int) error {
 		}
 	}
 	return nil
+}
+func numericSchemaValue(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	}
+	return 0, false
 }
 func resourcePairKey(resourceType, parentType string) string {
 	return resourceType + "\x00" + parentType
@@ -408,27 +436,46 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 		}
 		ids[op.ID] = true
 		caps[op.Capability] = true
-		parentType := ""
-		if op.Resource.Parent != nil {
-			parentType = op.Resource.Parent.Type
-		}
-		if !resources[resourcePairKey(op.Resource.Type, parentType)] {
-			return errors.New("resource/parent pair is not declared")
-		}
-		for _, ref := range []KeiValueRef{op.Resource.ID} {
-			if err := validateV4Ref(ref, argsSchema, contextProps); err != nil {
-				return err
+		if op.Resource == nil {
+			if op.ProviderResourceTemplate != "" {
+				return errors.New("resource-less operation must omit provider_resource_template")
 			}
-		}
-		if op.Resource.Parent != nil {
-			if err := validateV4Ref(op.Resource.Parent.ID, argsSchema, contextProps); err != nil {
-				return err
+		} else {
+			parentType := ""
+			if op.Resource.Parent != nil {
+				parentType = op.Resource.Parent.Type
+				if op.Resource.Parent.ID == nil {
+					return errors.New("declared parent requires a typed id reference")
+				}
 			}
-		}
-		template := strings.ReplaceAll(op.ProviderResourceTemplate, "{resource.id}", "__RESOURCE_ID__")
-		template = strings.ReplaceAll(template, "{parent.id}", "__PARENT_ID__")
-		if !strings.Contains(op.ProviderResourceTemplate, "{resource.id}") || strings.ContainsAny(template, "{}") || (op.Resource.Parent != nil && !strings.Contains(op.ProviderResourceTemplate, "{parent.id}")) || (op.Resource.Parent == nil && strings.Contains(op.ProviderResourceTemplate, "{parent.id}")) {
-			return errors.New("provider resource template may interpolate only declared resource/parent ids")
+			if !resources[resourcePairKey(op.Resource.Type, parentType)] {
+				return errors.New("resource/parent pair is not declared")
+			}
+			if op.Resource.ID != nil {
+				if err := validateV4Ref(*op.Resource.ID, argsSchema, contextProps); err != nil {
+					return err
+				}
+			}
+			template := op.ProviderResourceTemplate
+			if op.Resource.ID == nil && strings.Contains(template, "{resource.id}") {
+				return errors.New("collection operation without resource.id cannot interpolate resource.id")
+			}
+			if op.Resource.Parent != nil && op.Resource.Parent.ID != nil {
+				if err := validateV4Ref(*op.Resource.Parent.ID, argsSchema, contextProps); err != nil {
+					return err
+				}
+			}
+			if template != "" {
+				if op.Resource.ID == nil && strings.Contains(template, "{resource.id}") || (op.Resource.Parent == nil || op.Resource.Parent.ID == nil) && strings.Contains(template, "{parent.id}") {
+					return errors.New("template references an unresolved resource id")
+				}
+				replaced := strings.ReplaceAll(strings.ReplaceAll(template, "{resource.id}", "__RESOURCE_ID__"), "{parent.id}", "__PARENT_ID__")
+				if strings.ContainsAny(replaced, "{}") {
+					return errors.New("provider resource template has unsupported expression")
+				}
+			} else if op.Resource.ID != nil {
+				return errors.New("resource id requires provider_resource_template")
+			}
 		}
 		if err := validateSerializedLimit(op.ProviderInput, 64*1024); err != nil {
 			return err
@@ -474,7 +521,7 @@ func validateV4Ref(ref KeiValueRef, args, context map[string]any) error {
 		return errors.New("reference field is not declared by its schema")
 	}
 	property, ok := raw.(map[string]any)
-	if !ok || ref.Type == "" || property["type"] != ref.Type {
+	if !ok || ref.Type == "" || property["type"] != ref.Type || ref.Type == "object" || ref.Type == "array" {
 		return errors.New("reference type must match its declared schema property")
 	}
 	return nil
