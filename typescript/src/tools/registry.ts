@@ -12,7 +12,14 @@ export interface KeiToolRegistration {
   route: KeiToolRoute;
   required_capabilities?: string[];
   resource_types?: KeiResourceType[];
+  plan?: KeiToolPlan;
 }
+
+export interface KeiValueRef { from: "args" | "context"; pointer?: string; field?: string }
+export interface KeiToolPlan { context_schema: Record<string, unknown>; operations: KeiToolOperation[] }
+export interface KeiToolOperation { id: string; capability: string; resource: { type: string; id: KeiValueRef; parent?: { type: string; id: KeiValueRef } }; provider_resource_template: string; provider_input: unknown }
+export interface KeiToolManifestV4 { schema: "kei.tool-manifest/v4"; tools: Array<Record<string, unknown>> }
+
 
 export interface KeiToolManifestEntry {
   name: string;
@@ -90,8 +97,10 @@ export class ToolRegistry {
 
   exportKeiToolManifest(version: 1): KeiToolManifestV1;
   exportKeiToolManifest(version: 3): KeiToolManifestV3;
+  exportKeiToolManifest(version: 4): KeiToolManifestV4;
   exportKeiToolManifest(version?: 2): KeiToolManifest;
-  exportKeiToolManifest(version: 1 | 2 | 3 = 2): KeiToolManifest | KeiToolManifestV1 | KeiToolManifestV3 {
+  exportKeiToolManifest(version: 1 | 2 | 3 | 4 = 2): KeiToolManifest | KeiToolManifestV1 | KeiToolManifestV3 | KeiToolManifestV4 {
+    if (version === 4) return this.exportV4();
     if (version === 3) return this.exportV3();
     const names = [...this.tools.keys()].filter((name) => this.isGoverned(this.tools.get(name)!)).sort();
     if (version === 1) {
@@ -111,6 +120,49 @@ export class ToolRegistry {
         description: tool.description, enabled: true };
     });
     return { schema: "kei.tool-manifest/v2", tools };
+  }
+
+  private exportV4(): KeiToolManifestV4 {
+    const tools: Array<Record<string, unknown>> = [];
+    for (const name of [...this.registrations.keys()].sort()) {
+      const r = this.registrations.get(name)!; this.validateRegistration(r);
+      const base: Record<string, unknown> = { name, service: r.service, source: r.source, operation_class: r.operation_class, route: r.route, description: this.tools.get(name)!.description, enabled: true };
+      if ("harness_executor" in r.route) {
+        if (r.plan !== undefined || r.required_capabilities !== undefined || r.resource_types !== undefined) throw new Error("harness route omits connector plan and fields");
+      } else {
+        const caps = r.required_capabilities ?? [], resources = r.resource_types ?? [], plan = r.plan;
+        const tool = this.tools.get(name)!;
+        if (!r.route.connector_binding.agent_id.trim() || !r.route.connector_binding.connector_id.trim() || !caps.length || !plan || !("inputSchema" in tool)) throw new Error("v4 connector requires binding, capabilities, plan and ExtendedTool input schema");
+        const args = (tool as unknown as {inputSchema(): Record<string, unknown>}).inputSchema();
+        this.closedSchema(args); this.closedSchema(plan.context_schema); this.validatePlan(plan, args, caps, resources);
+        base.required_capabilities = [...caps].sort(); if (resources.length) base.resource_types = [...resources].sort((a,b)=>a.type.localeCompare(b.type)||(a.parent_type??"").localeCompare(b.parent_type??""));
+        base.plan = { args_schema: args, ...plan };
+      }
+      tools.push(base);
+    }
+    return { schema: "kei.tool-manifest/v4", tools };
+  }
+
+  private closedSchema(s: unknown): asserts s is Record<string, unknown> {
+    if (!s || typeof s !== "object" || (s as any).type !== "object" || (s as any).additionalProperties !== false || !("properties" in s) || typeof (s as any).properties !== "object") throw new Error("must be a closed object schema");
+  }
+
+  private validatePlan(plan: KeiToolPlan, args: Record<string, unknown>, caps: string[], resources: KeiResourceType[]): void {
+    if (!Array.isArray(plan.operations) || plan.operations.length < 1 || plan.operations.length > 32) throw new Error("operations must contain 1..32 entries");
+    const props = (args.properties ?? {}) as Record<string, unknown>, context = (plan.context_schema.properties ?? {}) as Record<string, unknown>;
+    const checkRef = (v: KeiValueRef): void => {
+      if (v.from === "args" ? !!v.field || !v.pointer || !/^\/[^/]+$/.test(v.pointer) || !(v.pointer.slice(1) in props) : v.from === "context" ? !!v.pointer || !v.field || !(v.field in context) : true) throw new Error("invalid typed ref");
+    };
+    const ids = new Set<string>(), used = new Set<string>();
+    const checkTemplate = (v: unknown, d=0, n={value:0}): void => { if (++n.value > 256 || d > 16) throw new Error("provider_input bounds exceeded"); if (Array.isArray(v)) v.forEach(x=>checkTemplate(x,d+1,n)); else if (v && typeof v === "object") { const o=v as any; if ("from" in o) checkRef(o); else Object.values(o).forEach(x=>checkTemplate(x,d+1,n)); } else if (v !== null && !["string","number","boolean"].includes(typeof v)) throw new Error("unsupported provider_input value"); };
+    for (const op of plan.operations) {
+      if (!op.id || ids.has(op.id) || !caps.includes(op.capability)) throw new Error("invalid operation id/capability"); ids.add(op.id); used.add(op.capability);
+      if (!resources.some(x=>x.type===op.resource.type && (x.parent_type??undefined)===(op.resource.parent?.type))) throw new Error("resource/parent pair is not declared");
+      checkRef(op.resource.id); if (op.resource.parent) checkRef(op.resource.parent.id);
+      const t=op.provider_resource_template; if (!t.includes("{resource.id}") || t.replaceAll("{resource.id}","").replaceAll("{parent.id}","").includes("{" ) || t.includes("{parent.id}") !== !!op.resource.parent) throw new Error("invalid provider resource template");
+      checkTemplate(op.provider_input);
+    }
+    if (used.size !== new Set(caps).size || caps.some(c=>!used.has(c))) throw new Error("operation capability set must exactly cover registered capabilities");
   }
 
   private exportV3(): KeiToolManifestV3 {
