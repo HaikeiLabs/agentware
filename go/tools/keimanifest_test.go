@@ -231,8 +231,15 @@ func TestV4SupportsResourceLessAndParentOnlyCollectionOperations(t *testing.T) {
 	closed := func(props map[string]any) map[string]any {
 		return map[string]any{"type": "object", "properties": props, "additionalProperties": false}
 	}
-	if _, err := makeRegistry(nil, KeiToolOperation{ID: "no-resource", Capability: "cap", ProviderInput: map[string]any{}}, closed(map[string]any{})).ExportKeiToolManifest(ManifestV4); err != nil {
+	resourceLess := KeiToolOperation{ID: "no-resource", Capability: "cap", ProviderResourceTemplate: "workspace/settings", ProviderInput: map[string]any{}}
+	if _, err := makeRegistry(nil, resourceLess, closed(map[string]any{})).ExportKeiToolManifest(ManifestV4); err != nil {
 		t.Fatalf("resource-less operation failed: %v", err)
+	}
+	for _, template := range []string{"", "   ", "workspace/{id}", "workspace/{resource.id}"} {
+		resourceLess.ProviderResourceTemplate = template
+		if _, err := makeRegistry(nil, resourceLess, closed(map[string]any{})).ExportKeiToolManifest(ManifestV4); err == nil {
+			t.Fatalf("invalid resource-less provider template accepted: %q", template)
+		}
 	}
 	parentID := KeiValueRef{From: "context", Field: "folder", Type: "string"}
 	op := KeiToolOperation{ID: "list", Capability: "cap", Resource: &KeiPlannedResource{Type: "item", Parent: &KeiPlannedParent{Type: "folder", ID: &parentID}}, ProviderResourceTemplate: "folders/{parent.id}/items", ProviderInput: map[string]any{}}

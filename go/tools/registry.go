@@ -437,8 +437,12 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 		ids[op.ID] = true
 		caps[op.Capability] = true
 		if op.Resource == nil {
-			if op.ProviderResourceTemplate != "" {
-				return errors.New("resource-less operation must omit provider_resource_template")
+			template := strings.TrimSpace(op.ProviderResourceTemplate)
+			if template == "" {
+				return errors.New("resource-less operation requires a literal provider_resource_template")
+			}
+			if strings.ContainsAny(template, "{}") {
+				return errors.New("resource-less provider_resource_template must not contain placeholders")
 			}
 		} else {
 			parentType := ""
