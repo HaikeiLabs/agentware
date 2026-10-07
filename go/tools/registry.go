@@ -123,6 +123,7 @@ type KeiValueRef struct {
 	From    string `json:"from"`
 	Pointer string `json:"pointer,omitempty"`
 	Field   string `json:"field,omitempty"`
+	Type    string `json:"type"`
 }
 
 type ToolRoute struct {
@@ -299,6 +300,12 @@ func (r *ToolRegistry) exportV4() ([]byte, error) {
 		if err := validateClosedObjectSchema(reg.Plan.ContextSchema); err != nil {
 			return nil, fmt.Errorf("%s context_schema: %w", name, err)
 		}
+		if err := validateSerializedLimit(argsSchema, 64*1024); err != nil {
+			return nil, fmt.Errorf("%s args_schema: %w", name, err)
+		}
+		if err := validateSerializedLimit(reg.Plan.ContextSchema, 64*1024); err != nil {
+			return nil, fmt.Errorf("%s context_schema: %w", name, err)
+		}
 		if err := validateV4Plan(reg, reg.Plan, argsSchema); err != nil {
 			return nil, fmt.Errorf("%s plan: %w", name, err)
 		}
@@ -318,14 +325,60 @@ func (r *ToolRegistry) exportV4() ([]byte, error) {
 }
 
 func validateClosedObjectSchema(schema map[string]any) error {
-	if schema == nil || schema["type"] != "object" || schema["additionalProperties"] != false {
+	if err := validateSchemaNode(schema, 0); err != nil {
+		return err
+	}
+	if schema["type"] != "object" || schema["additionalProperties"] != false {
 		return errors.New("must be a closed object schema")
 	}
-	props, ok := schema["properties"].(map[string]any)
-	if !ok {
-		return errors.New("properties must be an object")
+	return nil
+}
+
+var v4SchemaKeywords = map[string]bool{"type": true, "properties": true, "required": true, "additionalProperties": true, "minimum": true, "maximum": true, "minLength": true, "maxLength": true, "pattern": true, "enum": true}
+
+func validateSchemaNode(schema map[string]any, depth int) error {
+	if depth > 16 {
+		return errors.New("schema nesting exceeds 16")
 	}
-	_ = props
+	for key := range schema {
+		if !v4SchemaKeywords[key] {
+			return fmt.Errorf("unsupported schema keyword %q", key)
+		}
+	}
+	if typ, ok := schema["type"]; !ok || typ != "object" && typ != "string" && typ != "integer" && typ != "number" && typ != "boolean" {
+		return errors.New("unsupported or missing schema type")
+	}
+	if schema["type"] == "object" {
+		if schema["additionalProperties"] != false {
+			return errors.New("nested object schema must be closed")
+		}
+		props, ok := schema["properties"].(map[string]any)
+		if !ok {
+			return errors.New("object properties must be an object")
+		}
+		for _, raw := range props {
+			child, ok := raw.(map[string]any)
+			if !ok {
+				return errors.New("property schema must be an object")
+			}
+			if err := validateSchemaNode(child, depth+1); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+func resourcePairKey(resourceType, parentType string) string {
+	return resourceType + "\x00" + parentType
+}
+func validateSerializedLimit(value any, max int) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	if len(encoded) > max {
+		return fmt.Errorf("serialized value exceeds %d bytes", max)
+	}
 	return nil
 }
 func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[string]any) error {
@@ -341,7 +394,7 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 	}
 	resources := map[string]bool{}
 	for _, r := range reg.ResourceTypes {
-		key := r.Type + "\\x00" + r.ParentType
+		key := resourcePairKey(r.Type, r.ParentType)
 		if r.Type == "" || resources[key] {
 			return errors.New("empty or duplicate registered resource type")
 		}
@@ -359,7 +412,7 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 		if op.Resource.Parent != nil {
 			parentType = op.Resource.Parent.Type
 		}
-		if !resources[op.Resource.Type+"\\x00"+parentType] {
+		if !resources[resourcePairKey(op.Resource.Type, parentType)] {
 			return errors.New("resource/parent pair is not declared")
 		}
 		for _, ref := range []KeiValueRef{op.Resource.ID} {
@@ -374,10 +427,14 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 		}
 		template := strings.ReplaceAll(op.ProviderResourceTemplate, "{resource.id}", "__RESOURCE_ID__")
 		template = strings.ReplaceAll(template, "{parent.id}", "__PARENT_ID__")
-		if !strings.Contains(template, "__RESOURCE_ID__") || strings.ContainsAny(template, "{}") || (op.Resource.Parent != nil && !strings.Contains(template, "__PARENT_ID__")) || (op.Resource.Parent == nil && strings.Contains(template, "__PARENT_ID__")) {
+		if !strings.Contains(op.ProviderResourceTemplate, "{resource.id}") || strings.ContainsAny(template, "{}") || (op.Resource.Parent != nil && !strings.Contains(op.ProviderResourceTemplate, "{parent.id}")) || (op.Resource.Parent == nil && strings.Contains(op.ProviderResourceTemplate, "{parent.id}")) {
 			return errors.New("provider resource template may interpolate only declared resource/parent ids")
 		}
-		if err := validateTemplateValue(op.ProviderInput, contextProps, argsSchema, 0); err != nil {
+		if err := validateSerializedLimit(op.ProviderInput, 64*1024); err != nil {
+			return err
+		}
+		nodes := 0
+		if err := validateTemplateValue(op.ProviderInput, contextProps, argsSchema, 0, &nodes); err != nil {
 			return err
 		}
 	}
@@ -401,6 +458,7 @@ func validateV4Ref(ref KeiValueRef, args, context map[string]any) error {
 			return errors.New("args refs require a direct top-level JSON Pointer")
 		}
 		key = strings.TrimPrefix(ref.Pointer, "/")
+		key = strings.ReplaceAll(strings.ReplaceAll(key, "~1", "/"), "~0", "~")
 		props, _ = args["properties"].(map[string]any)
 	case "context":
 		if ref.Pointer != "" || strings.TrimSpace(ref.Field) == "" {
@@ -411,39 +469,62 @@ func validateV4Ref(ref KeiValueRef, args, context map[string]any) error {
 	default:
 		return errors.New("reference from must be args or context")
 	}
-	if _, ok := props[key]; !ok {
+	raw, ok := props[key]
+	if !ok {
 		return errors.New("reference field is not declared by its schema")
+	}
+	property, ok := raw.(map[string]any)
+	if !ok || ref.Type == "" || property["type"] != ref.Type {
+		return errors.New("reference type must match its declared schema property")
 	}
 	return nil
 }
-func validateTemplateValue(v any, context, args map[string]any, depth int) error {
+
+func validateTemplateValue(v any, context, args map[string]any, depth int, nodes *int) error {
+	*nodes = *nodes + 1
+	if *nodes > 256 {
+		return errors.New("provider_input template exceeds 256 nodes")
+	}
 	if depth > 16 {
 		return errors.New("provider_input nesting exceeds 16")
 	}
 	switch x := v.(type) {
 	case map[string]any:
-		if _, ok := x["from"]; ok {
-			b, e := json.Marshal(x)
-			if e != nil {
-				return e
+		if raw, ok := x["ref"]; ok {
+			if len(x) != 1 {
+				return errors.New("provider_input ref wrapper has unknown keys")
+			}
+			fields, ok := raw.(map[string]any)
+			if !ok {
+				return errors.New("ref must be an object")
+			}
+			allowed := map[string]bool{"from": true, "pointer": true, "field": true, "type": true}
+			for k := range fields {
+				if !allowed[k] {
+					return fmt.Errorf("unknown ref key %q", k)
+				}
+			}
+			b, err := json.Marshal(fields)
+			if err != nil {
+				return err
 			}
 			var ref KeiValueRef
-			if e = json.Unmarshal(b, &ref); e != nil {
-				return e
-			}
-			if len(x) != 2 {
-				return errors.New("reference must contain only from and pointer/field")
+			if err = json.Unmarshal(b, &ref); err != nil {
+				return err
 			}
 			return validateV4Ref(ref, args, context)
 		}
+		if _, ok := x["from"]; ok {
+			return errors.New("provider_input refs must use the ref wrapper")
+		}
 		for _, item := range x {
-			if err := validateTemplateValue(item, context, args, depth+1); err != nil {
+			if err := validateTemplateValue(item, context, args, depth+1, nodes); err != nil {
 				return err
 			}
 		}
 	case []any:
 		for _, item := range x {
-			if err := validateTemplateValue(item, context, args, depth+1); err != nil {
+			if err := validateTemplateValue(item, context, args, depth+1, nodes); err != nil {
 				return err
 			}
 		}

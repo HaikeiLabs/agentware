@@ -58,13 +58,15 @@
               "type": "issue",
               "id": {
                 "from": "args",
-                "pointer": "/issue_number"
+                "pointer": "/issue_number",
+                "type": "integer"
               },
               "parent": {
                 "type": "repository",
                 "id": {
                   "from": "context",
-                  "field": "repository"
+                  "field": "repository",
+                  "type": "string"
                 }
               }
             },
