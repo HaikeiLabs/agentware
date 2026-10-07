@@ -15,9 +15,9 @@ export interface KeiToolRegistration {
   plan?: KeiToolPlan;
 }
 
-export interface KeiValueRef { from: "args" | "context"; pointer?: string; field?: string }
+export interface KeiValueRef { from: "args" | "context"; pointer?: string; field?: string; type: string }
 export interface KeiToolPlan { context_schema: Record<string, unknown>; operations: KeiToolOperation[] }
-export interface KeiToolOperation { id: string; capability: string; resource: { type: string; id: KeiValueRef; parent?: { type: string; id: KeiValueRef } }; provider_resource_template: string; provider_input: unknown }
+export interface KeiToolOperation { id: string; capability: string; resource?: { type: string; id?: KeiValueRef; parent?: { type: string; id?: KeiValueRef } }; provider_resource_template?: string; provider_input: unknown }
 export interface KeiToolManifestV4 { schema: "kei.tool-manifest/v4"; tools: Array<Record<string, unknown>> }
 
 
@@ -144,22 +144,42 @@ export class ToolRegistry {
   }
 
   private closedSchema(s: unknown): asserts s is Record<string, unknown> {
-    if (!s || typeof s !== "object" || (s as any).type !== "object" || (s as any).additionalProperties !== false || !("properties" in s) || typeof (s as any).properties !== "object") throw new Error("must be a closed object schema");
+    const allowed = new Set(["type","properties","required","additionalProperties","minimum","maximum","minLength","maxLength","minItems","maxItems","items","pattern","enum"]);
+    const visit = (v: any, depth=0): void => {
+      if (!v || typeof v !== "object" || Array.isArray(v) || depth > 16 || Object.keys(v).some(k=>!allowed.has(k))) throw new Error("unsupported schema keyword or nesting exceeds 16");
+      if (!["object","array","string","integer","number","boolean"].includes(v.type)) throw new Error("unsupported or missing schema type");
+      if (v.type === "object") { if (v.additionalProperties !== false || !v.properties || typeof v.properties !== "object" || !Array.isArray(v.required ?? []) || (v.required ?? []).some((k:string)=>!(k in v.properties))) throw new Error("object schema must be closed with properties"); Object.values(v.properties).forEach(x=>visit(x,depth+1)); }
+      if (v.type === "array") { if (!Number.isInteger(v.maxItems) || v.maxItems < 0 || v.maxItems > 256 || !v.items) throw new Error("array schema requires bounded maxItems and items"); visit(v.items,depth+1); }
+    };
+    visit(s); if ((s as any).type !== "object") throw new Error("must be a closed object schema");
   }
 
   private validatePlan(plan: KeiToolPlan, args: Record<string, unknown>, caps: string[], resources: KeiResourceType[]): void {
+    if (new TextEncoder().encode(JSON.stringify(args)).length > 65536 || new TextEncoder().encode(JSON.stringify(plan.context_schema)).length > 65536) throw new Error("serialized schema exceeds 64 KiB");
     if (!Array.isArray(plan.operations) || plan.operations.length < 1 || plan.operations.length > 32) throw new Error("operations must contain 1..32 entries");
     const props = (args.properties ?? {}) as Record<string, unknown>, context = (plan.context_schema.properties ?? {}) as Record<string, unknown>;
     const checkRef = (v: KeiValueRef): void => {
-      if (v.from === "args" ? !!v.field || !v.pointer || !/^\/[^/]+$/.test(v.pointer) || !(v.pointer.slice(1) in props) : v.from === "context" ? !!v.pointer || !v.field || !(v.field in context) : true) throw new Error("invalid typed ref");
+      if (!v || (v.from === "args" ? !!v.field || !v.pointer || !/^\/[^/]+$/.test(v.pointer) || !(v.pointer.slice(1) in props) : v.from === "context" ? !!v.pointer || !v.field || !(v.field in context) : true)) throw new Error("invalid typed ref");
+      const key = v.from === "args" ? v.pointer!.slice(1) : v.field!; const schema = (v.from === "args" ? props : context)[key] as any;
+      if (!v.type || v.type !== schema?.type || v.type === "object" || v.type === "array") throw new Error("reference type does not match scalar schema property");
     };
     const ids = new Set<string>(), used = new Set<string>();
-    const checkTemplate = (v: unknown, d=0, n={value:0}): void => { if (++n.value > 256 || d > 16) throw new Error("provider_input bounds exceeded"); if (Array.isArray(v)) v.forEach(x=>checkTemplate(x,d+1,n)); else if (v && typeof v === "object") { const o=v as any; if ("from" in o) checkRef(o); else Object.values(o).forEach(x=>checkTemplate(x,d+1,n)); } else if (v !== null && !["string","number","boolean"].includes(typeof v)) throw new Error("unsupported provider_input value"); };
+    const checkTemplate = (v: unknown, d=0, n={value:0}): void => { if (++n.value > 256 || d > 16) throw new Error("provider_input bounds exceeded"); if (Array.isArray(v)) v.forEach(x=>checkTemplate(x,d+1,n)); else if (v && typeof v === "object") { const o=v as any; if ("ref" in o) { if (Object.keys(o).length !== 1) throw new Error("provider_input ref wrapper has unknown keys"); checkRef(o.ref); } else if ("from" in o) throw new Error("provider_input refs must use ref wrapper"); else Object.values(o).forEach(x=>checkTemplate(x,d+1,n)); } else if (v !== null && !["string","number","boolean"].includes(typeof v)) throw new Error("unsupported provider_input value"); };
     for (const op of plan.operations) {
-      if (!op.id || ids.has(op.id) || !caps.includes(op.capability)) throw new Error("invalid operation id/capability"); ids.add(op.id); used.add(op.capability);
-      if (!resources.some(x=>x.type===op.resource.type && (x.parent_type??undefined)===(op.resource.parent?.type))) throw new Error("resource/parent pair is not declared");
-      checkRef(op.resource.id); if (op.resource.parent) checkRef(op.resource.parent.id);
-      const t=op.provider_resource_template; if (!t.includes("{resource.id}") || t.replaceAll("{resource.id}","").replaceAll("{parent.id}","").includes("{" ) || t.includes("{parent.id}") !== !!op.resource.parent) throw new Error("invalid provider resource template");
+      if (!op.id || ids.has(op.id) || !caps.includes(op.capability) || Object.keys(op).some(k=>!["id","capability","resource","provider_resource_template","provider_input"].includes(k))) throw new Error("invalid operation id/capability/keys"); ids.add(op.id); used.add(op.capability);
+      const resource = op.resource; const template = op.provider_resource_template ?? "";
+      if (!resource) { if (template) throw new Error("resource-less operation must omit provider_resource_template"); }
+      else {
+        const parent = resource.parent;
+        if (!resources.some(x=>x.type===resource.type && (x.parent_type??undefined)===(parent?.type))) throw new Error("resource/parent pair is not declared");
+        if (resource.id) checkRef(resource.id); if (parent?.id) checkRef(parent.id);
+        if (!resource.id && template.includes("{resource.id}")) throw new Error("unresolved resource id");
+        if (!parent?.id && template.includes("{parent.id}")) throw new Error("unresolved parent id");
+        if (!resource.id && !parent) throw new Error("resource operation requires id or parent");
+        const residual=template.replaceAll("{resource.id}","").replaceAll("{parent.id}","");
+        if (/[{}]/.test(residual) || (resource.id && !template)) throw new Error("invalid provider resource template");
+      }
+      if (new TextEncoder().encode(JSON.stringify(op.provider_input)).length > 65536) throw new Error("provider_input exceeds 64 KiB");
       checkTemplate(op.provider_input);
     }
     if (used.size !== new Set(caps).size || caps.some(c=>!used.has(c))) throw new Error("operation capability set must exactly cover registered capabilities");

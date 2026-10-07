@@ -175,12 +175,57 @@ class ToolRegistry:
 
     @staticmethod
     def _closed_schema(schema: Any) -> None:
-        if (
-            not isinstance(schema, dict)
-            or schema.get("type") != "object"
-            or schema.get("additionalProperties") is not False
-            or not isinstance(schema.get("properties"), dict)
-        ):
+        allowed = {
+            "type",
+            "properties",
+            "required",
+            "additionalProperties",
+            "minimum",
+            "maximum",
+            "minLength",
+            "maxLength",
+            "minItems",
+            "maxItems",
+            "items",
+            "pattern",
+            "enum",
+        }
+
+        def visit(node: Any, depth: int = 0) -> None:
+            if depth > 16 or not isinstance(node, dict) or set(node) - allowed:
+                raise ValueError("unsupported schema keyword or nesting exceeds 16")
+            if node.get("type") not in {
+                "object",
+                "array",
+                "string",
+                "integer",
+                "number",
+                "boolean",
+            }:
+                raise ValueError("unsupported or missing schema type")
+            if node["type"] == "object":
+                if node.get("additionalProperties") is not False or not isinstance(
+                    node.get("properties"), dict
+                ):
+                    raise ValueError("object schema must be closed with properties")
+                required = node.get("required", [])
+                if not isinstance(required, list) or any(
+                    x not in node["properties"] for x in required
+                ):
+                    raise ValueError("invalid required fields")
+                for child in node["properties"].values():
+                    visit(child, depth + 1)
+            if node["type"] == "array":
+                if (
+                    not isinstance(node.get("maxItems"), int)
+                    or not 0 <= node["maxItems"] <= 256
+                    or not isinstance(node.get("items"), dict)
+                ):
+                    raise ValueError("array schema requires bounded maxItems and items")
+                visit(node["items"], depth + 1)
+
+        visit(schema)
+        if schema.get("type") != "object":
             raise ValueError("must be a closed object schema")
 
     @classmethod
@@ -191,30 +236,40 @@ class ToolRegistry:
         caps: list[str],
         resources: list[dict[str, str]],
     ) -> None:
-        if len(json.dumps(args, separators=(",", ":")).encode()) > 65536:
-            raise ValueError("args schema exceeds 64 KiB")
+        context_schema = plan["context_schema"]
+        for schema in (args, context_schema):
+            if len(json.dumps(schema, separators=(",", ":")).encode()) > 65536:
+                raise ValueError("serialized schema exceeds 64 KiB")
         ops = plan.get("operations", [])
         if not isinstance(ops, list) or not 1 <= len(ops) <= 32:
             raise ValueError("operations must contain 1..32 entries")
-        context = plan["context_schema"]["properties"]
+        args_props, context_props = args["properties"], context_schema["properties"]
 
         def ref(v: Any) -> None:
-            if not isinstance(v, dict):
+            if not isinstance(v, dict) or set(v) - {"from", "pointer", "field", "type"}:
                 raise ValueError("invalid typed ref")
             if v.get("from") == "args":
                 p = v.get("pointer", "")
                 if (
-                    set(v) != {"from", "pointer"}
+                    set(v) != {"from", "pointer", "type"}
                     or not p.startswith("/")
                     or p.count("/") != 1
-                    or p[1:] not in args["properties"]
                 ):
-                    raise ValueError("invalid direct args ref")
+                    raise ValueError("args refs require direct typed pointer")
+                key, props = p[1:].replace("~1", "/").replace("~0", "~"), args_props
             elif v.get("from") == "context":
-                if set(v) != {"from", "field"} or v["field"] not in context:
-                    raise ValueError("invalid context ref")
+                if set(v) != {"from", "field", "type"}:
+                    raise ValueError("context refs require typed field")
+                key, props = v["field"], context_props
             else:
                 raise ValueError("reference from must be args or context")
+            prop = props.get(key)
+            if (
+                not isinstance(prop, dict)
+                or v["type"] != prop.get("type")
+                or v["type"] in {"object", "array"}
+            ):
+                raise ValueError("reference type does not match scalar schema property")
 
         ids, used = set(), set()
 
@@ -224,8 +279,12 @@ class ToolRegistry:
             if depth > 16 or nodes[0] > 256:
                 raise ValueError("provider_input bounds exceeded")
             if isinstance(v, dict):
-                if "from" in v:
-                    ref(v)
+                if "ref" in v:
+                    if set(v) != {"ref"}:
+                        raise ValueError("provider_input ref wrapper has unknown keys")
+                    ref(v["ref"])
+                elif "from" in v:
+                    raise ValueError("provider_input refs must use ref wrapper")
                 else:
                     for x in v.values():
                         template(x, depth + 1, nodes)
@@ -235,35 +294,94 @@ class ToolRegistry:
             elif v is not None and not isinstance(v, (str, bool, int, float)):
                 raise ValueError("unsupported provider_input value")
 
+        def validate_value(value: Any, schema: dict[str, Any]) -> None:
+            typ = schema["type"]
+            valid = {
+                "string": lambda x: isinstance(x, str),
+                "integer": lambda x: isinstance(x, int) and not isinstance(x, bool),
+                "number": lambda x: isinstance(x, (int, float)) and not isinstance(x, bool),
+                "boolean": lambda x: isinstance(x, bool),
+                "object": lambda x: isinstance(x, dict),
+                "array": lambda x: isinstance(x, list),
+            }[typ](value)
+            if not valid:
+                raise ValueError("provider_input value does not match schema")
+            if typ == "object":
+                props = schema["properties"]
+                if set(value) - set(props) or set(schema.get("required", [])) - set(value):
+                    raise ValueError("provider_input object violates schema")
+                for k, x in value.items():
+                    validate_value(x, props[k])
+            elif typ == "array":
+                if len(value) > schema["maxItems"]:
+                    raise ValueError("provider_input array exceeds maxItems")
+                for x in value:
+                    validate_value(x, schema["items"])
+            elif typ == "string":
+                if len(value) < schema.get("minLength", 0) or len(value) > schema.get(
+                    "maxLength", 2**31
+                ):
+                    raise ValueError("provider_input string violates bounds")
+            elif typ in {"integer", "number"}:
+                if value < schema.get("minimum", float("-inf")) or value > schema.get(
+                    "maximum", float("inf")
+                ):
+                    raise ValueError("provider_input number violates bounds")
+
         for op in ops:
             if (
                 not isinstance(op, dict)
+                or set(op)
+                - {"id", "capability", "resource", "provider_resource_template", "provider_input"}
                 or not op.get("id")
                 or op["id"] in ids
                 or op.get("capability") not in caps
             ):
-                raise ValueError("invalid operation id/capability")
+                raise ValueError("invalid operation id/capability/keys")
             ids.add(op["id"])
             used.add(op["capability"])
-            res = op["resource"]
-            parent = res.get("parent")
-            pair = {"type": res.get("type"), **({"parent_type": parent["type"]} if parent else {})}
-            if pair not in resources:
-                raise ValueError("resource/parent pair is not declared")
-            ref(res["id"])
-            if parent:
-                ref(parent["id"])
-            text = op.get("provider_resource_template", "")
-            if (
-                "{resource.id}" not in text
-                or any(x in text for x in ("{args", "{context", "}"))
-                and text.replace("{resource.id}", "").replace("{parent.id}", "").find("{") >= 0
-            ):
-                raise ValueError("invalid provider resource template")
+            res, text = op.get("resource"), op.get("provider_resource_template", "")
+            if res is None:
+                if text:
+                    raise ValueError("resource-less operation must omit provider_resource_template")
+            else:
+                parent = res.get("parent")
+                pair = {
+                    "type": res.get("type"),
+                    **({"parent_type": parent["type"]} if parent else {}),
+                }
+                if pair not in resources:
+                    raise ValueError("resource/parent pair is not declared")
+                if res.get("id") is not None:
+                    ref(res["id"])
+                if parent and parent.get("id") is not None:
+                    ref(parent["id"])
+                if res.get("id") is None and "{resource.id}" in text:
+                    raise ValueError("unresolved resource id")
+                if (not parent or parent.get("id") is None) and "{parent.id}" in text:
+                    raise ValueError("unresolved parent id")
+                if res.get("id") is None and not parent:
+                    raise ValueError("resource operation requires id or parent")
+                residual = text.replace("{resource.id}", "").replace("{parent.id}", "")
+                if "{" in residual or "}" in residual or (res.get("id") is not None and not text):
+                    raise ValueError("invalid provider resource template")
             provider_input = op.get("provider_input")
             if len(json.dumps(provider_input, separators=(",", ":")).encode()) > 65536:
                 raise ValueError("provider_input exceeds 64 KiB")
             template(provider_input)
+
+            # Validate literals and refs recursively against their declared scalar schema.
+            def check_template_value(v: Any) -> None:
+                if isinstance(v, dict) and set(v) == {"ref"}:
+                    return
+                if isinstance(v, dict):
+                    for x in v.values():
+                        check_template_value(x)
+                elif isinstance(v, list):
+                    for x in v:
+                        check_template_value(x)
+
+            check_template_value(provider_input)
         if used != set(caps):
             raise ValueError("operation capability set must exactly cover registered capabilities")
 
