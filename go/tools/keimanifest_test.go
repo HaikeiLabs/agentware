@@ -179,6 +179,42 @@ func TestV3ExportRejectsEmptyService(t *testing.T) {
 	}
 }
 
+type extendedGovernedTool struct{ governedTool }
+
+func (t *extendedGovernedTool) InputSchema() map[string]any {
+	return map[string]any{"type": "object", "properties": map[string]any{"issue_number": map[string]any{"type": "integer", "minimum": 1}}, "required": []any{"issue_number"}, "additionalProperties": false}
+}
+func (t *extendedGovernedTool) Examples() []ToolExample { return nil }
+
+func TestV4ExportMatchesFixtureAndRequiresExplicitSelection(t *testing.T) {
+	r := NewToolRegistry()
+	tool := &extendedGovernedTool{governedTool{name: "github.get_issue", description: "Fetch issue", scope: KeiScope{}}}
+	r.Register(tool, KeiToolRegistration{Service: "github", Source: "github", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "agent-1", ConnectorID: "github-1"}}, RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"repository": map[string]any{"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}}, "required": []any{"repository"}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "get-issue", Capability: "issue.read", Resource: KeiPlannedResource{Type: "issue", ID: KeiValueRef{From: "args", Pointer: "/issue_number"}, Parent: &KeiPlannedParent{Type: "repository", ID: KeiValueRef{From: "context", Field: "repository"}}}, ProviderResourceTemplate: "repos/{parent.id}/issues/{resource.id}", ProviderInput: map[string]any{}}}}})
+	if _, err := r.ExportKeiToolManifest(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.ExportKeiToolManifest(ManifestV4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "kei", "tool-manifest.v4.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(bytes.TrimSpace(got), bytes.TrimSpace(fixture)) {
+		t.Fatalf("v4 output differs from fixture\n%s", got)
+	}
+}
+
+func TestV4RejectsInvalidPlan(t *testing.T) {
+	r := NewToolRegistry()
+	tool := &extendedGovernedTool{governedTool{name: "x", description: "x"}}
+	r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "one", Capability: "other"}}}})
+	if _, err := r.ExportKeiToolManifest(ManifestV4); err == nil {
+		t.Fatal("expected undeclared capability to fail")
+	}
+}
+
 func TestV1ExportRequiresExplicitOption(t *testing.T) {
 	r := NewToolRegistry()
 	r.Register(&governedTool{name: "github.get_issue", description: "get issue", scope: KeiScope{Source: "github", Service: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}}, OperationClass: "read"}})

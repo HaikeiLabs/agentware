@@ -24,7 +24,13 @@ The shared v3 wire fixture is `fixtures/kei/tool-manifest.v3.json`.
 
 V3 (`kei.tool-manifest/v3`) is exported explicitly with `ManifestV3`, `version=3`, or `exportKeiToolManifest(3)`. Each entry carries non-empty `service` and `source`, `operation_class`, and an explicit `route` attached to the same `ToolRegistry` entry used for dispatch. Registration identity is never inferred from tool names, empty metadata, or runtime calls. A connector route is `{ "connector_binding": { "agent_id": "...", "connector_id": "..." } }` and requires non-empty `required_capabilities`; optional `resource_types` are connector-only. Both IDs are explicit trusted registration metadata, never inferred from the caller/default agent or tool name. At sync, the catalog verifies that the agent is assigned to the authenticated runtime installation and that the exact workspace/agent/connector binding row grants every declared required capability; it never unions permissions across agents or bindings. Invalid, absent, unassigned, or insufficient bindings fail closed. A harness route is `{ "harness_executor": { "executor": "...", "registration": "..." } }` and omits both connector-only fields. A tool still has its local dispatch handler when its trusted registration selects `connector_binding`; v3 exports only the connector route, so connector routing takes precedence over its harness `execute` handler. Plain tools remain registerable without route metadata and continue working locally; they are omitted from v3 until explicitly registered with typed metadata. No control-plane request occurs per tool decision.
 
-V2 export remains the default and unchanged.
+V2 export remains the default and unchanged. V3 remains unchanged.
+
+## Manifest v4: declarative connector plans
+
+V4 is an explicit export (`ManifestV4` in Go; `version=4` in Python; `exportKeiToolManifest(4)` in TypeScript). Connector registrations must include a declarative `plan`; export takes `args_schema` from the registered tool's closed `InputSchema()`, and validates the plan against the registration's required capabilities and resource/parent declarations. The context schema is a separate closed object schema. Each operation has a unique ID, a declared capability and resource pair, and derives IDs through direct args pointers or allowlisted context fields. Provider-resource templates interpolate only `{resource.id}` and, when declared, `{parent.id}`. Provider input is literal JSON or recursive direct references. Harness-native routes carry no connector plan.
+
+The shared v4 fixture is `fixtures/kei/tool-manifest.v4.json`. V2 remains the default; V1, V2, and V3 wire formats are unchanged.
 
 ## Exporting
 
