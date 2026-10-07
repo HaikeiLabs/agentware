@@ -253,6 +253,33 @@ func TestV4SupportsBoundedArraySchemasAndRejectsStructuredRefs(t *testing.T) {
 	}
 }
 
+func TestV4ProviderResourceTemplateMustBindDeclaredIDs(t *testing.T) {
+	ref := KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}
+	for _, template := range []string{"issues/fixed", "issues/{resource.id}/parents/{parent.id}", "issues/{resource.id}/{unsupported}"} {
+		r := newV4TestRegistry(ref, map[string]any{})
+		r.registrations["x"].Plan.Operations[0].ProviderResourceTemplate = template
+		if _, err := r.ExportKeiToolManifest(ManifestV4); err == nil {
+			t.Fatalf("expected template rejection: %q", template)
+		}
+	}
+	r := newV4TestRegistry(ref, map[string]any{})
+	r.registrations["x"].Plan.Operations[0].ProviderResourceTemplate = "items/{resource.id}"
+	if _, err := r.ExportKeiToolManifest(ManifestV4); err != nil {
+		t.Fatalf("bound resource template rejected: %v", err)
+	}
+	// A declared collection resource with no IDs may use its provider's literal collection path.
+	r = newV4TestRegistry(ref, map[string]any{})
+	op := &r.registrations["x"].Plan.Operations[0]
+	op.Resource.ID = nil
+	op.ProviderResourceTemplate = "items"
+	reg := r.registrations["x"]
+	reg.ResourceTypes = []KeiResourceType{{Type: "item"}}
+	r.registrations["x"] = reg
+	if _, err := r.ExportKeiToolManifest(ManifestV4); err != nil {
+		t.Fatalf("literal collection path rejected: %v", err)
+	}
+}
+
 func TestV4SchemaRejectsNestedOpenObjectsAndUnsupportedKeywords(t *testing.T) {
 	for _, schema := range []map[string]any{
 		{"type": "object", "additionalProperties": false, "properties": map[string]any{"nested": map[string]any{"type": "object", "properties": map[string]any{}}}},

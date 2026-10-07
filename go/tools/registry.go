@@ -457,24 +457,19 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 				}
 			}
 			template := op.ProviderResourceTemplate
-			if op.Resource.ID == nil && strings.Contains(template, "{resource.id}") {
-				return errors.New("collection operation without resource.id cannot interpolate resource.id")
+			resourcePlaceholder := strings.Contains(template, "{resource.id}")
+			parentPlaceholder := strings.Contains(template, "{parent.id}")
+			if resourcePlaceholder != (op.Resource.ID != nil) || parentPlaceholder != (op.Resource.Parent != nil && op.Resource.Parent.ID != nil) {
+				return errors.New("provider resource template placeholders must match declared resource and parent ids")
 			}
 			if op.Resource.Parent != nil && op.Resource.Parent.ID != nil {
 				if err := validateV4Ref(*op.Resource.Parent.ID, argsSchema, contextProps); err != nil {
 					return err
 				}
 			}
-			if template != "" {
-				if op.Resource.ID == nil && strings.Contains(template, "{resource.id}") || (op.Resource.Parent == nil || op.Resource.Parent.ID == nil) && strings.Contains(template, "{parent.id}") {
-					return errors.New("template references an unresolved resource id")
-				}
-				replaced := strings.ReplaceAll(strings.ReplaceAll(template, "{resource.id}", "__RESOURCE_ID__"), "{parent.id}", "__PARENT_ID__")
-				if strings.ContainsAny(replaced, "{}") {
-					return errors.New("provider resource template has unsupported expression")
-				}
-			} else if op.Resource.ID != nil {
-				return errors.New("resource id requires provider_resource_template")
+			replaced := strings.ReplaceAll(strings.ReplaceAll(template, "{resource.id}", "__RESOURCE_ID__"), "{parent.id}", "__PARENT_ID__")
+			if strings.ContainsAny(replaced, "{}") {
+				return errors.New("provider resource template has unsupported expression")
 			}
 		}
 		if err := validateSerializedLimit(op.ProviderInput, 64*1024); err != nil {
