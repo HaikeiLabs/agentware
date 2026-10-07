@@ -208,7 +208,14 @@ describe("KeiToolManifest", () => {
   });
 
   it("accepts resource-less and parent-only collection operations", () => {
-    expect(v4Registry({ id: "none", capability: "issue.read", provider_input: {} }, ["issue.read"], []).exportKeiToolManifest(4).tools).toHaveLength(1);
+    expect(v4Registry({ id: "none", capability: "issue.read", provider_resource_template: "/health", provider_input: {} }, ["issue.read"], []).exportKeiToolManifest(4).tools).toHaveLength(1);
+    for (const template of [undefined, "", "items/{resource.id}", "items/{parent.id}"]) {
+      const operation: any = { id: "none", capability: "issue.read", provider_input: {} };
+      if (template !== undefined) operation.provider_resource_template = template;
+      expect(() => v4Registry(operation, ["issue.read"], []).exportKeiToolManifest(4)).toThrow();
+    }
+    expect(() => v4Registry({ id: "none", capability: "issue.read", provider_resource_template: "/health", provider_input: {} }).exportKeiToolManifest(4)).toThrow();
+    expect(() => v4Registry({ id: "none", capability: "issue.read", resource: null, provider_resource_template: "/health", provider_input: {} }, ["issue.read"], []).exportKeiToolManifest(4)).toThrow();
     const op = { id: "list", capability: "issue.read", resource: { type: "issue", parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues", provider_input: {} };
     expect(v4Registry(op).exportKeiToolManifest(4).tools).toHaveLength(1);
   });

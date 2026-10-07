@@ -169,7 +169,7 @@ export class ToolRegistry {
     for (const op of plan.operations) {
       if (!op.id || ids.has(op.id) || !caps.includes(op.capability) || Object.keys(op).some(k=>!["id","capability","resource","provider_resource_template","provider_input"].includes(k))) throw new Error("invalid operation id/capability/keys"); ids.add(op.id); used.add(op.capability);
       const resource = op.resource; const template = op.provider_resource_template ?? "";
-      if (!resource) { if (template) throw new Error("resource-less operation must omit provider_resource_template"); }
+      if (!resource) { if ("resource" in op) throw new Error("resource-less operation must omit resource"); if (typeof op.provider_resource_template !== "string" || !template || /[{}]/.test(template)) throw new Error("resource-less operation requires a non-empty literal provider_resource_template"); }
       else {
         if (Object.keys(resource).some(k=>!["type","id","parent"].includes(k))) throw new Error("resource has unknown keys");
         const parent = resource.parent;
@@ -194,6 +194,7 @@ export class ToolRegistry {
       } else if (!providerInput || typeof providerInput !== "object" || Array.isArray(providerInput)) throw new Error("provider_input root must materialize to an object");
     }
     if (used.size !== new Set(caps).size || caps.some(c=>!used.has(c))) throw new Error("operation capability set must exactly cover registered capabilities");
+    if (plan.operations.every(op=>!op.resource) && resources.length) throw new Error("resource-less operations cannot declare resource_types");
   }
 
   private exportV3(): KeiToolManifestV3 {

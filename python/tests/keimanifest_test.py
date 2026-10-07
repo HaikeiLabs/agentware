@@ -456,10 +456,29 @@ def test_v4_provider_input_accepts_typed_object_and_array_refs():
 
 
 def test_v4_resource_less_and_parent_only_collection_operations():
-    no_resource = {"id": "noop", "capability": "issue.read", "provider_input": {}}
+    no_resource = {
+        "id": "noop",
+        "capability": "issue.read",
+        "provider_resource_template": "/health",
+        "provider_input": {},
+    }
     assert json.loads(v4_registry(no_resource, resources=[]).export_kei_tool_manifest(version=4))[
         "tools"
     ]
+    for template in (None, "", "items/{resource.id}", "items/{parent.id}"):
+        invalid = dict(no_resource)
+        if template is None:
+            invalid.pop("provider_resource_template")
+        else:
+            invalid["provider_resource_template"] = template
+        with pytest.raises(ValueError):
+            v4_registry(invalid, resources=[]).export_kei_tool_manifest(version=4)
+    with pytest.raises(ValueError):
+        v4_registry(no_resource).export_kei_tool_manifest(version=4)
+    with pytest.raises(ValueError):
+        v4_registry({**no_resource, "resource": None}, resources=[]).export_kei_tool_manifest(
+            version=4
+        )
     parent_only = {
         "id": "list",
         "capability": "issue.read",

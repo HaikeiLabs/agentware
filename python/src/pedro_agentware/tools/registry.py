@@ -348,8 +348,12 @@ class ToolRegistry:
             used.add(op["capability"])
             res, text = op.get("resource"), op.get("provider_resource_template", "")
             if res is None:
-                if text:
-                    raise ValueError("resource-less operation must omit provider_resource_template")
+                if "resource" in op:
+                    raise ValueError("resource-less operation must omit resource")
+                if not isinstance(text, str) or not text or "{" in text or "}" in text:
+                    raise ValueError(
+                        "resource-less operation requires a non-empty literal provider_resource_template"
+                    )
             else:
                 if not isinstance(res, dict) or set(res) - {"type", "id", "parent"}:
                     raise ValueError("resource has unknown keys")
@@ -408,6 +412,8 @@ class ToolRegistry:
             check_template_value(provider_input)
         if used != set(caps):
             raise ValueError("operation capability set must exactly cover registered capabilities")
+        if all(op.get("resource") is None for op in ops) and resources:
+            raise ValueError("resource-less operations cannot declare resource_types")
 
     @staticmethod
     def _validate_registration(value: KeiToolRegistration) -> None:
