@@ -108,15 +108,15 @@ class GovernedEmailTool extends BaseTool implements GovernedTool {
 }
 
 class V4IssueTool extends BaseTool {
-  constructor() { super("github.get_issue", "Fetch issue"); }
+  constructor(private readonly schema?: Record<string, unknown>) { super("github.get_issue", "Fetch issue"); }
   execute(_args: Record<string, unknown>): Result { return new Result(true); }
-  inputSchema(): Record<string, unknown> { return { type: "object", properties: { issue_number: { type: "integer", minimum: 1 } }, required: ["issue_number"], additionalProperties: false }; }
+  inputSchema(): Record<string, unknown> { return this.schema ?? { type: "object", properties: { issue_number: { type: "integer", minimum: 1 } }, required: ["issue_number"], additionalProperties: false }; }
   examples(): never[] { return []; }
 }
 
-function v4Registry(operation?: any, caps = ["issue.read"], resources: any[] = [{ type: "issue", parent_type: "repository" }]): ToolRegistry {
+function v4Registry(operation?: any, caps = ["issue.read"], resources: any[] = [{ type: "issue", parent_type: "repository" }], schema?: Record<string, unknown>): ToolRegistry {
   const registry = new ToolRegistry();
-  registry.register(new V4IssueTool() as any, {
+  registry.register(new V4IssueTool(schema) as any, {
     service: "github", source: "github", operation_class: "read",
     route: { connector_binding: { agent_id: "agent-1", connector_id: "github-1" } },
     required_capabilities: caps, resource_types: resources,
@@ -179,6 +179,32 @@ describe("KeiToolManifest", () => {
     const op = { id: "get-issue", capability: "issue.read", resource: { type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" }, parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues/{resource.id}", provider_input: {} };
     mutate(op);
     expect(() => v4Registry(op).exportKeiToolManifest(4)).toThrow();
+  });
+
+  it("accepts typed object/array provider-input refs and rejects a type mismatch", () => {
+    const schema = {
+      type: "object", additionalProperties: false, required: ["issue_number"],
+      properties: {
+        issue_number: { type: "integer", minimum: 1 },
+        metadata: { type: "object", additionalProperties: false, properties: { labels: { type: "array", maxItems: 4, items: { type: "string", maxLength: 30 } } } },
+        labels: { type: "array", maxItems: 4, items: { type: "string", maxLength: 30 } },
+      },
+    };
+    const op: any = {
+      id: "get-issue", capability: "issue.read",
+      resource: {
+        type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" },
+        parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } },
+      },
+      provider_resource_template: "repos/{parent.id}/issues/{resource.id}",
+      provider_input: {
+        metadata: { ref: { from: "args", pointer: "/metadata", type: "object" } },
+        labels: { ref: { from: "args", pointer: "/labels", type: "array" } },
+      },
+    };
+    expect(() => v4Registry(op, ["issue.read"], [{ type: "issue", parent_type: "repository" }], schema).exportKeiToolManifest(4)).not.toThrow();
+    op.provider_input.labels.ref.type = "string";
+    expect(() => v4Registry(op, ["issue.read"], [{ type: "issue", parent_type: "repository" }], schema).exportKeiToolManifest(4)).toThrow();
   });
 
   it("accepts resource-less and parent-only collection operations", () => {

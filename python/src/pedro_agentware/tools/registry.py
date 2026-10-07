@@ -251,7 +251,7 @@ class ToolRegistry:
         ):
             raise ValueError("empty or duplicate registered capability")
 
-        def ref(v: Any) -> None:
+        def ref(v: Any, *, scalar_only: bool = True) -> None:
             if not isinstance(v, dict) or set(v) - {"from", "pointer", "field", "type"}:
                 raise ValueError("invalid typed ref")
             if v.get("from") == "args":
@@ -273,9 +273,9 @@ class ToolRegistry:
             if (
                 not isinstance(prop, dict)
                 or v["type"] != prop.get("type")
-                or v["type"] in {"object", "array"}
+                or (scalar_only and v["type"] in {"object", "array"})
             ):
-                raise ValueError("reference type does not match scalar schema property")
+                raise ValueError("reference type does not match declared schema property")
 
         ids, used = set(), set()
 
@@ -288,7 +288,7 @@ class ToolRegistry:
                 if "ref" in v:
                     if set(v) != {"ref"}:
                         raise ValueError("provider_input ref wrapper has unknown keys")
-                    ref(v["ref"])
+                    ref(v["ref"], scalar_only=False)
                 elif "from" in v:
                     raise ValueError("provider_input refs must use ref wrapper")
                 else:
@@ -387,8 +387,14 @@ class ToolRegistry:
             if len(json.dumps(provider_input, separators=(",", ":")).encode()) > 65536:
                 raise ValueError("provider_input exceeds 64 KiB")
             template(provider_input)
+            if isinstance(provider_input, dict) and set(provider_input) == {"ref"}:
+                ref(provider_input["ref"], scalar_only=False)
+                if provider_input["ref"]["type"] != "object":
+                    raise ValueError("provider_input root ref must have object type")
+            elif not isinstance(provider_input, dict):
+                raise ValueError("provider_input root must materialize to an object")
 
-            # Validate literals and refs recursively against their declared scalar schema.
+            # Validate literals and refs recursively against their declared schemas.
             def check_template_value(v: Any) -> None:
                 if isinstance(v, dict) and set(v) == {"ref"}:
                     return

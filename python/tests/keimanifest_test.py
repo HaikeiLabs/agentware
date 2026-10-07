@@ -301,8 +301,10 @@ class V4Tool(GovernedAddTool):
     def description(self) -> str:
         return "Fetch issue"
 
+    schema = None
+
     def input_schema(self) -> dict:
-        return {
+        return self.schema or {
             "type": "object",
             "properties": {"issue_number": {"type": "integer", "minimum": 1}},
             "required": ["issue_number"],
@@ -310,7 +312,7 @@ class V4Tool(GovernedAddTool):
         }
 
 
-def v4_registry(operation=None, *, caps=None, context=None, resources=None):
+def v4_registry(operation=None, *, caps=None, context=None, resources=None, schema=None):
     registry = ToolRegistry()
     operation = operation or {
         "id": "get-issue",
@@ -343,8 +345,10 @@ def v4_registry(operation=None, *, caps=None, context=None, resources=None):
         },
         "operations": [operation],
     }
+    tool = V4Tool()
+    tool.schema = schema
     registry.register(
-        V4Tool(),
+        tool,
         {
             "service": "github",
             "source": "github",
@@ -410,6 +414,45 @@ def test_v4_rejects_template_selector_omission_and_unknown_resource_keys(mutatio
     mutation(operation)
     with pytest.raises(ValueError):
         v4_registry(operation).export_kei_tool_manifest(version=4)
+
+
+def test_v4_provider_input_accepts_typed_object_and_array_refs():
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "issue_number": {"type": "integer", "minimum": 1},
+            "metadata": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "labels": {
+                        "type": "array",
+                        "maxItems": 4,
+                        "items": {"type": "string", "maxLength": 30},
+                    }
+                },
+            },
+            "labels": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {"type": "string", "maxLength": 30},
+            },
+        },
+        "required": ["issue_number"],
+    }
+    operation = v4_registry()._registrations["github.get_issue"]["plan"]["operations"][0]
+    operation = json.loads(json.dumps(operation))
+    operation["provider_input"] = {
+        "metadata": {"ref": {"from": "args", "pointer": "/metadata", "type": "object"}},
+        "labels": {"ref": {"from": "args", "pointer": "/labels", "type": "array"}},
+    }
+    assert json.loads(v4_registry(operation, schema=schema).export_kei_tool_manifest(version=4))[
+        "tools"
+    ]
+    operation["provider_input"]["labels"]["ref"]["type"] = "string"
+    with pytest.raises(ValueError):
+        v4_registry(operation, schema=schema).export_kei_tool_manifest(version=4)
 
 
 def test_v4_resource_less_and_parent_only_collection_operations():

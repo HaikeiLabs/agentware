@@ -159,13 +159,13 @@ export class ToolRegistry {
     if (!Array.isArray(plan.operations) || plan.operations.length < 1 || plan.operations.length > 32) throw new Error("operations must contain 1..32 entries");
     const props = (args.properties ?? {}) as Record<string, unknown>, context = (plan.context_schema.properties ?? {}) as Record<string, unknown>;
     if (!caps.length || new Set(caps).size !== caps.length || caps.some(c=>!c.trim())) throw new Error("empty or duplicate registered capability");
-    const checkRef = (v: KeiValueRef): void => {
+    const checkRef = (v: KeiValueRef, scalarOnly = true): void => {
       if (!v || Object.keys(v).some(k=>!["from","pointer","field","type"].includes(k)) || (v.from === "args" ? !!v.field || !v.pointer || !/^\/[^/]+$/.test(v.pointer) || !(v.pointer.slice(1) in props) : v.from === "context" ? !!v.pointer || !v.field || !(v.field in context) : true)) throw new Error("invalid typed ref");
       const key = v.from === "args" ? v.pointer!.slice(1) : v.field!; const schema = (v.from === "args" ? props : context)[key] as any;
-      if (!v.type || v.type !== schema?.type || v.type === "object" || v.type === "array") throw new Error("reference type does not match scalar schema property");
+      if (!v.type || v.type !== schema?.type || (scalarOnly && (v.type === "object" || v.type === "array"))) throw new Error("reference type does not match declared schema property");
     };
     const ids = new Set<string>(), used = new Set<string>();
-    const checkTemplate = (v: unknown, d=0, n={value:0}): void => { if (++n.value > 256 || d > 16) throw new Error("provider_input bounds exceeded"); if (Array.isArray(v)) v.forEach(x=>checkTemplate(x,d+1,n)); else if (v && typeof v === "object") { const o=v as any; if ("ref" in o) { if (Object.keys(o).length !== 1) throw new Error("provider_input ref wrapper has unknown keys"); checkRef(o.ref); } else if ("from" in o) throw new Error("provider_input refs must use ref wrapper"); else Object.values(o).forEach(x=>checkTemplate(x,d+1,n)); } else if (v !== null && !["string","number","boolean"].includes(typeof v)) throw new Error("unsupported provider_input value"); };
+    const checkTemplate = (v: unknown, d=0, n={value:0}): void => { if (++n.value > 256 || d > 16) throw new Error("provider_input bounds exceeded"); if (Array.isArray(v)) v.forEach(x=>checkTemplate(x,d+1,n)); else if (v && typeof v === "object") { const o=v as any; if ("ref" in o) { if (Object.keys(o).length !== 1) throw new Error("provider_input ref wrapper has unknown keys"); checkRef(o.ref, false); } else if ("from" in o) throw new Error("provider_input refs must use ref wrapper"); else Object.values(o).forEach(x=>checkTemplate(x,d+1,n)); } else if (v !== null && !["string","number","boolean"].includes(typeof v)) throw new Error("unsupported provider_input value"); };
     for (const op of plan.operations) {
       if (!op.id || ids.has(op.id) || !caps.includes(op.capability) || Object.keys(op).some(k=>!["id","capability","resource","provider_resource_template","provider_input"].includes(k))) throw new Error("invalid operation id/capability/keys"); ids.add(op.id); used.add(op.capability);
       const resource = op.resource; const template = op.provider_resource_template ?? "";
@@ -187,6 +187,11 @@ export class ToolRegistry {
       if (!("provider_input" in op)) throw new Error("provider_input is required");
       if (new TextEncoder().encode(JSON.stringify(op.provider_input)).length > 65536) throw new Error("provider_input exceeds 64 KiB");
       checkTemplate(op.provider_input);
+      const providerInput = op.provider_input as any;
+      if (providerInput && typeof providerInput === "object" && !Array.isArray(providerInput) && Object.keys(providerInput).length === 1 && "ref" in providerInput) {
+        checkRef(providerInput.ref, false);
+        if (providerInput.ref.type !== "object") throw new Error("provider_input root ref must have object type");
+      } else if (!providerInput || typeof providerInput !== "object" || Array.isArray(providerInput)) throw new Error("provider_input root must materialize to an object");
     }
     if (used.size !== new Set(caps).size || caps.some(c=>!used.has(c))) throw new Error("operation capability set must exactly cover registered capabilities");
   }
