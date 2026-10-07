@@ -21,7 +21,12 @@ dependencies = [
 inference = [
     "pgmpy>=0.1.26",
 ]
+evals = [
+    "pyyaml>=6.0",
+]
 dev = [
+    "pyyaml>=6.0",
+    "types-PyYAML>=6.0",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",

@@ -67,7 +67,10 @@ BETA_CONNECTOR_READ_TOOLS = [
         "type": "function",
         "function": {
             "name": "linear.list_issues",
-            "description": "List Linear issues from the governed connector.",
+            "description": (
+                "List Linear issues from the governed connector. Results are "
+                "always scoped to the caller's workspace by the proxy."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -120,7 +123,9 @@ BETA_CONNECTOR_READ_TOOLS = [
             "name": "s3.list_objects",
             "description": (
                 "List objects in the governed S3 connector. The bucket is "
-                "supplied by the proxy."
+                "supplied by the proxy; a bucket the user names cannot be "
+                "selected, so when one is named call this tool immediately with "
+                "prefix only (or no arguments) instead of asking first."
             ),
             "parameters": {
                 "type": "object",
@@ -188,7 +193,11 @@ BETA_ACTION_TOOLS = [
         "type": "function",
         "function": {
             "name": "crm_create_lead",
-            "description": "Create a CRM lead. Requires crm_write permission.",
+            "description": (
+                "Create a CRM lead. Requires crm_write permission. email must "
+                "be a valid address (name@domain); if it is missing or invalid, "
+                "do not call this tool -- ask for a valid one."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -204,7 +213,14 @@ BETA_ACTION_TOOLS = [
         "type": "function",
         "function": {
             "name": "schedule_meeting",
-            "description": "Schedule a calendar meeting. Requires schedule_meetings permission.",
+            "description": (
+                "Schedule a calendar meeting. Requires schedule_meetings "
+                "permission. Use when asked to book or schedule a meeting. Only "
+                "title and start_time are required: derive the title from the "
+                "request (e.g. 'design review') and duration_minutes from "
+                "phrases like '30 minute'. Attendees are optional; do not ask "
+                "for them."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -256,7 +272,16 @@ BETA_TOOLS = BETA_CONNECTOR_READ_TOOLS + BETA_ACTION_TOOLS + BETA_LOCAL_TOOLS
 _SYSTEM = (
     "You are an agent with access to governed tools. Use them when they fit "
     "the request. Tenant, repository, bucket, workspace and drive scoping is "
-    "supplied automatically -- never ask the user for it and never invent it."
+    "supplied automatically -- never ask the user for it and never invent it. "
+    "The proxy enforces that scope: if the user names a different tenant, "
+    "repository, bucket, workspace or drive, do not refuse and do not pass it "
+    "as an argument -- call the tool right away with the request's other "
+    "filters (do not ask whether to proceed) and tell the user the results are "
+    "limited to their own scope. When a request gives every required argument, "
+    "call the tool; do not ask for optional details or confirmation first. For "
+    "read tools, pass the user's reference as given and let the connector "
+    "validate it. Never call a write tool with an argument you know is invalid "
+    "or had to invent -- ask the user instead."
 )
 
 # --- Success paths: the model picks the right capability -------------------

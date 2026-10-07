@@ -161,7 +161,7 @@ def _tool_call(name: str, arguments: str) -> ModelResult:
 
 def _install(monkeypatch: pytest.MonkeyPatch, client: _StubClient) -> None:
     monkeypatch.setattr(
-        "evals.runner.create_model_client", lambda backend, model, base_url: client
+        "evals.runner.create_model_client", lambda *args, **kwargs: client
     )
 
 

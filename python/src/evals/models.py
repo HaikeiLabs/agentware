@@ -395,6 +395,9 @@ class LlamaCPPClient(VLLMClient):
 
         if tools:
             payload["tools"] = tools
+        # Reuse the KV cache for the shared prefix (system prompt + tools)
+        # across turns and cases; llama.cpp ignores it where unsupported.
+        payload["cache_prompt"] = True
 
         headers = {"Content-Type": "application/json"}
 
