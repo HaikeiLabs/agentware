@@ -389,6 +389,29 @@ def test_v4_rejects_malformed_plans_and_capability_coverage():
         v4_registry(caps=["issue.write"]).export_kei_tool_manifest(version=4)
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda op: op.update(provider_resource_template="repos/{parent.id}/issues"),
+        lambda op: op.update(provider_resource_template="issues/{resource.id}"),
+        lambda op: op["resource"].update(unexpected=True),
+        lambda op: op["resource"]["parent"].update(unexpected=True),
+    ],
+    ids=[
+        "missing-resource-placeholder",
+        "missing-parent-placeholder",
+        "unknown-resource-key",
+        "unknown-parent-key",
+    ],
+)
+def test_v4_rejects_template_selector_omission_and_unknown_resource_keys(mutation):
+    operation = v4_registry()._registrations["github.get_issue"]["plan"]["operations"][0]
+    operation = json.loads(json.dumps(operation))
+    mutation(operation)
+    with pytest.raises(ValueError):
+        v4_registry(operation).export_kei_tool_manifest(version=4)
+
+
 def test_v4_resource_less_and_parent_only_collection_operations():
     no_resource = {"id": "noop", "capability": "issue.read", "provider_input": {}}
     assert json.loads(v4_registry(no_resource, resources=[]).export_kei_tool_manifest(version=4))[

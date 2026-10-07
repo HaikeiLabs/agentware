@@ -171,11 +171,15 @@ export class ToolRegistry {
       const resource = op.resource; const template = op.provider_resource_template ?? "";
       if (!resource) { if (template) throw new Error("resource-less operation must omit provider_resource_template"); }
       else {
+        if (Object.keys(resource).some(k=>!["type","id","parent"].includes(k))) throw new Error("resource has unknown keys");
         const parent = resource.parent;
+        if (parent && Object.keys(parent).some(k=>!["type","id"].includes(k))) throw new Error("resource parent has unknown keys");
         if (!resources.some(x=>x.type===resource.type && (x.parent_type??undefined)===(parent?.type))) throw new Error("resource/parent pair is not declared");
         if (resource.id) checkRef(resource.id); if (parent?.id) checkRef(parent.id);
         if (!resource.id && template.includes("{resource.id}")) throw new Error("unresolved resource id");
+        if (resource.id && !template.includes("{resource.id}")) throw new Error("resource id must be used by provider resource template");
         if (!parent?.id && template.includes("{parent.id}")) throw new Error("unresolved parent id");
+        if (parent?.id && !template.includes("{parent.id}")) throw new Error("parent id must be used by provider resource template");
         if (!resource.id && !parent) throw new Error("resource operation requires id or parent");
         const residual=template.replaceAll("{resource.id}","").replaceAll("{parent.id}","");
         if (/[{}]/.test(residual) || (resource.id && !template)) throw new Error("invalid provider resource template");

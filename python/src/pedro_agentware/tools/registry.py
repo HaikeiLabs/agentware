@@ -351,7 +351,13 @@ class ToolRegistry:
                 if text:
                     raise ValueError("resource-less operation must omit provider_resource_template")
             else:
+                if not isinstance(res, dict) or set(res) - {"type", "id", "parent"}:
+                    raise ValueError("resource has unknown keys")
                 parent = res.get("parent")
+                if parent is not None and (
+                    not isinstance(parent, dict) or set(parent) - {"type", "id"}
+                ):
+                    raise ValueError("resource parent has unknown keys")
                 pair = {
                     "type": res.get("type"),
                     **({"parent_type": parent["type"]} if parent else {}),
@@ -364,8 +370,12 @@ class ToolRegistry:
                     ref(parent["id"])
                 if res.get("id") is None and "{resource.id}" in text:
                     raise ValueError("unresolved resource id")
+                if res.get("id") is not None and "{resource.id}" not in text:
+                    raise ValueError("resource id must be used by provider resource template")
                 if (not parent or parent.get("id") is None) and "{parent.id}" in text:
                     raise ValueError("unresolved parent id")
+                if parent and parent.get("id") is not None and "{parent.id}" not in text:
+                    raise ValueError("parent id must be used by provider resource template")
                 if res.get("id") is None and not parent:
                     raise ValueError("resource operation requires id or parent")
                 residual = text.replace("{resource.id}", "").replace("{parent.id}", "")

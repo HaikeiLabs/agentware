@@ -170,6 +170,17 @@ describe("KeiToolManifest", () => {
     expect(() => v4Registry({ ...op, capability: "other" }, ["issue.read"], []).exportKeiToolManifest(4)).toThrow();
   });
 
+  it.each([
+    ["missing resource selector", (op: any) => { op.provider_resource_template = "repos/{parent.id}/issues"; }],
+    ["missing parent selector", (op: any) => { op.provider_resource_template = "issues/{resource.id}"; }],
+    ["unknown resource key", (op: any) => { op.resource.unexpected = true; }],
+    ["unknown parent key", (op: any) => { op.resource.parent.unexpected = true; }],
+  ])("rejects %s", (_label, mutate) => {
+    const op = { id: "get-issue", capability: "issue.read", resource: { type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" }, parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues/{resource.id}", provider_input: {} };
+    mutate(op);
+    expect(() => v4Registry(op).exportKeiToolManifest(4)).toThrow();
+  });
+
   it("accepts resource-less and parent-only collection operations", () => {
     expect(v4Registry({ id: "none", capability: "issue.read", provider_input: {} }, ["issue.read"], []).exportKeiToolManifest(4).tools).toHaveLength(1);
     const op = { id: "list", capability: "issue.read", resource: { type: "issue", parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues", provider_input: {} };
