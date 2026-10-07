@@ -452,7 +452,7 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 				return errors.New("resource/parent pair is not declared")
 			}
 			if op.Resource.ID != nil {
-				if err := validateV4Ref(*op.Resource.ID, argsSchema, contextProps); err != nil {
+				if err := validateV4ScalarRef(*op.Resource.ID, argsSchema, contextProps); err != nil {
 					return err
 				}
 			}
@@ -463,7 +463,7 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 				return errors.New("provider resource template placeholders must match declared resource and parent ids")
 			}
 			if op.Resource.Parent != nil && op.Resource.Parent.ID != nil {
-				if err := validateV4Ref(*op.Resource.Parent.ID, argsSchema, contextProps); err != nil {
+				if err := validateV4ScalarRef(*op.Resource.Parent.ID, argsSchema, contextProps); err != nil {
 					return err
 				}
 			}
@@ -474,6 +474,9 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 		}
 		if err := validateSerializedLimit(op.ProviderInput, 64*1024); err != nil {
 			return err
+		}
+		if !providerInputMaterializesObject(op.ProviderInput) {
+			return errors.New("provider_input root must materialize to an object")
 		}
 		nodes := 0
 		if err := validateTemplateValue(op.ProviderInput, contextProps, argsSchema, 0, &nodes); err != nil {
@@ -489,6 +492,13 @@ func validateV4Plan(reg KeiToolRegistration, p *KeiToolPlan, argsSchema map[stri
 		}
 	}
 	return nil
+}
+
+func validateV4ScalarRef(ref KeiValueRef, args, context map[string]any) error {
+	if ref.Type != "string" && ref.Type != "integer" && ref.Type != "number" {
+		return errors.New("resource id references must be scalar")
+	}
+	return validateV4Ref(ref, args, context)
 }
 
 func validateV4Ref(ref KeiValueRef, args, context map[string]any) error {
@@ -516,10 +526,23 @@ func validateV4Ref(ref KeiValueRef, args, context map[string]any) error {
 		return errors.New("reference field is not declared by its schema")
 	}
 	property, ok := raw.(map[string]any)
-	if !ok || ref.Type == "" || property["type"] != ref.Type || ref.Type == "object" || ref.Type == "array" {
+	if !ok || ref.Type == "" || property["type"] != ref.Type {
 		return errors.New("reference type must match its declared schema property")
 	}
 	return nil
+}
+
+func providerInputMaterializesObject(v any) bool {
+	switch x := v.(type) {
+	case map[string]any:
+		if raw, isRef := x["ref"]; isRef {
+			fields, ok := raw.(map[string]any)
+			return ok && fields["type"] == "object"
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func validateTemplateValue(v any, context, args map[string]any, depth int, nodes *int) error {

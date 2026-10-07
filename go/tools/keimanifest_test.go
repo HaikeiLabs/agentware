@@ -241,13 +241,47 @@ func TestV4SupportsResourceLessAndParentOnlyCollectionOperations(t *testing.T) {
 	}
 }
 
-func TestV4SupportsBoundedArraySchemasAndRejectsStructuredRefs(t *testing.T) {
+func TestV4ProviderInputSupportsTypedStructuredRefsAndObjectRoot(t *testing.T) {
+	ref := KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}
+	for _, input := range []any{
+		map[string]any{"data": map[string]any{"ref": map[string]any{"from": "context", "field": "labels", "type": "array"}}},
+		map[string]any{"data": map[string]any{"ref": map[string]any{"from": "context", "field": "nested", "type": "object"}}},
+	} {
+		r := newV4TestRegistry(ref, input)
+		reg := r.registrations["x"]
+		props := reg.Plan.ContextSchema["properties"].(map[string]any)
+		props["labels"] = map[string]any{"type": "array", "maxItems": 8, "items": map[string]any{"type": "string", "maxLength": 40}}
+		props["nested"] = map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string", "maxLength": 40}}, "required": []any{"name"}, "additionalProperties": false}
+		r.registrations["x"] = reg
+		if _, err := r.ExportKeiToolManifest(ManifestV4); err != nil {
+			t.Fatalf("structured provider_input ref rejected: %v", err)
+		}
+	}
+	root := newV4TestRegistry(ref, map[string]any{"ref": map[string]any{"from": "context", "field": "nested", "type": "object"}})
+	rootReg := root.registrations["x"]
+	rootReg.Plan.ContextSchema["properties"].(map[string]any)["nested"] = map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string", "maxLength": 40}}, "required": []any{"name"}, "additionalProperties": false}
+	root.registrations["x"] = rootReg
+	if _, err := root.ExportKeiToolManifest(ManifestV4); err != nil {
+		t.Fatalf("typed object provider_input root rejected: %v", err)
+	}
+	r := newV4TestRegistry(ref, map[string]any{"ref": map[string]any{"from": "context", "field": "ctx", "type": "object"}})
+	if _, err := r.ExportKeiToolManifest(ManifestV4); err == nil {
+		t.Fatal("wrong structured ref type accepted")
+	}
+	for _, input := range []any{"scalar", []any{}, map[string]any{"ref": map[string]any{"from": "args", "pointer": "/issue_number", "type": "integer"}}} {
+		if _, err := newV4TestRegistry(ref, input).ExportKeiToolManifest(ManifestV4); err == nil {
+			t.Fatalf("non-object provider_input root accepted: %#v", input)
+		}
+	}
+}
+
+func TestV4SupportsBoundedArraySchemasAndRejectsStructuredResourceRefs(t *testing.T) {
 	schema := map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"labels": map[string]any{"type": "array", "maxItems": 8, "items": map[string]any{"type": "string", "maxLength": 40}}}}
 	if err := validateClosedObjectSchema(schema); err != nil {
 		t.Fatalf("bounded array schema rejected: %v", err)
 	}
 	for _, ref := range []KeiValueRef{{From: "args", Pointer: "/labels", Type: "array"}, {From: "context", Field: "nested", Type: "object"}} {
-		if err := validateV4Ref(ref, map[string]any{"properties": map[string]any{"labels": map[string]any{"type": "array"}}}, map[string]any{"nested": map[string]any{"type": "object"}}); err == nil {
+		if err := validateV4ScalarRef(ref, map[string]any{"properties": map[string]any{"labels": map[string]any{"type": "array"}}}, map[string]any{"nested": map[string]any{"type": "object"}}); err == nil {
 			t.Fatalf("structured ref accepted: %+v", ref)
 		}
 	}
