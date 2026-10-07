@@ -103,12 +103,14 @@ def _node_by_id(request: dict[str, Any], node_id: str) -> dict[str, Any]:
 
 
 def _build_model(net: Network) -> Any:
-    from pgmpy.factors.discrete import DiscreteFactor
+    from pgmpy.factors.discrete import DiscreteFactor  # type: ignore[import-untyped]
 
     try:  # pgmpy >= 1.0
-        from pgmpy.models import DiscreteMarkovNetwork as MarkovNetwork
+        from pgmpy.models import (  # type: ignore[import-untyped]
+            DiscreteMarkovNetwork as MarkovNetwork,
+        )
     except ImportError:  # pragma: no cover - older pgmpy
-        from pgmpy.models import MarkovNetwork
+        from pgmpy.models import MarkovNetwork  # type: ignore[import-untyped]
 
     model = MarkovNetwork()
     model.add_nodes_from(net.claims + net.sources)
@@ -148,7 +150,7 @@ def _build_model(net: Network) -> Any:
 
 
 def _marginals_bp(model: Any, claims: list[str]) -> dict[str, float]:
-    from pgmpy.inference import BeliefPropagation
+    from pgmpy.inference import BeliefPropagation  # type: ignore[import-untyped]
 
     bp = BeliefPropagation(model)
     bp.calibrate()
@@ -160,7 +162,7 @@ def _marginals_bp(model: Any, claims: list[str]) -> dict[str, float]:
 
 
 def _marginals_gibbs(model: Any, claims: list[str], samples: int = 4000) -> dict[str, float]:
-    from pgmpy.sampling import GibbsSampling
+    from pgmpy.sampling import GibbsSampling  # type: ignore[import-untyped]
 
     gibbs = GibbsSampling(model)
     frame = gibbs.sample(size=samples, seed=7)
