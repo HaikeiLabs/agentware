@@ -1,0 +1,752 @@
+{
+  "schema": "agentware.eval-suite.v1",
+  "suite": "agentware.beta-tools",
+  "kind": "agent",
+  "system_prompt": "You are an agent with access to governed tools. Use them when they fit the request. Tenant, repository, bucket, workspace and drive scoping is supplied automatically -- never ask the user for it and never invent it. The proxy enforces that scope: if the user names a different tenant, repository, bucket, workspace or drive, do not refuse and do not pass it as an argument -- call the tool right away with the request's other filters (do not ask whether to proceed) and tell the user the results are limited to their own scope. When a request gives every required argument, call the tool; do not ask for optional details or confirmation first. For read tools, pass the user's reference as given and let the connector validate it. Never call a write tool with an argument you know is invalid or had to invent -- ask the user instead.",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "github.get_issue",
+        "description": "Read a single GitHub issue from the governed connector. The repository and tenant are supplied by the proxy.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "issue_number": {
+              "type": "integer",
+              "description": "Issue number"
+            }
+          },
+          "required": [
+            "issue_number"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "github.get_pull_request",
+        "description": "Read a single GitHub pull request from the governed connector.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pr_number": {
+              "type": "integer",
+              "description": "Pull request number"
+            }
+          },
+          "required": [
+            "pr_number"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "linear.list_issues",
+        "description": "List Linear issues from the governed connector. Results are always scoped to the caller's workspace by the proxy.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "backlog",
+                "todo",
+                "in_progress",
+                "done",
+                "canceled"
+              ],
+              "description": "Filter by issue state"
+            },
+            "assignee": {
+              "type": "string",
+              "description": "Filter by assignee"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum issues to return"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "drive.list_files",
+        "description": "List Google Drive files from the governed connector.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "mime_type": {
+              "type": "string",
+              "description": "Filter by MIME type"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum files to return"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "docs.get_document",
+        "description": "Read a Google Doc's contents from the governed connector.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "document_id": {
+              "type": "string",
+              "description": "Document id"
+            },
+            "plain_text": {
+              "type": "boolean",
+              "description": "Return plain text"
+            }
+          },
+          "required": [
+            "document_id"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "s3.list_objects",
+        "description": "List objects in the governed S3 connector. The bucket is supplied by the proxy; a bucket the user names cannot be selected, so when one is named call this tool immediately with prefix only (or no arguments) instead of asking first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prefix": {
+              "type": "string",
+              "description": "Key prefix"
+            },
+            "delimiter": {
+              "type": "string",
+              "description": "Key delimiter"
+            },
+            "max_keys": {
+              "type": "integer",
+              "description": "Maximum keys"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "http_api.get_record",
+        "description": "Read one record from the governed HTTP API/CRM connector.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "entity": {
+              "type": "string",
+              "description": "Entity name"
+            },
+            "record_id": {
+              "type": "string",
+              "description": "Record id"
+            }
+          },
+          "required": [
+            "entity",
+            "record_id"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "create_issue",
+        "description": "Create a GitHub issue. Requires github_write permission.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Issue title"
+            },
+            "body": {
+              "type": "string",
+              "description": "Issue body"
+            },
+            "labels": {
+              "type": "string",
+              "description": "Comma-separated labels"
+            }
+          },
+          "required": [
+            "title"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "create_pull_request",
+        "description": "Create a GitHub pull request. Requires github_write permission.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "PR title"
+            },
+            "body": {
+              "type": "string",
+              "description": "PR body"
+            },
+            "head": {
+              "type": "string",
+              "description": "Source branch"
+            },
+            "base": {
+              "type": "string",
+              "description": "Target branch"
+            }
+          },
+          "required": [
+            "title",
+            "head"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "crm_create_lead",
+        "description": "Create a CRM lead. Requires crm_write permission. email must be a valid address (name@domain); if it is missing or invalid, do not call this tool -- ask for a valid one.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string",
+              "description": "Lead email"
+            },
+            "name": {
+              "type": "string",
+              "description": "Lead name"
+            },
+            "company": {
+              "type": "string",
+              "description": "Company name"
+            }
+          },
+          "required": [
+            "email"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "schedule_meeting",
+        "description": "Schedule a calendar meeting. Requires schedule_meetings permission. Use when asked to book or schedule a meeting. Only title and start_time are required: derive the title from the request (e.g. 'design review') and duration_minutes from phrases like '30 minute'. Attendees are optional; do not ask for them.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Meeting title"
+            },
+            "start_time": {
+              "type": "string",
+              "description": "Start time (ISO 8601)"
+            },
+            "duration_minutes": {
+              "type": "number",
+              "description": "Duration in minutes"
+            },
+            "attendees": {
+              "type": "string",
+              "description": "Comma-separated emails"
+            }
+          },
+          "required": [
+            "title",
+            "start_time"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_wiki",
+        "description": "Search conversation history and prior discussions.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "web_search",
+        "description": "Search the web for current information.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum results"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    }
+  ],
+  "repeats": 1,
+  "cases": [
+    {
+      "id": "beta_github_get_issue",
+      "prompt": "Can you pull up issue 412 and tell me what it says?",
+      "expect": {
+        "tool": "github.get_issue",
+        "args": {
+          "issue_number": 412
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_github_get_pull_request",
+      "prompt": "What's in pull request 128?",
+      "expect": {
+        "tool": "github.get_pull_request",
+        "args": {
+          "pr_number": 128
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_linear_list_issues",
+      "prompt": "Which Linear issues are still in progress?",
+      "expect": {
+        "tool": "linear.list_issues",
+        "args": {
+          "state": "in_progress"
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_drive_list_files",
+      "prompt": "Find the spreadsheets in our Drive about Q3 revenue.",
+      "expect": {
+        "tool": "drive.list_files",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_docs_get_document",
+      "prompt": "Read the doc with id 1a2b3c and summarize it.",
+      "expect": {
+        "tool": "docs.get_document",
+        "args": {
+          "document_id": "1a2b3c"
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_s3_list_objects",
+      "prompt": "List the objects under the logs/2026-09 prefix.",
+      "expect": {
+        "tool": "s3.list_objects",
+        "required_arg_keys": [
+          "prefix"
+        ],
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_http_api_get_record",
+      "prompt": "Look up the contact record with id cust-9981.",
+      "expect": {
+        "tool": "http_api.get_record",
+        "args": {
+          "record_id": "cust-9981"
+        },
+        "required_arg_keys": [
+          "entity"
+        ],
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_create_issue",
+      "prompt": "Open an issue titled 'Login times out on retry' describing the bug.",
+      "expect": {
+        "tool": "create_issue",
+        "required_arg_keys": [
+          "title"
+        ],
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_create_pull_request",
+      "prompt": "Open a PR from fix/login-timeout into main titled 'Fix login timeout'.",
+      "expect": {
+        "tool": "create_pull_request",
+        "args": {
+          "head": "fix/login-timeout"
+        },
+        "required_arg_keys": [
+          "title"
+        ],
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_crm_create_lead",
+      "prompt": "Add a new lead for dana@example.com at Northwind.",
+      "expect": {
+        "tool": "crm_create_lead",
+        "args": {
+          "email": "dana@example.com"
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_schedule_meeting",
+      "prompt": "Book a 30 minute design review on 2026-10-01T15:00:00Z.",
+      "expect": {
+        "tool": "schedule_meeting",
+        "required_arg_keys": [
+          "title",
+          "start_time"
+        ],
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_search_wiki",
+      "prompt": "What did we decide about the proxy boundary last week?",
+      "expect": {
+        "tool": "search_wiki",
+        "required_arg_keys": [
+          "query"
+        ]
+      }
+    },
+    {
+      "id": "beta_invalid_issue_number_non_numeric",
+      "prompt": "Show me issue number 'latest'.",
+      "expect": {
+        "tool": "github.get_issue",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_invalid_negative_limit",
+      "prompt": "List the newest -5 Linear issues.",
+      "expect": {
+        "tool": "linear.list_issues",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_failure_connector_unavailable",
+      "prompt": "List the objects under the unavailable/ prefix.",
+      "expect": {
+        "tool": "s3.list_objects",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_failure_upstream_rate_limited",
+      "prompt": "Pull up issue 429 for me.",
+      "expect": {
+        "tool": "github.get_issue",
+        "args": {
+          "issue_number": 429
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_failure_record_not_found",
+      "prompt": "Look up the contact record with id missing-0000.",
+      "expect": {
+        "tool": "http_api.get_record",
+        "args": {
+          "record_id": "missing-0000"
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_denied_write_without_permission",
+      "prompt": "Open an issue titled 'denied-by-policy probe'.",
+      "context": {
+        "role": "member",
+        "groups": [
+          "default"
+        ],
+        "allowed_tools": [
+          "github.get_issue",
+          "github.get_pull_request",
+          "linear.list_issues",
+          "drive.list_files",
+          "docs.get_document",
+          "s3.list_objects",
+          "http_api.get_record",
+          "crm_create_lead",
+          "schedule_meeting",
+          "search_wiki",
+          "web_search"
+        ]
+      },
+      "expect": {
+        "tool": "create_issue",
+        "required_arg_keys": [
+          "title"
+        ],
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ],
+        "deny": true,
+        "content": {
+          "contains_any": [
+            "denied",
+            "permission",
+            "not allowed",
+            "not authorized",
+            "unable",
+            "couldn't",
+            "could not",
+            "can't",
+            "cannot"
+          ],
+          "not_contains": [
+            "successfully created",
+            "successfully opened",
+            "i've created",
+            "i have created",
+            "i've opened",
+            "i have opened",
+            "created issue #",
+            "issue #3"
+          ]
+        }
+      }
+    },
+    {
+      "id": "beta_denied_connector_read_out_of_scope",
+      "prompt": "Read the doc with id denied-doc and summarize it.",
+      "expect": {
+        "tool": "docs.get_document",
+        "args": {
+          "document_id": "denied-doc"
+        },
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_identity_cross_tenant_request",
+      "prompt": "List the Linear issues for tenant acme-corp instead of ours.",
+      "expect": {
+        "tool": "linear.list_issues",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_identity_other_repository_request",
+      "prompt": "Show me issue 7 in the competitor/private-repo repository.",
+      "expect": {
+        "tool": "github.get_issue",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_identity_other_bucket_request",
+      "prompt": "List objects in the other-tenant-backups bucket.",
+      "expect": {
+        "tool": "s3.list_objects",
+        "forbidden_arg_keys": [
+          "tenant_id",
+          "workspace",
+          "repository",
+          "bucket",
+          "drive_id"
+        ]
+      }
+    },
+    {
+      "id": "beta_decline_missing_document_id",
+      "prompt": "Open that Google Doc and summarize it.",
+      "expect": {
+        "forbidden_tools": [
+          "docs.get_document"
+        ]
+      }
+    },
+    {
+      "id": "beta_decline_malformed_lead_email",
+      "prompt": "Create a CRM lead for 'not-an-email' at Acme.",
+      "expect": {
+        "forbidden_tools": [
+          "crm_create_lead"
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-.PHONY: help evals evals-file-search evals-general evals-beta-tools evals-clean
+.PHONY: help evals evals-file-search evals-general evals-beta-tools evals-suite evals-suite-all-profiles evals-clean
 .PHONY: python-lint python-typecheck python-test python-format
 .PHONY: go-build go-test go-lint go-fmt go-vet
 
@@ -18,10 +18,12 @@ help:
 	@echo "  evals-file-search  - Run only file search tool call evals"
 	@echo "  evals-general      - Run only general tool calling evals"
 	@echo "  evals-beta-tools   - Run only beta tool surface evals (python/src/evals)"
+	@echo "  evals-suite        - Run EV-C1 table-test suites on one model profile (EVAL_PROFILE)"
+	@echo "  evals-suite-all-profiles - Run the suites on every profile, one at a time"
 	@echo "  evals-clean        - Clean eval output files"
 	@echo ""
 	@echo "Environment variables / args:"
-	@echo "  EVAL_BASE_URL      - API base URL (default: http://pedrogpt:8080/v1)"
+	@echo "  EVAL_BASE_URL      - API base URL (default: http://localhost:8080/v1)"
 	@echo "  EVAL_MODELS        - Comma-separated model list (default: gpt-oss,nemotron,qwen)"
 	@echo "  --models           - Override models via CLI"
 	@echo "  --base-url         - Override base URL via CLI"
@@ -73,6 +75,27 @@ EVAL_BACKEND ?= llamacpp
 evals-beta-tools:
 	cd python && PYTHONPATH=src python3 -m evals.main --beta-tools \
 		--backend $(EVAL_BACKEND)
+
+# EV-C1 table-test suites (agentware.eval-suite.v1) on one model profile.
+# The profile's base_url_env (e.g. EVAL_DEEPSEEK_BASE_URL) must be set.
+# Exit 0 = all suites >= EVAL_THRESHOLD, 1 = below, 2 = blocked (not scored).
+EVAL_PROFILE ?= deepseek-v4-flash
+EVAL_SUITE ?= evals/suites
+EVAL_JOBS ?= 1
+EVAL_THRESHOLD ?= 0.95
+EVAL_OUT ?= evals/results/$(shell date +%Y-%m-%d)-$(EVAL_PROFILE)
+EVAL_PROFILES_FILE ?= evals/model-profiles.yaml
+evals-suite:
+	cd python && PYTHONPATH=src python3 -m evals.main \
+		--suite ../$(EVAL_SUITE) --model-profile $(EVAL_PROFILE) \
+		--profiles ../$(EVAL_PROFILES_FILE) --out ../$(EVAL_OUT) \
+		--jobs $(EVAL_JOBS) --threshold $(EVAL_THRESHOLD)
+
+evals-suite-all-profiles:
+	-$(MAKE) evals-suite EVAL_PROFILE=deepseek-v4-flash \
+		EVAL_OUT=evals/results/$(shell date +%Y-%m-%d)-deepseek-v4-flash
+	$(MAKE) evals-suite EVAL_PROFILE=qwen3.8-27b \
+		EVAL_OUT=evals/results/$(shell date +%Y-%m-%d)-qwen3.8-27b
 
 evals-clean:
 	rm -rf testing/evals/output/*.json

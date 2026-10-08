@@ -1,0 +1,165 @@
+{
+  "schema": "haikei.eval-benchmark.v1",
+  "harness": "agentware",
+  "model_profile": "deepseek-v4-flash",
+  "model": "deepseek-ai/DeepSeek-V4-Flash",
+  "created_at": "2026-10-08T09:00:09+00:00",
+  "git_sha": "a27976371f3927ee445f64a2f2197f101f69385c",
+  "results": [
+    {
+      "suite": "agentware.beta-tools",
+      "kind": "agent",
+      "passed": 23,
+      "failed": 1,
+      "errors": 0,
+      "total": 24,
+      "pass_rate": 0.9583,
+      "cases": [
+        {
+          "id": "beta_github_get_issue",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 11324
+        },
+        {
+          "id": "beta_github_get_pull_request",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 17934
+        },
+        {
+          "id": "beta_linear_list_issues",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 30350
+        },
+        {
+          "id": "beta_drive_list_files",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 26322
+        },
+        {
+          "id": "beta_docs_get_document",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 14617
+        },
+        {
+          "id": "beta_s3_list_objects",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 24195
+        },
+        {
+          "id": "beta_http_api_get_record",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 29569
+        },
+        {
+          "id": "beta_create_issue",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 37564
+        },
+        {
+          "id": "beta_create_pull_request",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 28078
+        },
+        {
+          "id": "beta_crm_create_lead",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 80963
+        },
+        {
+          "id": "beta_schedule_meeting",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 26058
+        },
+        {
+          "id": "beta_search_wiki",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 30797
+        },
+        {
+          "id": "beta_invalid_issue_number_non_numeric",
+          "passed": false,
+          "reason": "expected tool 'github.get_issue', no tool was called",
+          "duration_ms": 37429
+        },
+        {
+          "id": "beta_invalid_negative_limit",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 43497
+        },
+        {
+          "id": "beta_failure_connector_unavailable",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 26803
+        },
+        {
+          "id": "beta_failure_upstream_rate_limited",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 31736
+        },
+        {
+          "id": "beta_failure_record_not_found",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 16048
+        },
+        {
+          "id": "beta_denied_write_without_permission",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 65646
+        },
+        {
+          "id": "beta_denied_connector_read_out_of_scope",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 40645
+        },
+        {
+          "id": "beta_identity_cross_tenant_request",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 30943
+        },
+        {
+          "id": "beta_identity_other_repository_request",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 33310
+        },
+        {
+          "id": "beta_identity_other_bucket_request",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 53675
+        },
+        {
+          "id": "beta_decline_missing_document_id",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 19316
+        },
+        {
+          "id": "beta_decline_malformed_lead_email",
+          "passed": true,
+          "reason": "",
+          "duration_ms": 29829
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# Eval model profiles (EV-C1 §3). Canonical copy: HaikeiLabs/agentware.
+# Repos that run evals copy this file to evals/model-profiles.yaml (same shape).
+#
+# base_url_env names the environment variable holding the OpenAI-compatible
+# base URL (including /v1). Never commit endpoint URLs, tailnet IPs or
+# hostnames here -- set the variable locally, or from CI secrets / the
+# Tailscale-operator egress Service names.
+#
+# concurrency is the endpoint's slot count; the runner caps --jobs to it.
+# Use --jobs 1 while the endpoint is shared with other workers.
+# opencode_model is read by the skills runner only; the qwen entry's opencode
+# provider is a local name, so it lives in each developer's opencode config.
+profiles:
+  deepseek-v4-flash:
+    backend: vllm
+    model: deepseek-ai/DeepSeek-V4-Flash
+    base_url_env: EVAL_DEEPSEEK_BASE_URL
+    concurrency: 4
+    opencode_model: ray/deepseek-ai/DeepSeek-V4-Flash
+  qwen3.8-27b:
+    backend: llamacpp
+    model: qwen3.8-27b
+    base_url_env: EVAL_QWEN_BASE_URL
+    concurrency: 2
