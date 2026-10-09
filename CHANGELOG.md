@@ -3,6 +3,13 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
+## [0.9.0] - 2026-10-09
+
+### Added
+
+- **Go, Python, TypeScript:** v4 tool manifest plan exporters, including a
+  shared fixture and language-specific registry support (#169).
+
 ## [0.8.0] - 2026-10-09
 
 ### Added
