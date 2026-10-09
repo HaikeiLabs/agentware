@@ -4,6 +4,8 @@ import json
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, "src")
 
 from pedro_agentware.tools import BaseTool, GovernedTool, KeiScope, Result, ToolRegistry
@@ -166,33 +168,54 @@ def test_export_matches_fixture():
 
 def test_v3_connector_route_wins_over_local_dispatch_handler():
     registry = ToolRegistry()
-    registry.register(UngovernedEchoTool(), {
-        "service": "local", "source": "harness", "operation_class": "write",
-        "route": {"harness_executor": {"executor": "pi", "registration": "local_echo"}},
-    })
-    registry.register(GovernedAddTool(), {
-        "service": "github", "source": "github", "operation_class": "read",
-        "route": {"connector_binding": {"agent_id": "agent-1", "connector_id": "binding-1"}},
-        "required_capabilities": ["issue.read"],
-        "resource_types": [{"type": "issue", "parent_type": "repository"}],
-    })
+    registry.register(
+        UngovernedEchoTool(),
+        {
+            "service": "local",
+            "source": "harness",
+            "operation_class": "write",
+            "route": {"harness_executor": {"executor": "pi", "registration": "local_echo"}},
+        },
+    )
+    registry.register(
+        GovernedAddTool(),
+        {
+            "service": "github",
+            "source": "github",
+            "operation_class": "read",
+            "route": {"connector_binding": {"agent_id": "agent-1", "connector_id": "binding-1"}},
+            "required_capabilities": ["issue.read"],
+            "resource_types": [{"type": "issue", "parent_type": "repository"}],
+        },
+    )
     entries = json.loads(registry.export_kei_tool_manifest(version=3))["tools"]
     assert entries[0]["name"] == "github.get_issue"
-    assert isinstance(registry.get("github.get_issue")[0], GovernedAddTool)  # local execute handler remains registered
-    assert entries[0]["route"] == {"connector_binding": {"agent_id": "agent-1", "connector_id": "binding-1"}}
+    assert isinstance(
+        registry.get("github.get_issue")[0], GovernedAddTool
+    )  # local execute handler remains registered
+    assert entries[0]["route"] == {
+        "connector_binding": {"agent_id": "agent-1", "connector_id": "binding-1"}
+    }
     assert "harness_executor" not in entries[0]["route"]  # connector route wins
-    assert entries[1]["route"] == {"harness_executor": {"executor": "pi", "registration": "local_echo"}}
+    assert entries[1]["route"] == {
+        "harness_executor": {"executor": "pi", "registration": "local_echo"}
+    }
     assert "required_capabilities" not in entries[1]
     assert "resource_types" not in entries[1]
 
 
 def test_v3_connector_route_requires_agent_identity():
     registry = ToolRegistry()
-    registry.register(GovernedAddTool(), {
-        "service": "github", "source": "github", "operation_class": "read",
-        "route": {"connector_binding": {"connector_id": "binding-1"}},
-        "required_capabilities": ["issue.read"],
-    })
+    registry.register(
+        GovernedAddTool(),
+        {
+            "service": "github",
+            "source": "github",
+            "operation_class": "read",
+            "route": {"connector_binding": {"connector_id": "binding-1"}},
+            "required_capabilities": ["issue.read"],
+        },
+    )
     try:
         registry.export_kei_tool_manifest(version=3)
     except ValueError as exc:
@@ -203,10 +226,15 @@ def test_v3_connector_route_requires_agent_identity():
 
 def test_v3_export_rejects_empty_service_or_source():
     registry = ToolRegistry()
-    registry.register(UngovernedEchoTool(), {
-        "service": "", "source": "harness", "operation_class": "write",
-        "route": {"harness_executor": {"executor": "pi", "registration": "local_echo"}},
-    })
+    registry.register(
+        UngovernedEchoTool(),
+        {
+            "service": "",
+            "source": "harness",
+            "operation_class": "write",
+            "route": {"harness_executor": {"executor": "pi", "registration": "local_echo"}},
+        },
+    )
     try:
         registry.export_kei_tool_manifest(version=3)
     except ValueError as exc:
@@ -266,3 +294,202 @@ def test_ungoverned_tool_protocol_check():
     """Ungoverned tools should NOT pass isinstance(GovernedTool)."""
     tool = UngovernedEchoTool()
     assert not isinstance(tool, GovernedTool)
+
+
+class V4Tool(GovernedAddTool):
+    @property
+    def description(self) -> str:
+        return "Fetch issue"
+
+    schema = None
+
+    def input_schema(self) -> dict:
+        return self.schema or {
+            "type": "object",
+            "properties": {"issue_number": {"type": "integer", "minimum": 1}},
+            "required": ["issue_number"],
+            "additionalProperties": False,
+        }
+
+
+def v4_registry(operation=None, *, caps=None, context=None, resources=None, schema=None):
+    registry = ToolRegistry()
+    operation = operation or {
+        "id": "get-issue",
+        "capability": "issue.read",
+        "resource": {
+            "type": "issue",
+            "id": {"from": "args", "pointer": "/issue_number", "type": "integer"},
+            "parent": {
+                "type": "repository",
+                "id": {"from": "context", "field": "repository", "type": "string"},
+            },
+        },
+        "provider_resource_template": "repos/{parent.id}/issues/{resource.id}",
+        "provider_input": {},
+    }
+    plan = {
+        "context_schema": context
+        or {
+            "type": "object",
+            "properties": {
+                "repository": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                }
+            },
+            "required": ["repository"],
+            "additionalProperties": False,
+        },
+        "operations": [operation],
+    }
+    tool = V4Tool()
+    tool.schema = schema
+    registry.register(
+        tool,
+        {
+            "service": "github",
+            "source": "github",
+            "operation_class": "read",
+            "route": {"connector_binding": {"agent_id": "agent-1", "connector_id": "github-1"}},
+            "required_capabilities": caps if caps is not None else ["issue.read"],
+            "resource_types": resources
+            if resources is not None
+            else [{"type": "issue", "parent_type": "repository"}],
+            "plan": plan,
+        },
+    )
+    return registry
+
+
+def test_v4_explicit_export_matches_shared_fixture():
+    root = os.path.join(os.path.dirname(__file__), "..", "..")
+    fixture_path = os.path.join(root, "fixtures", "kei", "tool-manifest.v4.json")
+    with open(fixture_path, encoding="utf-8") as fixture_file:
+        expected = json.load(fixture_file)
+    assert json.loads(v4_registry().export_kei_tool_manifest(version=4)) == expected
+
+
+def test_v4_rejects_malformed_plans_and_capability_coverage():
+    base = v4_registry()._registrations["github.get_issue"]["plan"]["operations"][0]
+    bad_type = json.loads(json.dumps(base))
+    bad_type["resource"]["id"]["type"] = "string"
+    undeclared = json.loads(json.dumps(base))
+    undeclared["resource"]["parent"]["id"]["field"] = "missing"
+    extra_ref = json.loads(json.dumps(base))
+    extra_ref["provider_input"] = {
+        "ref": {"from": "args", "pointer": "/issue_number", "type": "integer", "extra": True}
+    }
+    malformed = json.loads(json.dumps(base))
+    malformed["provider_resource_template"] = "repos/{context.repository}/{resource.id}"
+    for operation in (bad_type, undeclared, extra_ref, malformed):
+        with pytest.raises(ValueError):
+            v4_registry(operation).export_kei_tool_manifest(version=4)
+    with pytest.raises(ValueError):
+        v4_registry(caps=["issue.read", "issue.write"]).export_kei_tool_manifest(version=4)
+    with pytest.raises(ValueError):
+        v4_registry(caps=["issue.write"]).export_kei_tool_manifest(version=4)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda op: op.update(provider_resource_template="repos/{parent.id}/issues"),
+        lambda op: op.update(provider_resource_template="issues/{resource.id}"),
+        lambda op: op["resource"].update(unexpected=True),
+        lambda op: op["resource"]["parent"].update(unexpected=True),
+    ],
+    ids=[
+        "missing-resource-placeholder",
+        "missing-parent-placeholder",
+        "unknown-resource-key",
+        "unknown-parent-key",
+    ],
+)
+def test_v4_rejects_template_selector_omission_and_unknown_resource_keys(mutation):
+    operation = v4_registry()._registrations["github.get_issue"]["plan"]["operations"][0]
+    operation = json.loads(json.dumps(operation))
+    mutation(operation)
+    with pytest.raises(ValueError):
+        v4_registry(operation).export_kei_tool_manifest(version=4)
+
+
+def test_v4_provider_input_accepts_typed_object_and_array_refs():
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "issue_number": {"type": "integer", "minimum": 1},
+            "metadata": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "labels": {
+                        "type": "array",
+                        "maxItems": 4,
+                        "items": {"type": "string", "maxLength": 30},
+                    }
+                },
+            },
+            "labels": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {"type": "string", "maxLength": 30},
+            },
+        },
+        "required": ["issue_number"],
+    }
+    operation = v4_registry()._registrations["github.get_issue"]["plan"]["operations"][0]
+    operation = json.loads(json.dumps(operation))
+    operation["provider_input"] = {
+        "metadata": {"ref": {"from": "args", "pointer": "/metadata", "type": "object"}},
+        "labels": {"ref": {"from": "args", "pointer": "/labels", "type": "array"}},
+    }
+    assert json.loads(v4_registry(operation, schema=schema).export_kei_tool_manifest(version=4))[
+        "tools"
+    ]
+    operation["provider_input"]["labels"]["ref"]["type"] = "string"
+    with pytest.raises(ValueError):
+        v4_registry(operation, schema=schema).export_kei_tool_manifest(version=4)
+
+
+def test_v4_resource_less_and_parent_only_collection_operations():
+    no_resource = {
+        "id": "noop",
+        "capability": "issue.read",
+        "provider_resource_template": "/health",
+        "provider_input": {},
+    }
+    assert json.loads(v4_registry(no_resource, resources=[]).export_kei_tool_manifest(version=4))[
+        "tools"
+    ]
+    for template in (None, "", "items/{resource.id}", "items/{parent.id}"):
+        invalid = dict(no_resource)
+        if template is None:
+            invalid.pop("provider_resource_template")
+        else:
+            invalid["provider_resource_template"] = template
+        with pytest.raises(ValueError):
+            v4_registry(invalid, resources=[]).export_kei_tool_manifest(version=4)
+    with pytest.raises(ValueError):
+        v4_registry(no_resource).export_kei_tool_manifest(version=4)
+    with pytest.raises(ValueError):
+        v4_registry({**no_resource, "resource": None}, resources=[]).export_kei_tool_manifest(
+            version=4
+        )
+    parent_only = {
+        "id": "list",
+        "capability": "issue.read",
+        "resource": {
+            "type": "issue",
+            "parent": {
+                "type": "repository",
+                "id": {"from": "context", "field": "repository", "type": "string"},
+            },
+        },
+        "provider_resource_template": "repos/{parent.id}/issues",
+        "provider_input": {},
+    }
+    assert json.loads(v4_registry(parent_only).export_kei_tool_manifest(version=4))["tools"]

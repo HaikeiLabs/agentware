@@ -13,6 +13,9 @@ Runnable as a subprocess (the Go core's transport)::
 Requires the ``inference`` extra (pgmpy).
 """
 
+# pgmpy is an optional runtime dependency and does not publish typing metadata.
+# mypy: disable-error-code="import-not-found,import-untyped"
+
 import json
 import sys
 from dataclasses import dataclass, field

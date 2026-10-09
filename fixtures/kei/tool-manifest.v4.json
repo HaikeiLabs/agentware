@@ -1,0 +1,82 @@
+{
+  "schema": "kei.tool-manifest/v4",
+  "tools": [
+    {
+      "name": "github.get_issue",
+      "service": "github",
+      "source": "github",
+      "operation_class": "read",
+      "route": {
+        "connector_binding": {
+          "agent_id": "agent-1",
+          "connector_id": "github-1"
+        }
+      },
+      "required_capabilities": [
+        "issue.read"
+      ],
+      "resource_types": [
+        {
+          "type": "issue",
+          "parent_type": "repository"
+        }
+      ],
+      "plan": {
+        "args_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "issue_number": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "issue_number"
+          ],
+          "type": "object"
+        },
+        "context_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "repository"
+          ],
+          "type": "object"
+        },
+        "operations": [
+          {
+            "id": "get-issue",
+            "capability": "issue.read",
+            "resource": {
+              "type": "issue",
+              "id": {
+                "from": "args",
+                "pointer": "/issue_number",
+                "type": "integer"
+              },
+              "parent": {
+                "type": "repository",
+                "id": {
+                  "from": "context",
+                  "field": "repository",
+                  "type": "string"
+                }
+              }
+            },
+            "provider_resource_template": "repos/{parent.id}/issues/{resource.id}",
+            "provider_input": {}
+          }
+        ]
+      },
+      "description": "Fetch issue",
+      "enabled": true
+    }
+  ]
+}

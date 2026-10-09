@@ -107,6 +107,24 @@ class GovernedEmailTool extends BaseTool implements GovernedTool {
   }
 }
 
+class V4IssueTool extends BaseTool {
+  constructor(private readonly schema?: Record<string, unknown>) { super("github.get_issue", "Fetch issue"); }
+  execute(_args: Record<string, unknown>): Result { return new Result(true); }
+  inputSchema(): Record<string, unknown> { return this.schema ?? { type: "object", properties: { issue_number: { type: "integer", minimum: 1 } }, required: ["issue_number"], additionalProperties: false }; }
+  examples(): never[] { return []; }
+}
+
+function v4Registry(operation?: any, caps = ["issue.read"], resources: any[] = [{ type: "issue", parent_type: "repository" }], schema?: Record<string, unknown>): ToolRegistry {
+  const registry = new ToolRegistry();
+  registry.register(new V4IssueTool(schema) as any, {
+    service: "github", source: "github", operation_class: "read",
+    route: { connector_binding: { agent_id: "agent-1", connector_id: "github-1" } },
+    required_capabilities: caps, resource_types: resources,
+    plan: { context_schema: { type: "object", properties: { repository: { type: "string", minLength: 1, maxLength: 256, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" } }, required: ["repository"], additionalProperties: false }, operations: [operation ?? { id: "get-issue", capability: "issue.read", resource: { type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" }, parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues/{resource.id}", provider_input: {} }] },
+  });
+  return registry;
+}
+
 class UngovernedEchoTool extends BaseTool {
   constructor() {
     super("local_echo", "Echo input back");
@@ -130,6 +148,78 @@ function loadFixture(): unknown {
 }
 
 describe("KeiToolManifest", () => {
+  it("explicitly exports v4 matching the shared fixture", () => {
+    const fixture = JSON.parse(readFileSync(join(__dirname, "..", "..", "fixtures", "kei", "tool-manifest.v4.json"), "utf8"));
+    expect(v4Registry().exportKeiToolManifest(4)).toEqual(fixture);
+  });
+
+  it.each([
+    ["typed ref mismatch", (op: any) => { op.resource.id.type = "string"; }],
+    ["undeclared context", (op: any) => { op.resource.parent.id.field = "missing"; }],
+    ["extra ref key", (op: any) => { op.provider_input = { ref: { from: "args", pointer: "/issue_number", type: "integer", extra: true } }; }],
+    ["malformed template", (op: any) => { op.provider_resource_template = "repos/{context.repository}/{resource.id}"; }],
+  ])("rejects %s", (_label, mutate) => {
+    const operation = { id: "get-issue", capability: "issue.read", resource: { type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" }, parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues/{resource.id}", provider_input: {} };
+    mutate(operation);
+    expect(() => v4Registry(operation).exportKeiToolManifest(4)).toThrow();
+  });
+
+  it("rejects missing and extra capability coverage", () => {
+    const op = { id: "only", capability: "issue.read", provider_input: {} };
+    expect(() => v4Registry(op, ["issue.read", "issue.write"], []).exportKeiToolManifest(4)).toThrow();
+    expect(() => v4Registry({ ...op, capability: "other" }, ["issue.read"], []).exportKeiToolManifest(4)).toThrow();
+  });
+
+  it.each([
+    ["missing resource selector", (op: any) => { op.provider_resource_template = "repos/{parent.id}/issues"; }],
+    ["missing parent selector", (op: any) => { op.provider_resource_template = "issues/{resource.id}"; }],
+    ["unknown resource key", (op: any) => { op.resource.unexpected = true; }],
+    ["unknown parent key", (op: any) => { op.resource.parent.unexpected = true; }],
+  ])("rejects %s", (_label, mutate) => {
+    const op = { id: "get-issue", capability: "issue.read", resource: { type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" }, parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues/{resource.id}", provider_input: {} };
+    mutate(op);
+    expect(() => v4Registry(op).exportKeiToolManifest(4)).toThrow();
+  });
+
+  it("accepts typed object/array provider-input refs and rejects a type mismatch", () => {
+    const schema = {
+      type: "object", additionalProperties: false, required: ["issue_number"],
+      properties: {
+        issue_number: { type: "integer", minimum: 1 },
+        metadata: { type: "object", additionalProperties: false, properties: { labels: { type: "array", maxItems: 4, items: { type: "string", maxLength: 30 } } } },
+        labels: { type: "array", maxItems: 4, items: { type: "string", maxLength: 30 } },
+      },
+    };
+    const op: any = {
+      id: "get-issue", capability: "issue.read",
+      resource: {
+        type: "issue", id: { from: "args", pointer: "/issue_number", type: "integer" },
+        parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } },
+      },
+      provider_resource_template: "repos/{parent.id}/issues/{resource.id}",
+      provider_input: {
+        metadata: { ref: { from: "args", pointer: "/metadata", type: "object" } },
+        labels: { ref: { from: "args", pointer: "/labels", type: "array" } },
+      },
+    };
+    expect(() => v4Registry(op, ["issue.read"], [{ type: "issue", parent_type: "repository" }], schema).exportKeiToolManifest(4)).not.toThrow();
+    op.provider_input.labels.ref.type = "string";
+    expect(() => v4Registry(op, ["issue.read"], [{ type: "issue", parent_type: "repository" }], schema).exportKeiToolManifest(4)).toThrow();
+  });
+
+  it("accepts resource-less and parent-only collection operations", () => {
+    expect(v4Registry({ id: "none", capability: "issue.read", provider_resource_template: "/health", provider_input: {} }, ["issue.read"], []).exportKeiToolManifest(4).tools).toHaveLength(1);
+    for (const template of [undefined, "", "items/{resource.id}", "items/{parent.id}"]) {
+      const operation: any = { id: "none", capability: "issue.read", provider_input: {} };
+      if (template !== undefined) operation.provider_resource_template = template;
+      expect(() => v4Registry(operation, ["issue.read"], []).exportKeiToolManifest(4)).toThrow();
+    }
+    expect(() => v4Registry({ id: "none", capability: "issue.read", provider_resource_template: "/health", provider_input: {} }).exportKeiToolManifest(4)).toThrow();
+    expect(() => v4Registry({ id: "none", capability: "issue.read", resource: null, provider_resource_template: "/health", provider_input: {} }, ["issue.read"], []).exportKeiToolManifest(4)).toThrow();
+    const op = { id: "list", capability: "issue.read", resource: { type: "issue", parent: { type: "repository", id: { from: "context", field: "repository", type: "string" } } }, provider_resource_template: "repos/{parent.id}/issues", provider_input: {} };
+    expect(v4Registry(op).exportKeiToolManifest(4).tools).toHaveLength(1);
+  });
+
   it("should match the shared fixture", () => {
     const registry = new ToolRegistry();
     registry.register(new GovernedGetIssueTool());
