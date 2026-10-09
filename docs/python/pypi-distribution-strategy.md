@@ -20,7 +20,7 @@ changing packaging in a documentation change.
 The current package configuration has these properties:
 
 - Distribution name: `pedro-agentware`; import name: `pedro_agentware`.
-- Version: `0.8.0` in the repository at the time of writing.
+- Version: `0.9.0` in the repository at the time of writing.
 - Layout: src-layout, with the package under `python/src/pedro_agentware/`.
 - Build backend: setuptools (`setuptools>=61.0`) via `setuptools.build_meta`.
 - Requires-Python: `>=3.10`.
