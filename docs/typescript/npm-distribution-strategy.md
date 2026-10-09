@@ -16,7 +16,7 @@ artifact.
 The current package configuration has these properties:
 
 - Name: `@pedro/agentware`.
-- Version: `0.7.0` in the repository at the time of writing.
+- Version: `0.8.0` in the repository at the time of writing.
 - Format: ESM (`"type": "module"`), targeting ES2022.
 - Runtime entrypoint: `dist/index.js`.
 - Type entrypoint: `dist/index.d.ts`.

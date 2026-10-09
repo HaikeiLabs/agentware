@@ -3,6 +3,31 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
+## [0.8.0] - 2026-10-09
+
+### Added
+
+- **TypeScript:** opt-in `KeiProxySocketAuthorizeClient` for the `kei-proxy
+  serve` daemon socket (#172). `openSession({ source, externalId })` opens a
+  named `kei.session/v2` session (identity is always explicit, never inferred
+  from `userId`); `authorize(session, request)` calls `POST /v1/authorize`
+  with `X-Kei-Session`. Sessions are cached per identity and reopened once on
+  `session_not_found`. Missing identity, socket errors, timeouts, `401`, and
+  malformed responses fail closed. The runtime token is read from
+  `KEI_RUNTIME_TOKEN` and sent only in the `Authorization` header. The
+  one-shot `KeiProxyAuthorizeClient` is unchanged.
+- Explicit typed routes in tool registries; connector manifest routes require
+  agent identity, and connector routes take precedence over local handlers
+  (#168).
+- Kei tool manifest v2 and linter (HAI-279, #165).
+- Model format parity for OpenAI, Anthropic, Qwen, DeepSeek and GLM in
+  `toolformat` (#166).
+
+### Changed
+
+- Python evals are the canonical EV-C1 table-test runner (#170); agent-evals
+  pull request gate added to CI (#171).
+
 ## [0.6.0] - 2026-09-29
 
 ### Changed
