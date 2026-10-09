@@ -1,0 +1,541 @@
+# Agent and skill eval gate. Template: HaikeiLabs/kei docs/agent-evals/agent-evals.template.yaml
+# Runbook: HaikeiLabs/kei docs/agent-evals-gate.md. Contract: EV-C1.
+#
+# Copy this file to .github/workflows/agent-evals.yaml and change ONLY the two
+# EDIT-BEGIN/EDIT-END blocks. A repository with both agent and skill suites
+# keeps two copies with different `name:` values and file names.
+#
+# On a same-repository pull request it runs, once per model profile, the eval
+# suites the pull request changes (all of them when this workflow or an
+# EVAL_GLOBAL_PATHS file changes; none, and a green "no eval-relevant changes"
+# comment, when no changed file maps to a suite). It runs them on the self-hosted kei-agent-evals runners, which reach the model
+# servers through Tailscale egress Services. It posts one sticky
+# <!-- agent-evals --> comment (suite x model table) and fails when any suite
+# is below EVAL_THRESHOLD or a model server does not answer ("models
+# unreachable", never scored).
+#
+# Security (these runners are self-hosted and callers include public repos):
+#   - pull_request only. Never pull_request_target: it would run the
+#     pull request's code with a write token.
+#   - every job is skipped unless the pull request comes from this repository;
+#     fork pull requests never reach the runners.
+#   - least privilege: contents: read; pull-requests: write only on the job that
+#     comments.
+#   - the grader is pinned by commit SHA, so a pull request can change its
+#     suites but not the code that grades them.
+# Also required: the organization's "require approval for fork pull request
+# workflows" setting, and the "Agent evals" runner group with this repository
+# selected (and "Allow public repositories" on for a public repository).
+name: Agent evals
+
+on:
+  pull_request:
+    paths:
+      # EDIT-BEGIN paths: files whose change can move an eval result.
+      # The repository's own EV-C1 suites and model profiles.
+      - "evals/**"
+      # This workflow: a change to it re-runs every suite.
+      - ".github/workflows/agent-evals.yaml"
+      # EDIT-END paths
+
+permissions:
+  contents: read
+
+# A new push cancels the older run, which frees the shared model servers.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  # EDIT-BEGIN settings
+  # agent: EV-C1 agent suites, graded by HaikeiLabs/agentware python/src/evals.
+  EVAL_KIND: agent
+  # Space-separated globs relative to the repository root (** works).
+  # agentware.beta-tools: the beta governed-tool suite.
+  EVAL_SUITES: "evals/suites/*.json"
+  # evals/model-profiles.yaml is the canonical profile file (EV-C1 §3), and
+  # the probe reads it from this repository first: a change re-runs every suite.
+  # The grader below is pinned, so a pull request that changes python/src/evals
+  # is still graded by the pinned runner, not by its own change.
+  EVAL_GLOBAL_PATHS: "evals/model-profiles.yaml"
+  # HaikeiLabs/agentware fe65bf4, the merge of agentware#170 (the canonical
+  # EV-C1 python runner); the committed evals/results ran this python/src/evals.
+  EVAL_RUNNER_REF: "fe65bf471a9ba3fc6a919dec252103e46f796d25"
+  # EDIT-END settings
+  EVAL_THRESHOLD: "0.95"
+
+jobs:
+  # Picks the suites to run from the pull request's diff: mode=changed runs the
+  # suites that hold a changed file, mode=all runs EVAL_SUITES, mode=none runs
+  # nothing and the report passes with "no eval-relevant changes".
+  scope:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: kei-agent-evals
+    timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+      suites: ${{ steps.select.outputs.suites }}
+      reason: ${{ steps.select.outputs.reason }}
+    steps:
+      # Full history for the merge base; no pull request code runs here.
+      - uses: actions/checkout@v4
+        with:
+          path: _eval/repo
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select the suites
+        id: select
+        uses: actions/github-script@v7
+        env:
+          REPO_DIR: _eval/repo
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            // BEGIN agent-evals scope (tested by HaikeiLabs/kei scripts/agent-evals/test-report.mjs)
+            const fs = require('fs');
+            const path = require('path');
+            const { execFileSync } = require('child_process');
+
+            const kind = process.env.EVAL_KIND;
+            const repo = process.env.REPO_DIR;
+            const words = (s) => String(s ?? '').split(/\s+/).filter(Boolean);
+            // ** spans directories, * and ? stay within one path segment.
+            const wild = new Map([['**/', '(?:.*/)?'], ['**', '.*'], ['*', '[^/]*'], ['?', '[^/]']]);
+            const globRe = (g) => new RegExp(`^${g.split(/(\*\*\/|\*\*|\*|\?)/)
+              .map((t) => wild.get(t) ?? t.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('')}$`);
+            const suiteGlobs = words(process.env.EVAL_SUITES).map((g) => globRe(g.replace(/\/+$/, '')));
+            const globalGlobs = words(process.env.EVAL_GLOBAL_PATHS).map(globRe);
+            // owner/repo/.github/workflows/<file>@<ref>: this workflow grades every suite.
+            const workflowFile = String(process.env.GITHUB_WORKFLOW_REF ?? '')
+              .replace(/^[^/]+\/[^/]+\//, '').replace(/@.*$/, '');
+
+            // Three-dot: what the pull request changed since its merge base.
+            // --no-renames lists a rename as its old and its new path, so moving
+            // a file out of a suite selects that suite too.
+            const changed = execFileSync('git', ['diff', '--name-only', '--no-renames', '-z',
+              `${process.env.BASE_SHA}...${process.env.HEAD_SHA}`], { cwd: repo, encoding: 'utf8' })
+              .split('\0').filter(Boolean);
+
+            // The shortest path that is the file or one of its directories and
+            // matches a suite glob.
+            const suiteOf = (file) => {
+              const parts = file.split('/');
+              for (let i = 1; i <= parts.length; i++) {
+                const p = parts.slice(0, i).join('/');
+                if (suiteGlobs.some((re) => re.test(p))) return p;
+              }
+              return null;
+            };
+            // A suite that the pull request deleted, or a skill directory without
+            // evals, is not run.
+            const isSuite = (p) => kind === 'skill'
+              ? fs.existsSync(path.join(repo, p, 'evals/evals.json'))
+              : fs.existsSync(path.join(repo, p));
+
+            let mode;
+            let suites = '';
+            let reason;
+            const global = changed.find((f) => f === workflowFile || globalGlobs.some((re) => re.test(f)));
+            if (global) {
+              mode = 'all';
+              suites = process.env.EVAL_SUITES;
+              reason = `${global} changed`;
+            } else {
+              const selected = [...new Set(changed.map(suiteOf).filter(Boolean))].filter(isSuite).sort();
+              const bad = selected.find((p) => !/^[A-Za-z0-9._\/-]+$/.test(p));
+              if (bad) {
+                core.setFailed(`suite path ${JSON.stringify(bad)} has characters other than A-Za-z0-9._/-`);
+                return;
+              }
+              mode = selected.length ? 'changed' : 'none';
+              suites = selected.join(' ');
+              reason = selected.length ? `${selected.length} changed suite(s)` : 'no changed file is in an eval suite';
+            }
+            core.setOutput('mode', mode);
+            core.setOutput('suites', suites);
+            core.setOutput('reason', reason);
+            core.info(`${changed.length} changed file(s); mode=${mode} (${reason}); suites: ${suites || '(none)'}`);
+            // END agent-evals scope
+
+  eval:
+    name: eval (${{ matrix.profile }})
+    needs: scope
+    if: >-
+      needs.scope.outputs.mode != 'none' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: kei-agent-evals
+    # Below the runner pod's activeDeadlineSeconds (2h).
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        # EV-C1 §3 profile names; each needs its base_url_env set on the runner.
+        profile: [deepseek-v4-flash, qwen3.8-27b]
+    env:
+      PROFILE: ${{ matrix.profile }}
+      OUT: ${{ github.workspace }}/_eval/out
+      # The scope job's selection: literal suite paths, or EVAL_SUITES itself.
+      EVAL_SUITES: ${{ needs.scope.outputs.suites }}
+    steps:
+      - name: Validate settings
+        run: |
+          fail() { echo "::error::$1" >&2; exit 1; }
+          [[ "$EVAL_KIND" == agent || "$EVAL_KIND" == skill ]] || fail "EVAL_KIND must be agent or skill, got $EVAL_KIND"
+          [[ "$EVAL_RUNNER_REF" =~ ^[0-9a-f]{40}$ ]] || fail "EVAL_RUNNER_REF must be a 40-character commit SHA, got $EVAL_RUNNER_REF"
+          [[ "$EVAL_THRESHOLD" =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]] || fail "EVAL_THRESHOLD must be between 0 and 1, got $EVAL_THRESHOLD"
+          [[ "$PROFILE" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]] || fail "invalid model profile name: $PROFILE"
+          mkdir -p "$OUT"
+
+      - uses: actions/checkout@v4
+        with:
+          path: _eval/repo
+          persist-credentials: false
+
+      - name: Check out the grader
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.EVAL_KIND == 'agent' && 'HaikeiLabs/agentware' || 'HaikeiLabs/skills' }}
+          ref: ${{ env.EVAL_RUNNER_REF }}
+          path: _eval/runner
+          persist-credentials: false
+
+      # Resolve the profile's base_url_env (EV-C1 §3) and ask the server for its
+      # models before running anything, so a down server is reported as
+      # "models unreachable", never as a score. The runner pod sets the
+      # EVAL_*_BASE_URL variables to the egress Service URLs.
+      - name: Probe the model server
+        id: probe
+        run: |
+          case "$EVAL_KIND" in
+            # The repository's own profiles win; agentware's are canonical.
+            agent) candidates=(_eval/repo/evals/model-profiles.yaml _eval/runner/evals/model-profiles.yaml _eval/runner/python/evals/model-profiles.yaml) ;;
+            skill) candidates=(_eval/runner/evals/model-profiles.yaml) ;;
+          esac
+          profiles_file=""
+          for f in "${candidates[@]}"; do
+            if [[ -f "$f" ]]; then profiles_file="$GITHUB_WORKSPACE/$f"; break; fi
+          done
+          echo "profiles_file=$profiles_file" >> "$GITHUB_OUTPUT"
+          if [[ -z "$profiles_file" ]]; then
+            echo "::error::no evals/model-profiles.yaml in ${candidates[*]}" >&2
+            exit 1
+          fi
+          env_name=$(awk -v p="  $PROFILE:" '
+            $0 == p { in_profile = 1; next }
+            in_profile && /^  [^ ]/ { in_profile = 0 }
+            in_profile && $1 == "base_url_env:" { print $2; exit }' "$profiles_file")
+          if [[ ! "$env_name" =~ ^EVAL_[A-Z0-9_]+$ ]]; then
+            echo "::error::profile $PROFILE has no EVAL_* base_url_env in $profiles_file" >&2
+            exit 1
+          fi
+          base_url=${!env_name:-}
+          if [[ -z "$base_url" ]]; then
+            echo "::error::$env_name is not set on this runner (HaikeiLabs/kei infra/github-actions-runner/agent-evals-runner-values.yaml)" >&2
+            exit 1
+          fi
+          if curl --silent --show-error --fail --max-time 15 --retry 2 --retry-all-errors \
+            "${base_url%/}/models" > /dev/null; then
+            {
+              echo "reachable=true"
+              echo "base_url=${base_url%/}"
+            } >> "$GITHUB_OUTPUT"
+            echo "$PROFILE: $env_name answers"
+          else
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" '{profile:$p, kind:$k, status:"unreachable"}' > "$OUT/status.json"
+            echo "::warning::$PROFILE: $env_name did not answer" >&2
+          fi
+
+      # Exit codes (EV-C1 §2): 0 all suites >= threshold, 1 below threshold,
+      # 2 endpoint unavailable (never scored). The skills runner also exits 2
+      # when a run did not complete for another reason, so a 2 counts as
+      # "unreachable" only if the server has stopped answering since the probe.
+      # status.json records the outcome for the report job.
+      - name: Run agent suites
+        id: agent
+        if: env.EVAL_KIND == 'agent' && steps.probe.outputs.reachable == 'true'
+        env:
+          PROFILES_FILE: ${{ steps.probe.outputs.profiles_file }}
+          BASE_URL: ${{ steps.probe.outputs.base_url }}
+        run: |
+          shopt -s globstar nullglob
+          cd "$GITHUB_WORKSPACE/_eval/repo"
+          # Word splitting is the point: EVAL_SUITES is a list of globs.
+          # shellcheck disable=SC2206
+          suites=( $EVAL_SUITES )
+          if (( ${#suites[@]} == 0 )); then
+            echo "::error::no suites match '$EVAL_SUITES'" >&2
+            jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" '{profile:$p, kind:$k, status:"error", message:"no suites matched"}' > "$OUT/status.json"
+            exit 1
+          fi
+
+          runner="$GITHUB_WORKSPACE/_eval/runner"
+          uv venv --quiet "$RUNNER_TEMP/venv"
+          # The evals extra carries the runner's own dependencies (PyYAML for
+          # the model profiles); the base package lacks them.
+          uv pip install --quiet --python "$RUNNER_TEMP/venv/bin/python" "$runner/python[evals]"
+
+          status=ok
+          for suite in "${suites[@]}"; do
+            slug=$(printf '%s' "$suite" | tr -c 'A-Za-z0-9._-' '_')
+            set +e
+            PYTHONPATH="$runner/python/src" "$RUNNER_TEMP/venv/bin/python" -m evals.main \
+              --suite "$suite" --model-profile "$PROFILE" --profiles "$PROFILES_FILE" \
+              --out "$OUT/$slug" --threshold "$EVAL_THRESHOLD" --jobs 1
+            rc=$?
+            set -e
+            case $rc in
+              0) ;;
+              # The runner exits 1 after writing benchmark.json; a 1 without it
+              # is a crash (an uncaught Python exception also exits 1).
+              1)
+                if [[ ! -f "$OUT/$slug/benchmark.json" ]]; then
+                  status=error; echo "::error::eval runner exited 1 on $suite without writing benchmark.json; see its log above" >&2
+                elif [[ "$status" == ok ]]; then
+                  status=below
+                fi
+                ;;
+              2)
+                if curl --silent --fail --max-time 15 "$BASE_URL/models" > /dev/null; then
+                  status=error; echo "::error::eval runner exited 2 on $suite although the model server answers" >&2
+                else
+                  status=unreachable; break
+                fi
+                ;;
+              *) status=error; echo "::error::eval runner exited $rc on $suite" >&2 ;;
+            esac
+          done
+          jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg s "$status" '{profile:$p, kind:$k, status:$s}' > "$OUT/status.json"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      # The pinned skills runner writes the opencode provider config itself
+      # (OPENCODE_CONFIG_CONTENT) from the profile's base_url_env.
+      - name: Run skill suites
+        id: skill
+        if: env.EVAL_KIND == 'skill' && steps.probe.outputs.reachable == 'true'
+        env:
+          BASE_URL: ${{ steps.probe.outputs.base_url }}
+        run: |
+          shopt -s globstar nullglob
+          cd "$GITHUB_WORKSPACE/_eval/repo"
+          # Stage the matched skills in one directory for --skills-dir.
+          stage="$RUNNER_TEMP/skills"
+          mkdir -p "$stage"
+          count=0
+          # shellcheck disable=SC2206
+          for dir in $EVAL_SUITES; do
+            dir=${dir%/}
+            [[ -f "$dir/evals/evals.json" ]] || continue
+            name=$(basename "$dir")
+            [[ "$name" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { echo "::error::invalid skill directory name: $name" >&2; exit 1; }
+            [[ ! -e "$stage/$name" ]] || { echo "::error::two skill directories are named $name" >&2; exit 1; }
+            cp -R "$dir" "$stage/$name"
+            count=$((count + 1))
+          done
+          if (( count == 0 )); then
+            echo "::error::no skill directories with evals/evals.json match '$EVAL_SUITES'" >&2
+            jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" '{profile:$p, kind:$k, status:"error", message:"no suites matched"}' > "$OUT/status.json"
+            exit 1
+          fi
+
+          cd "$GITHUB_WORKSPACE/_eval/runner"
+          set +e
+          # --no-baseline: the gate scores with_skill only, and the baseline
+          # would double the load on servers shared with the team.
+          node scripts/run-evals.mjs --harness opencode --skills-dir "$stage" \
+            --model-profile "$PROFILE" --out "$OUT/skills" --threshold "$EVAL_THRESHOLD" \
+            --jobs 1 --no-baseline
+          rc=$?
+          set -e
+          case $rc in
+            0) status=ok ;;
+            1) status=below ;;
+            2)
+              if curl --silent --fail --max-time 15 "$BASE_URL/models" > /dev/null; then
+                status=error; echo "::error::the skills runner exited 2 (runs did not complete) although the model server answers; see its log above" >&2
+              else
+                status=unreachable
+              fi
+              ;;
+            *) status=error ;;
+          esac
+          jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg s "$status" '{profile:$p, kind:$k, status:$s}' > "$OUT/status.json"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-evals-${{ env.EVAL_KIND }}-${{ matrix.profile }}
+          path: |
+            _eval/out/**/benchmark.json
+            _eval/out/**/benchmark.md
+            _eval/out/status.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Check the outcome
+        env:
+          STATUS: ${{ steps.probe.outputs.reachable == 'false' && 'unreachable' || steps.agent.outputs.status || steps.skill.outputs.status }}
+        run: |
+          case "$STATUS" in
+            ok) echo "all suites >= $EVAL_THRESHOLD on $PROFILE" ;;
+            below) echo "::error::one or more suites are below $EVAL_THRESHOLD on $PROFILE; see the agent-evals comment" >&2; exit 1 ;;
+            unreachable) echo "::error::models unreachable: the $PROFILE model server did not answer. Nothing was scored; this is not a pass rate. See HaikeiLabs/kei docs/agent-evals-gate.md, Troubleshooting." >&2; exit 1 ;;
+            *) echo "::error::the eval runner failed on $PROFILE ($STATUS)" >&2; exit 1 ;;
+          esac
+
+  report:
+    needs: [scope, eval]
+    if: >-
+      !cancelled() &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: kei-agent-evals
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - if: needs.eval.result != 'skipped'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: agent-evals-${{ env.EVAL_KIND }}-*
+          path: results
+
+      - name: Summarize and comment
+        uses: actions/github-script@v7
+        env:
+          RESULTS_DIR: results
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          SCOPE_MODE: ${{ needs.scope.outputs.mode }}
+          SCOPE_SUITES: ${{ needs.scope.outputs.suites }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          PROFILES: '["deepseek-v4-flash", "qwen3.8-27b"]'
+        with:
+          script: |
+            // BEGIN agent-evals report (tested by HaikeiLabs/kei scripts/agent-evals/test-report.mjs)
+            const fs = require('fs');
+            const path = require('path');
+
+            const kind = process.env.EVAL_KIND;
+            const threshold = Number(process.env.EVAL_THRESHOLD);
+            const profiles = JSON.parse(process.env.PROFILES);
+            const marker = '<!-- agent-evals -->';
+            const kindMarker = `<!-- agent-evals:${kind} -->`;
+            const safe = (s) => String(s ?? '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80);
+            const pct = (r) => `${(100 * r).toFixed(1)}%`;
+            const safePath = (s) => String(s ?? '').replace(/[^A-Za-z0-9._\/ -]/g, '_').slice(0, 120);
+
+            // The scope job's selection: changed (only these suites ran), all, or
+            // none (nothing eval-relevant changed, so nothing ran and that passes).
+            const scopeResult = process.env.SCOPE_RESULT;
+            const scopeMode = process.env.SCOPE_MODE;
+            const scopeSuites = String(process.env.SCOPE_SUITES ?? '').split(/\s+/).filter(Boolean);
+            const skipped = scopeResult === 'success' && scopeMode === 'none';
+
+            function walk(dir) {
+              if (!fs.existsSync(dir)) return [];
+              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+                e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
+            }
+
+            // cells[suite][profile] = {passed, total}; status[profile] = ok|below|unreachable|error|missing
+            const cells = {};
+            const problems = [];
+            const status = Object.fromEntries(profiles.map((p) => [p, 'missing']));
+            if (scopeResult !== 'success') problems.push(`suite selection did not complete (${safe(scopeResult)}), so nothing was scored`);
+            for (const profile of scopeResult === 'success' && !skipped ? profiles : []) {
+              const dir = path.join(process.env.RESULTS_DIR, `agent-evals-${kind}-${profile}`);
+              const files = walk(dir);
+              const statusFile = files.find((f) => path.basename(f) === 'status.json' && path.dirname(f) === dir);
+              if (statusFile) status[profile] = JSON.parse(fs.readFileSync(statusFile, 'utf8')).status || 'error';
+              for (const f of files.filter((f) => path.basename(f) === 'benchmark.json')) {
+                // EV-C1 §5 only.
+                const doc = JSON.parse(fs.readFileSync(f, 'utf8'));
+                if (doc.schema !== 'haikei.eval-benchmark.v1' || !Array.isArray(doc.results)) {
+                  problems.push(`\`${safe(profile)}\`: a benchmark.json is not haikei.eval-benchmark.v1`);
+                  continue;
+                }
+                for (const r of doc.results) {
+                  const suite = safe(r.suite);
+                  const cell = ((cells[suite] ??= {})[profile] ??= { passed: 0, total: 0 });
+                  cell.passed += Number(r.passed) || 0;
+                  cell.total += Number(r.total) || 0;
+                }
+              }
+            }
+
+            for (const profile of scopeResult === 'success' && !skipped ? profiles : []) {
+              const st = status[profile];
+              if (st === 'unreachable') problems.push(`models unreachable: \`${safe(profile)}\` did not answer, so nothing was scored`);
+              else if (st === 'error' || st === 'missing') problems.push(`\`${safe(profile)}\`: the eval job did not produce results (${st})`);
+            }
+            const suites = Object.keys(cells).sort();
+            for (const suite of suites) {
+              for (const profile of profiles) {
+                const c = cells[suite][profile];
+                if (status[profile] === 'unreachable') continue;
+                if (!c || c.total === 0) problems.push(`\`${suite}\` has no scored cases on \`${safe(profile)}\``);
+                else if (c.passed / c.total < threshold) problems.push(`\`${suite}\` is below ${pct(threshold)} on \`${safe(profile)}\``);
+              }
+            }
+            if (!suites.length && !problems.length && !skipped) problems.push('no suite results were produced');
+            const scopeLine = skipped
+              ? 'No eval-relevant changes: no changed file is in an eval suite, and neither this workflow nor an `EVAL_GLOBAL_PATHS` file changed. Nothing was run.'
+              : scopeMode === 'changed'
+                ? `Scope: changed suites only (${scopeSuites.map((s) => `\`${safePath(s)}\``).join(', ')})`
+                : scopeMode === 'all'
+                  ? `Scope: all suites (${safePath(process.env.SCOPE_REASON)})`
+                  : '';
+
+            const head = ['Suite', ...profiles.map((p) => `\`${safe(p)}\``), 'Δ vs main'];
+            const rows = suites.map((suite) => [
+              `\`${suite}\``,
+              ...profiles.map((p) => {
+                if (status[p] === 'unreachable') return '⚠️ unreachable';
+                const c = cells[suite][p];
+                if (!c || c.total === 0) return '—';
+                const r = c.passed / c.total;
+                return `${r >= threshold ? '✅' : '❌'} ${pct(r)} (${c.passed}/${c.total})`;
+              }),
+              // TODO(agent-evals): delta vs the last main baseline. No baseline
+              // store exists yet (HaikeiLabs/kei docs/agent-evals-gate.md).
+              'n/a',
+            ]);
+            const line = (cells) => `| ${cells.join(' | ')} |`;
+            const passed = problems.length === 0;
+            const sha = context.payload.pull_request?.head?.sha ?? context.sha;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              kindMarker,
+              `### ${passed ? '✅' : '❌'} Agent evals (${kind}): ${skipped ? 'no eval-relevant changes' : passed ? 'passed' : 'failed'}`,
+              '',
+              ...(scopeLine ? [scopeLine, ''] : []),
+              `Threshold ${pct(threshold)} per suite per model · commit \`${String(sha).slice(0, 7)}\` · [run](${runUrl})`,
+              '',
+              ...(suites.length ? [line(head), line(head.map(() => '---')), ...rows.map(line), ''] : []),
+              ...(problems.length ? ['**Failing:**', ...problems.map((p) => `- ${p}`), ''] : []),
+              '<sub>Deterministic table tests (EV-C1); no LLM grader. Δ vs main is not yet available: no baseline store.</sub>',
+            ].join('\n');
+
+            await core.summary.addRaw(body).write();
+
+            const issue_number = context.payload.pull_request?.number;
+            if (issue_number) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo, issue_number, per_page: 100,
+              });
+              const existing = comments.find((c) => c.user?.type === 'Bot'
+                && c.body?.includes(marker) && c.body?.includes(kindMarker));
+              if (existing) {
+                await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ ...context.repo, issue_number, body });
+              }
+            }
+
+            if (!passed) core.setFailed(problems.join('; '));
+            // END agent-evals report
