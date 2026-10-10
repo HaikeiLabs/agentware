@@ -70,7 +70,11 @@ jobs:
   # nothing and the report passes with "no eval-relevant changes".
   scope:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: kei-agent-evals
+    # scope and report run GitHub-hosted, public or private: they need no AWS,
+    # tailnet or secrets, and must not queue behind eval sweeps on
+    # kei-agent-evals. Never a privileged self-hosted runner: report parses
+    # artifacts that pull request code produced.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       mode: ${{ steps.select.outputs.mode }}
@@ -392,7 +396,8 @@ jobs:
     if: >-
       !cancelled() &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: kei-agent-evals
+    # GitHub-hosted, like scope.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
