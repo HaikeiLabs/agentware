@@ -36,7 +36,11 @@ BETA_CONNECTOR_READ_TOOLS = [
             "name": "github.get_issue",
             "description": (
                 "Read a single GitHub issue from the governed connector. The "
-                "repository and tenant are supplied by the proxy."
+                "repository and tenant are supplied by the proxy. Call it with "
+                "whatever issue reference the user gives, even a non-numeric one "
+                "such as 'latest': pass it as issue_number unchanged and let the "
+                "connector resolve or reject it, then relay its answer. Do not "
+                "ask the user to restate the reference first."
             ),
             "parameters": {
                 "type": "object",
@@ -69,7 +73,9 @@ BETA_CONNECTOR_READ_TOOLS = [
             "name": "linear.list_issues",
             "description": (
                 "List Linear issues from the governed connector. Results are "
-                "always scoped to the caller's workspace by the proxy."
+                "always scoped to the caller's workspace by the proxy. Pass a "
+                "count the user gives as limit unchanged, even zero or negative; "
+                "the connector validates it. Do not ask the user to fix it first."
             ),
             "parameters": {
                 "type": "object",
@@ -160,7 +166,13 @@ BETA_ACTION_TOOLS = [
         "type": "function",
         "function": {
             "name": "create_issue",
-            "description": "Create a GitHub issue. Requires github_write permission.",
+            "description": (
+                "Create a GitHub issue. Requires github_write permission. Only "
+                "title is required: when the user gives a title, call this tool "
+                "right away. body and labels are optional; write a short body "
+                "from the request (e.g. the title restated) or omit it. Do not "
+                "ask for a description, reproduction steps or labels first."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -194,9 +206,12 @@ BETA_ACTION_TOOLS = [
         "function": {
             "name": "crm_create_lead",
             "description": (
-                "Create a CRM lead. Requires crm_write permission. email must "
-                "be a valid address (name@domain); if it is missing or invalid, "
-                "do not call this tool -- ask for a valid one."
+                "Create a CRM lead. Requires crm_write permission. Only email "
+                "is required: when the user gives a valid address (name@domain), "
+                "call this tool right away, with company and name if the user "
+                "gave them. name and company are optional; do not ask for them. "
+                "If email is missing or invalid, do not call this tool -- ask "
+                "for a valid one."
             ),
             "parameters": {
                 "type": "object",
@@ -278,10 +293,13 @@ _SYSTEM = (
     "as an argument -- call the tool right away with the request's other "
     "filters (do not ask whether to proceed) and tell the user the results are "
     "limited to their own scope. When a request gives every required argument, "
-    "call the tool; do not ask for optional details or confirmation first. For "
-    "read tools, pass the user's reference as given and let the connector "
-    "validate it. Never call a write tool with an argument you know is invalid "
-    "or had to invent -- ask the user instead."
+    "call the tool; do not ask for optional details (a body, a name, labels) or "
+    "confirmation first -- fill them from the request or leave them out. For "
+    "read tools, pass the user's reference as given, even when it does not look "
+    "valid (a word like 'latest' for a number, a negative limit), and let the "
+    "connector validate it; ask only when the request gives no reference at "
+    "all. Never call a write tool with an argument you know is invalid or had "
+    "to invent -- ask the user instead."
 )
 
 # --- Success paths: the model picks the right capability -------------------
