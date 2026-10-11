@@ -5,7 +5,9 @@ Main entry point for running evals.
 Table-test suites (EV-C1, canonical):
   python -m evals.main --suite <file-or-dir> --model-profile <name>
       [--profiles evals/model-profiles.yaml] --out <dir>
-      [--threshold 0.95] [--jobs N]
+      [--threshold 0.95] [--jobs N] [--repeats N]
+  Every request uses the profile's temperature (default 0) and seed. Each
+  repeat is a run; a suite's pass rate is passed runs / total runs.
   Exit 0 = every suite >= threshold; 1 = a suite below threshold;
   2 = endpoint unavailable or the run is misconfigured (never scored).
 
@@ -18,6 +20,7 @@ import json
 import os
 import sys
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +105,10 @@ def run_suites(args: argparse.Namespace) -> int:
             suites.extend(load_suites(path))
         if args.case:
             suites = select_cases(suites, args.case)
+        if args.repeats is not None:
+            if args.repeats < 1:
+                raise ValueError("--repeats must be a positive integer")
+            suites = [replace(suite, repeats=args.repeats) for suite in suites]
         profile = resolve_profile(args.profiles or default_profiles_path(), args.model_profile)
         base_url = profile.base_url()
     except (SuiteValidationError, ProfileError, ValueError) as exc:
@@ -120,6 +127,8 @@ def run_suites(args: argparse.Namespace) -> int:
         backend=profile.backend,
         timeout=args.timeout,
         max_tokens=args.max_tokens,
+        temperature=profile.temperature,
+        seed=profile.seed,
     )
     try:
         runner.preflight(profile.model)
@@ -130,7 +139,11 @@ def run_suites(args: argparse.Namespace) -> int:
             f"${profile.base_url_env} via the {profile.backend.value} backend"
         )
 
-    print(f"=== {profile.name} ({profile.model}), jobs={jobs} ===")
+    seed = "none" if profile.seed is None else profile.seed
+    print(
+        f"=== {profile.name} ({profile.model}), jobs={jobs}, "
+        f"temperature={profile.temperature:g}, seed={seed} ==="
+    )
     on_result = transcript_writer(Path(args.transcripts), (base_url,)) if args.transcripts else None
     results = [
         run_suite(
@@ -151,7 +164,7 @@ def run_suites(args: argparse.Namespace) -> int:
 
     print("\n=== Summary ===")
     for r in results:
-        print(f"{r.suite}: {r.passed}/{r.total} passed ({r.pass_rate:.1%}), "
+        print(f"{r.suite}: {r.passed}/{r.total} runs passed ({r.pass_rate:.1%}), "
               f"{r.failed} failed, {r.errors} errors")
     print(f"Benchmark written to: {out_dir}")
     return exit_code(results, args.threshold)
@@ -184,6 +197,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     suite_group.add_argument(
         "--timeout", type=int, default=600, help="Per-request model timeout in seconds"
+    )
+    suite_group.add_argument(
+        "--repeats",
+        type=int,
+        default=None,
+        help="Runs per case, overriding each suite's repeats (CI passes 3)",
     )
     suite_group.add_argument(
         "--case",

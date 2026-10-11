@@ -17,30 +17,34 @@ ResultHook = Callable[[Suite, EvalCase, int, EvalResult], None]
 
 
 def combine_repeats(case_id: str, runs: list[EvalResult]) -> CaseOutcome:
-    """A case passes only if every repeat passed.
+    """One case's repeats. Each repeat is a run and counts on its own toward
+    the suite's passed runs / total runs (EV-C1, owner decision 2026-10-10).
 
-    A scored failure outranks a transport error: if any repeat failed on its
-    merits the case is failed, else if any repeat errored the case is errored.
+    The case is ``passed`` only when every run passed, and ``errored`` when no
+    run failed on its merits but one errored. The reason lists every run that
+    did not pass, failures before errors.
     """
     total = len(runs)
     duration_ms = sum(run.duration_ms for run in runs)
-    for i, run in enumerate(runs, 1):
-        if not run.success and not run.errored:
-            prefix = f"repeat {i}/{total}: " if total > 1 else ""
-            return CaseOutcome(
-                id=case_id, passed=False, reason=prefix + run.error, duration_ms=duration_ms
-            )
-    for i, run in enumerate(runs, 1):
-        if run.errored:
-            prefix = f"repeat {i}/{total}: " if total > 1 else ""
-            return CaseOutcome(
-                id=case_id,
-                passed=False,
-                reason=f"{prefix}error: {run.error}",
-                errored=True,
-                duration_ms=duration_ms,
-            )
-    return CaseOutcome(id=case_id, passed=True, duration_ms=duration_ms)
+
+    def prefix(i: int) -> str:
+        return f"repeat {i}/{total}: " if total > 1 else ""
+
+    failed = [(i, run) for i, run in enumerate(runs, 1) if not run.success and not run.errored]
+    errored = [(i, run) for i, run in enumerate(runs, 1) if run.errored]
+    reasons = [prefix(i) + run.error for i, run in failed]
+    reasons += [f"{prefix(i)}error: {run.error}" for i, run in errored]
+    passed_runs = sum(1 for run in runs if run.success)
+    return CaseOutcome(
+        id=case_id,
+        passed=passed_runs == total,
+        reason="; ".join(reasons),
+        errored=bool(errored) and not failed,
+        duration_ms=duration_ms,
+        runs=total,
+        passed_runs=passed_runs,
+        errored_runs=len(errored),
+    )
 
 
 def run_suite(

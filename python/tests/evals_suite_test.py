@@ -740,21 +740,37 @@ def _result(success: bool, errored: bool = False, error: str = "") -> EvalResult
 
 
 class TestRepeats:
-    def test_all_repeats_must_pass(self) -> None:
-        assert combine_repeats("c", [_result(True), _result(True)]).passed
+    def test_each_repeat_is_a_run(self) -> None:
+        outcome = combine_repeats("c", [_result(True), _result(True)])
+        assert outcome.passed and (outcome.runs, outcome.passed_runs) == (2, 2)
         outcome = combine_repeats("c", [_result(True), _result(False, error="wrong tool")])
         assert not outcome.passed and not outcome.errored
+        assert (outcome.runs, outcome.passed_runs, outcome.errored_runs) == (2, 1, 0)
         assert outcome.reason == "repeat 2/2: wrong tool"
 
     def test_scored_failure_outranks_error(self) -> None:
         outcome = combine_repeats(
             "c", [_result(False, errored=True, error="timeout"), _result(False, error="bad")]
         )
-        assert not outcome.errored and "bad" in outcome.reason
+        assert not outcome.errored
+        assert outcome.reason == "repeat 2/2: bad; repeat 1/2: error: timeout"
+        assert (outcome.passed_runs, outcome.errored_runs) == (0, 1)
 
     def test_error_only(self) -> None:
         outcome = combine_repeats("c", [_result(True), _result(False, True, "timeout")])
         assert outcome.errored and outcome.reason == "repeat 2/2: error: timeout"
+        assert (outcome.passed_runs, outcome.errored_runs) == (1, 1)
+
+    def test_suite_score_is_passed_runs_over_total_runs(self) -> None:
+        # Owner decision 2026-10-10: repeats are averaged, as for tool-call evals.
+        result = SuiteResult("s", "agent", [
+            combine_repeats("a", [_result(True), _result(True), _result(False, error="x")]),
+            combine_repeats("b", [_result(True), _result(True), _result(True)]),
+            combine_repeats("c", [_result(True), _result(False, True, "timeout"), _result(True)]),
+        ])
+        assert (result.passed, result.failed, result.errors, result.total) == (7, 1, 1, 9)
+        assert result.pass_rate == pytest.approx(7 / 9)
+        assert exit_code([result], 0.75) == 0 and exit_code([result], 0.95) == 1
 
     def test_run_suite_runs_each_case_repeats_times(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -770,7 +786,9 @@ class TestRepeats:
         result = run_suite(
             EvalRunner(base_url="stub"), suite, "m", _RecordingExecutor(), log=lambda _: None
         )
-        assert result.total == 1 and result.passed == 0 and result.failed == 1
+        # Three runs, two passed: the suite scores 2/3, the case is not clean.
+        assert (result.total, result.passed, result.failed) == (3, 2, 1)
+        assert not result.cases[0].passed
         assert result.cases[0].reason.startswith("repeat 3/3:")
 
     def test_run_suite_with_jobs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -845,6 +863,31 @@ class TestProfiles:
         ],
     )
     def test_rejects_bad_profiles(self, tmp_path: Path, body: str, message: str) -> None:
+        with pytest.raises(ProfileError, match=message):
+            load_profiles(_profiles(tmp_path, body))
+
+    def test_canonical_profiles_sample_greedily_with_a_fixed_seed(self) -> None:
+        for profile in load_profiles(CANONICAL_PROFILES).values():
+            assert (profile.temperature, profile.seed) == (0.0, 42), profile.name
+
+    def test_sampling_defaults(self, tmp_path: Path) -> None:
+        path = _profiles(tmp_path, "profiles:\n  p: {backend: vllm, model: m, base_url_env: E}\n")
+        profile = resolve_profile(path, "p")
+        assert (profile.temperature, profile.seed) == (0.0, None)
+
+    @pytest.mark.parametrize(
+        "field, message",
+        [
+            ("temperature: -0.1", "temperature"),
+            ("temperature: hot", "temperature"),
+            ("temperature: true", "temperature"),
+            ("seed: 1.5", "seed"),
+            ("seed: -1", "seed"),
+            ("seed: '42'", "seed"),
+        ],
+    )
+    def test_rejects_bad_sampling(self, tmp_path: Path, field: str, message: str) -> None:
+        body = f"profiles:\n  p: {{backend: vllm, model: m, base_url_env: E, {field}}}\n"
         with pytest.raises(ProfileError, match=message):
             load_profiles(_profiles(tmp_path, body))
 
@@ -1010,7 +1053,8 @@ class TestBenchmark:
         assert (suite["passed"], suite["failed"], suite["errors"], suite["total"]) == (1, 1, 1, 3)
         assert suite["pass_rate"] == pytest.approx(1 / 3, abs=1e-4)
         for case in suite["cases"]:
-            assert set(case) == {"id", "passed", "reason", "duration_ms"}
+            assert set(case) == {"id", "passed", "reason", "duration_ms", "runs", "passed_runs"}
+        assert [(c["runs"], c["passed_runs"]) for c in suite["cases"]] == [(1, 1), (1, 0), (1, 0)]
         assert [c["duration_ms"] for c in suite["cases"]] == [1200, 300, 0]
         json.dumps(bench)  # serializable
 
@@ -1286,6 +1330,95 @@ class TestEarlyStop:
             json.dumps([c.system_prompt, c.tools], sort_keys=False) for c in suite.cases
         }
         assert len(prefixes) == 1
+
+
+class _WireResp:
+    def __init__(self, body: dict[str, Any]) -> None:
+        self.body = body
+
+    def read(self) -> bytes:
+        return json.dumps(self.body).encode()
+
+    def __enter__(self) -> "_WireResp":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+class TestSampling:
+    """The profile's temperature and seed reach every request on the wire."""
+
+    REPLY = {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}]}
+
+    @pytest.mark.parametrize("backend", ["vllm", "llamacpp", "openai", "lmstudio"])
+    def test_openai_compatible_clients_send_temperature_and_seed(
+        self, backend: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from evals.models import create_model_client
+
+        sent: list[dict[str, Any]] = []
+        monkeypatch.setattr(
+            "evals.models.urllib.request.urlopen",
+            lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
+        )
+        client = create_model_client(ModelBackend(backend), "m", "http://stub/v1")
+        client.complete([{"role": "user", "content": "x"}], temperature=0.0, seed=42)
+        client.complete([{"role": "user", "content": "x"}], temperature=0.0)
+        assert (sent[0]["temperature"], sent[0]["seed"]) == (0.0, 42)
+        assert "seed" not in sent[1]
+
+    def test_ollama_sends_sampling_in_options(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from evals.models import OllamaClient
+
+        sent: dict[str, Any] = {}
+        monkeypatch.setattr(
+            "evals.models.urllib.request.urlopen",
+            lambda req, timeout=0: (
+                sent.update(json.loads(req.data)),
+                _WireResp({"message": {"content": "hi"}, "done": True}),
+            )[1],
+        )
+        OllamaClient("m").complete([{"role": "user", "content": "x"}], temperature=0.0, seed=42)
+        assert sent["options"]["temperature"] == 0.0 and sent["options"]["seed"] == 42
+
+    def test_cli_sends_profile_sampling_on_every_request_and_repeats_override(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sent: list[dict[str, Any]] = []
+        monkeypatch.setattr(
+            "evals.models.urllib.request.urlopen",
+            lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
+        )
+        monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://stub/v1")
+        suite = _write(tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}]))
+        profiles = _profiles(
+            tmp_path,
+            "profiles:\n  stub: {backend: vllm, model: stub-model, "
+            "base_url_env: EVAL_STUB_BASE_URL, temperature: 0, seed: 7}\n",
+        )
+        out = tmp_path / "out"
+        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
+                "--out", str(out), "--repeats", "3"]
+        assert eval_main.main(argv) == 0
+        assert len(sent) == 4  # preflight + one request per repeat
+        assert all((body["temperature"], body["seed"]) == (0, 7) for body in sent)
+        (result,) = json.loads((out / "benchmark.json").read_text())["results"]
+        assert (result["passed"], result["total"]) == (3, 3)
+        assert result["cases"] == [
+            {"id": "a", "passed": True, "reason": "", "duration_ms": result["cases"][0]["duration_ms"],
+             "runs": 3, "passed_runs": 3}
+        ]
+
+    def test_bad_repeats_is_blocked(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://stub/v1")
+        suite = _write(tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}]))
+        profiles = _profiles(
+            tmp_path, "profiles:\n  stub: {backend: vllm, model: m, base_url_env: EVAL_STUB_BASE_URL}\n"
+        )
+        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
+                "--out", str(tmp_path / "out"), "--repeats", "0"]
+        assert eval_main.main(argv) == 2
 
 
 class TestPromptCacheHint:

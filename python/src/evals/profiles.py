@@ -27,6 +27,10 @@ class ModelProfile:
     base_url_env: str
     concurrency: int = 1
     opencode_model: str = ""
+    temperature: float = 0.0
+    """Sampling temperature for every request (EV-C1 §3); 0 = greedy."""
+    seed: int | None = None
+    """Sampling seed sent with every request; ``None`` sends none."""
 
     def base_url(self, environ: Mapping[str, str] | None = None) -> str:
         """Resolve the base URL from ``base_url_env``.
@@ -60,6 +64,16 @@ def _profile(name: str, raw: Any) -> ModelProfile:
     opencode_model = raw.get("opencode_model", "")
     if not isinstance(opencode_model, str):
         raise ProfileError(f"profile {name!r}: opencode_model must be a string")
+    temperature = raw.get("temperature", 0.0)
+    if (
+        not isinstance(temperature, (int, float))
+        or isinstance(temperature, bool)
+        or temperature < 0
+    ):
+        raise ProfileError(f"profile {name!r}: temperature must be a number >= 0")
+    seed = raw.get("seed")
+    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool) or seed < 0):
+        raise ProfileError(f"profile {name!r}: seed must be a non-negative integer")
     return ModelProfile(
         name=name,
         backend=backend,
@@ -67,6 +81,8 @@ def _profile(name: str, raw: Any) -> ModelProfile:
         base_url_env=raw["base_url_env"],
         concurrency=concurrency,
         opencode_model=opencode_model,
+        temperature=float(temperature),
+        seed=seed,
     )
 
 
