@@ -251,12 +251,16 @@ class EvalRunner:
         backend: ModelBackend = ModelBackend.OLLAMA,
         timeout: int = 60,
         max_tokens: int = 2048,
+        temperature: float = 0.0,
+        seed: int | None = None,
     ):
         self.base_url = base_url
         self.max_turns = max_turns
         self.backend = backend
         self.timeout = timeout
         self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.seed = seed
         self.results: list[EvalResult] = []
 
     def _client(self, model: str) -> BaseModelClient:
@@ -392,7 +396,7 @@ class EvalRunner:
         try:
             while turns < self.max_turns:
                 result = client.complete(
-                    messages, tools=case.tools, temperature=0.0, max_tokens=self.max_tokens
+                    messages, tools=case.tools, max_tokens=self.max_tokens, **self._sampling()
                 )
                 turns += 1
                 if not result.tool_calls:
@@ -459,6 +463,13 @@ class EvalRunner:
             final_text=final_text,
         )
 
+    def _sampling(self) -> dict[str, Any]:
+        """The profile's sampling settings; ``seed`` only when one is set."""
+        sampling: dict[str, Any] = {"temperature": self.temperature}
+        if self.seed is not None:
+            sampling["seed"] = self.seed
+        return sampling
+
     def preflight(self, model: str) -> None:
         """Raise ``EndpointUnavailableError`` if ``model`` cannot be reached.
 
@@ -469,7 +480,7 @@ class EvalRunner:
         client = self._client(model)
         probe = [{"role": "user", "content": "ping"}]
         try:
-            client.complete(probe, tools=None, temperature=0.0, max_tokens=1)
+            client.complete(probe, tools=None, max_tokens=1, **self._sampling())
         except Exception as exc:
             raise EndpointUnavailableError(
                 f"model {model!r} is not reachable at {self.base_url!r} "

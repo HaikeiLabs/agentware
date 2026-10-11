@@ -17,3 +17,5 @@ go/pedro-proxy
 go/example
 go/python/
 typescript/python/
+# Local eval runs (CI is the record; see docs/evals/README.md)
+evals-out/

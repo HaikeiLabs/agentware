@@ -14,11 +14,18 @@
 # is below EVAL_THRESHOLD or a model server does not answer ("models
 # unreachable", never scored).
 #
+# Every pull request gets the agent-evals-report check, so it can be a
+# required status check. The trigger has no path filter: a pull request that
+# changes no suite gets a green "no eval-relevant changes" report. Keep the
+# paths EDIT block empty in a repository that requires the check.
+#
 # Security (these runners are self-hosted and callers include public repos):
 #   - pull_request only. Never pull_request_target: it would run the
 #     pull request's code with a write token.
-#   - every job is skipped unless the pull request comes from this repository;
-#     fork pull requests never reach the runners.
+#   - scope and eval are skipped unless the pull request comes from this
+#     repository, so fork pull requests never reach the self-hosted runners.
+#     On a fork pull request the report job runs on a GitHub-hosted runner,
+#     runs no pull request code, posts no comment and passes as "not evaluated".
 #   - least privilege: contents: read; pull-requests: write only on the job that
 #     comments.
 #   - the grader is pinned by commit SHA, so a pull request can change its
@@ -30,13 +37,20 @@ name: Agent evals
 
 on:
   pull_request:
+    # No path filter by default, so agent-evals-report can be a required status
+    # check (a required check must run on every pull request). A repository that
+    # does not require it may add a filter in this block, keeping this file:
+    #   paths: ["evals/**", ".github/workflows/agent-evals.yaml"]
+    # EDIT-BEGIN paths
+    # This repository keeps a filter: its check is not required.
     paths:
-      # EDIT-BEGIN paths: files whose change can move an eval result.
       # The repository's own EV-C1 suites and model profiles.
       - "evals/**"
       # This workflow: a change to it re-runs every suite.
       - ".github/workflows/agent-evals.yaml"
-      # EDIT-END paths
+    # EDIT-END paths
+    # The default types, spelled out.
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -58,11 +72,25 @@ env:
   # The grader below is pinned, so a pull request that changes python/src/evals
   # is still graded by the pinned runner, not by its own change.
   EVAL_GLOBAL_PATHS: "evals/model-profiles.yaml"
-  # HaikeiLabs/agentware fe65bf4, the merge of agentware#170 (the canonical
-  # EV-C1 python runner); the committed evals/results ran this python/src/evals.
-  EVAL_RUNNER_REF: "fe65bf471a9ba3fc6a919dec252103e46f796d25"
+  # HaikeiLabs/agentware at the HAI-470 runner (agentware#177): the profile's
+  # temperature 0 and seed on every request, --repeats, and a suite score of
+  # passed runs / total runs. Move to its merge commit once it lands.
+  EVAL_RUNNER_REF: "11abdb82d048c14f9196c9fc5598f949d2b79a60"
   # EDIT-END settings
   EVAL_THRESHOLD: "0.95"
+  # EV-C1 §3 profile names; each needs its base_url_env set on the runner.
+  EVAL_PROFILES: '["deepseek-v4-flash", "qwen3.8-27b"]'
+  # Runs per case (EV-C1, owner decision 2026-10-10). A suite scores passed
+  # runs / total runs, the average over repeats, and EVAL_THRESHOLD applies to
+  # that. The model profiles set temperature 0 and a fixed seed.
+  EVAL_REPEATS: "3"
+  # Runs (cases x repeats) per eval job. scope splits the selected suites into
+  # shards of about this many runs, one eval job per profile per shard, so each
+  # job fits the timeout on model hosts shared with other runs (measured ~0.3
+  # to 1 run/min on qwen3.8-27b at 2 slots, ~0.6 to 1.5/min on
+  # deepseek-v4-flash at 4). A suite with more runs than this is split by
+  # repeats across shards.
+  EVAL_SHARD_RUNS: "30"
 
 jobs:
   # Picks the suites to run from the pull request's diff: mode=changed runs the
@@ -80,6 +108,8 @@ jobs:
       mode: ${{ steps.select.outputs.mode }}
       suites: ${{ steps.select.outputs.suites }}
       reason: ${{ steps.select.outputs.reason }}
+      shards: ${{ steps.select.outputs.shards }}
+      matrix: ${{ steps.select.outputs.matrix }}
     steps:
       # Full history for the merge base; no pull request code runs here.
       - uses: actions/checkout@v4
@@ -138,33 +168,102 @@ jobs:
               ? fs.existsSync(path.join(repo, p, 'evals/evals.json'))
               : fs.existsSync(path.join(repo, p));
 
+            // Every path in the repository (directories too), for mode=all.
+            const allPaths = (dir = '') => fs.readdirSync(path.join(repo, dir), { withFileTypes: true })
+              .filter((e) => e.name !== '.git' && e.name !== 'node_modules')
+              .flatMap((e) => {
+                const p = dir ? `${dir}/${e.name}` : e.name;
+                return e.isDirectory() ? [p, ...allPaths(p)] : [p];
+              });
+
             let mode;
-            let suites = '';
+            let selected;
             let reason;
             const global = changed.find((f) => f === workflowFile || globalGlobs.some((re) => re.test(f)));
             if (global) {
               mode = 'all';
-              suites = process.env.EVAL_SUITES;
               reason = `${global} changed`;
+              selected = [...new Set(allPaths().map(suiteOf).filter(Boolean))].filter(isSuite).sort();
             } else {
-              const selected = [...new Set(changed.map(suiteOf).filter(Boolean))].filter(isSuite).sort();
-              const bad = selected.find((p) => !/^[A-Za-z0-9._\/-]+$/.test(p));
-              if (bad) {
-                core.setFailed(`suite path ${JSON.stringify(bad)} has characters other than A-Za-z0-9._/-`);
-                return;
-              }
+              selected = [...new Set(changed.map(suiteOf).filter(Boolean))].filter(isSuite).sort();
               mode = selected.length ? 'changed' : 'none';
-              suites = selected.join(' ');
               reason = selected.length ? `${selected.length} changed suite(s)` : 'no changed file is in an eval suite';
             }
+            const bad = selected.find((p) => !/^[A-Za-z0-9._\/-]+$/.test(p));
+            if (bad) {
+              core.setFailed(`suite path ${JSON.stringify(bad)} has characters other than A-Za-z0-9._/-`);
+              return;
+            }
+            if (mode === 'all' && !selected.length) {
+              core.setFailed(`no suites match '${process.env.EVAL_SUITES}'`);
+              return;
+            }
+
+            // Shards. A unit is one suite at some number of repeats, weighed in
+            // runs (cases x repeats). A suite with more than EVAL_SHARD_RUNS runs
+            // is split by repeats into several units, so no job runs all of a
+            // big suite's repeats. Units with the same repeats are packed,
+            // largest first, into the lightest of N shards of about
+            // EVAL_SHARD_RUNS runs; a shard never holds the same suite twice.
+            const cases = (file) => {
+              try {
+                const doc = JSON.parse(fs.readFileSync(path.join(repo, file), 'utf8'));
+                const n = kind === 'skill' ? doc?.evals?.length : doc?.cases?.length;
+                return Number.isInteger(n) && n > 0 ? n : 1;
+              } catch {
+                return 1;
+              }
+            };
+            const caseCount = (p) => kind === 'skill'
+              ? cases(`${p}/evals/evals.json`)
+              : fs.statSync(path.join(repo, p)).isDirectory()
+                ? Math.max(1, allPaths(p).filter((f) => f.endsWith('.json')).reduce((n, f) => n + cases(f), 0))
+                : cases(p);
+            const repeats = Math.max(1, Math.floor(Number(process.env.EVAL_REPEATS)) || 1);
+            const perShard = Math.max(1, Number(process.env.EVAL_SHARD_RUNS) || 30);
+            const groups = new Map();
+            for (const p of selected) {
+              const n = caseCount(p);
+              const chunk = Math.max(1, Math.min(repeats, Math.floor(perShard / n)));
+              for (let left = repeats; left > 0; left -= chunk) {
+                const r = Math.min(chunk, left);
+                if (!groups.has(r)) groups.set(r, []);
+                groups.get(r).push({ suite: p, repeats: r, runs: n * r });
+              }
+            }
+            const bins = [];
+            for (const [r, units] of [...groups].sort((a, b) => b[0] - a[0])) {
+              const runs = units.reduce((n, u) => n + u.runs, 0);
+              const group = Array.from({ length: Math.max(1, Math.min(units.length, Math.ceil(runs / perShard))) },
+                () => ({ repeats: r, load: 0, suites: [] }));
+              for (const u of units.sort((a, b) => b.runs - a.runs || a.suite.localeCompare(b.suite))) {
+                const open = group.filter((b) => !b.suites.includes(u.suite));
+                let bin = open.length ? open.reduce((min, b) => (b.load < min.load ? b : min)) : null;
+                if (!bin) group.push(bin = { repeats: r, load: 0, suites: [] });
+                bin.load += u.runs;
+                bin.suites.push(u.suite);
+              }
+              bins.push(...group);
+            }
+            const shards = bins.length;
+            const total = bins.reduce((n, b) => n + b.load, 0);
+            // Shard-major, so the runners alternate between the model hosts.
+            const profiles = JSON.parse(process.env.EVAL_PROFILES);
+            const include = bins.flatMap((b, i) => profiles.map((profile) => ({
+              profile, shard: i + 1, shards, repeats: b.repeats, suites: b.suites.sort().join(' ') })));
+
+            const suites = selected.join(' ');
             core.setOutput('mode', mode);
             core.setOutput('suites', suites);
             core.setOutput('reason', reason);
-            core.info(`${changed.length} changed file(s); mode=${mode} (${reason}); suites: ${suites || '(none)'}`);
+            core.setOutput('shards', String(shards));
+            core.setOutput('matrix', JSON.stringify({ include }));
+            core.info(`${changed.length} changed file(s); mode=${mode} (${reason}); ${total} run(s) at ${repeats} repeat(s) `
+              + `in ${shards} shard(s): ${bins.map((b, i) => `${i + 1}=${b.load}x${b.repeats}r`).join(' ')}; suites: ${suites || '(none)'}`);
             // END agent-evals scope
 
   eval:
-    name: eval (${{ matrix.profile }})
+    name: eval (${{ matrix.profile }} ${{ matrix.shard }}/${{ matrix.shards }})
     needs: scope
     if: >-
       needs.scope.outputs.mode != 'none' &&
@@ -174,14 +273,16 @@ jobs:
     timeout-minutes: 110
     strategy:
       fail-fast: false
-      matrix:
-        # EV-C1 §3 profile names; each needs its base_url_env set on the runner.
-        profile: [deepseek-v4-flash, qwen3.8-27b]
+      # One job per profile (EVAL_PROFILES) per shard of the scope job's
+      # selection: {profile, shard, shards, repeats, suites}.
+      matrix: ${{ fromJSON(needs.scope.outputs.matrix) }}
     env:
       PROFILE: ${{ matrix.profile }}
       OUT: ${{ github.workspace }}/_eval/out
-      # The scope job's selection: literal suite paths, or EVAL_SUITES itself.
-      EVAL_SUITES: ${{ needs.scope.outputs.suites }}
+      # This shard's suites: literal paths chosen by the scope job.
+      EVAL_SUITES: ${{ matrix.suites }}
+      # This shard's runs per case (a big suite's repeats span shards).
+      REPEATS: ${{ matrix.repeats }}
     steps:
       - name: Validate settings
         run: |
@@ -190,6 +291,7 @@ jobs:
           [[ "$EVAL_RUNNER_REF" =~ ^[0-9a-f]{40}$ ]] || fail "EVAL_RUNNER_REF must be a 40-character commit SHA, got $EVAL_RUNNER_REF"
           [[ "$EVAL_THRESHOLD" =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]] || fail "EVAL_THRESHOLD must be between 0 and 1, got $EVAL_THRESHOLD"
           [[ "$PROFILE" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]] || fail "invalid model profile name: $PROFILE"
+          [[ "$REPEATS" =~ ^[1-9][0-9]?$ ]] || fail "repeats must be 1-99, got $REPEATS"
           mkdir -p "$OUT"
 
       - uses: actions/checkout@v4
@@ -234,6 +336,22 @@ jobs:
             echo "::error::profile $PROFILE has no EVAL_* base_url_env in $profiles_file" >&2
             exit 1
           fi
+          # Run at the profile's slot count (EV-C1 §3 concurrency), so a full
+          # sweep fits the job timeout. CI then uses every slot of the model
+          # host, which it shares with local runs. No concurrency: one at a time.
+          jobs=$(awk -v p="  $PROFILE:" '
+            $0 == p { in_profile = 1; next }
+            in_profile && /^  [^ ]/ { in_profile = 0 }
+            in_profile && $1 == "concurrency:" { print $2; exit }' "$profiles_file")
+          if [[ -z "$jobs" ]]; then
+            jobs=1
+            echo "::warning::profile $PROFILE has no concurrency in $profiles_file; running one eval at a time" >&2
+          elif [[ ! "$jobs" =~ ^[1-9][0-9]?$ ]]; then
+            echo "::error::profile $PROFILE has an invalid concurrency in $profiles_file: $jobs" >&2
+            exit 1
+          fi
+          echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
+          echo "$PROFILE: $jobs concurrent evals"
           base_url=${!env_name:-}
           if [[ -z "$base_url" ]]; then
             echo "::error::$env_name is not set on this runner (HaikeiLabs/kei infra/github-actions-runner/agent-evals-runner-values.yaml)" >&2
@@ -248,7 +366,8 @@ jobs:
             echo "$PROFILE: $env_name answers"
           else
             echo "reachable=false" >> "$GITHUB_OUTPUT"
-            jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" '{profile:$p, kind:$k, status:"unreachable"}' > "$OUT/status.json"
+            jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg m "$env_name did not answer" \
+              '{profile:$p, kind:$k, status:"unreachable", message:$m}' > "$OUT/status.json"
             echo "::warning::$PROFILE: $env_name did not answer" >&2
           fi
 
@@ -263,6 +382,7 @@ jobs:
         env:
           PROFILES_FILE: ${{ steps.probe.outputs.profiles_file }}
           BASE_URL: ${{ steps.probe.outputs.base_url }}
+          JOBS: ${{ steps.probe.outputs.jobs }}
         run: |
           shopt -s globstar nullglob
           cd "$GITHUB_WORKSPACE/_eval/repo"
@@ -282,12 +402,13 @@ jobs:
           uv pip install --quiet --python "$RUNNER_TEMP/venv/bin/python" "$runner/python[evals]"
 
           status=ok
+          message=""
           for suite in "${suites[@]}"; do
             slug=$(printf '%s' "$suite" | tr -c 'A-Za-z0-9._-' '_')
             set +e
             PYTHONPATH="$runner/python/src" "$RUNNER_TEMP/venv/bin/python" -m evals.main \
               --suite "$suite" --model-profile "$PROFILE" --profiles "$PROFILES_FILE" \
-              --out "$OUT/$slug" --threshold "$EVAL_THRESHOLD" --jobs 1
+              --out "$OUT/$slug" --threshold "$EVAL_THRESHOLD" --jobs "$JOBS" --repeats "$REPEATS"
             rc=$?
             set -e
             case $rc in
@@ -296,22 +417,25 @@ jobs:
               # is a crash (an uncaught Python exception also exits 1).
               1)
                 if [[ ! -f "$OUT/$slug/benchmark.json" ]]; then
-                  status=error; echo "::error::eval runner exited 1 on $suite without writing benchmark.json; see its log above" >&2
+                  status=error; message="eval runner exited 1 on $suite without writing benchmark.json (a crash)"
+                  echo "::error::$message; see its log above" >&2
                 elif [[ "$status" == ok ]]; then
                   status=below
                 fi
                 ;;
               2)
                 if curl --silent --fail --max-time 15 "$BASE_URL/models" > /dev/null; then
-                  status=error; echo "::error::eval runner exited 2 on $suite although the model server answers" >&2
+                  status=error; message="eval runner exited 2 on $suite although the model server answers"
+                  echo "::error::$message" >&2
                 else
-                  status=unreachable; break
+                  status=unreachable; message="the model server stopped answering during $suite"; break
                 fi
                 ;;
-              *) status=error; echo "::error::eval runner exited $rc on $suite" >&2 ;;
+              *) status=error; message="eval runner exited $rc on $suite"; echo "::error::$message" >&2 ;;
             esac
           done
-          jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg s "$status" '{profile:$p, kind:$k, status:$s}' > "$OUT/status.json"
+          jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg s "$status" --arg m "$message" \
+            '{profile:$p, kind:$k, status:$s, message:$m}' > "$OUT/status.json"
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       # The pinned skills runner writes the opencode provider config itself
@@ -321,6 +445,7 @@ jobs:
         if: env.EVAL_KIND == 'skill' && steps.probe.outputs.reachable == 'true'
         env:
           BASE_URL: ${{ steps.probe.outputs.base_url }}
+          JOBS: ${{ steps.probe.outputs.jobs }}
         run: |
           shopt -s globstar nullglob
           cd "$GITHUB_WORKSPACE/_eval/repo"
@@ -350,29 +475,32 @@ jobs:
           # would double the load on servers shared with the team.
           node scripts/run-evals.mjs --harness opencode --skills-dir "$stage" \
             --model-profile "$PROFILE" --out "$OUT/skills" --threshold "$EVAL_THRESHOLD" \
-            --jobs 1 --no-baseline
+            --jobs "$JOBS" --repeats "$REPEATS" --no-baseline
           rc=$?
           set -e
+          message=""
           case $rc in
             0) status=ok ;;
             1) status=below ;;
             2)
               if curl --silent --fail --max-time 15 "$BASE_URL/models" > /dev/null; then
-                status=error; echo "::error::the skills runner exited 2 (runs did not complete) although the model server answers; see its log above" >&2
+                status=error; message="the skills runner exited 2 (runs did not complete) although the model server answers"
+                echo "::error::$message; see its log above" >&2
               else
-                status=unreachable
+                status=unreachable; message="the model server stopped answering during the run"
               fi
               ;;
-            *) status=error ;;
+            *) status=error; message="the skills runner exited $rc" ;;
           esac
-          jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg s "$status" '{profile:$p, kind:$k, status:$s}' > "$OUT/status.json"
+          jq -n --arg p "$PROFILE" --arg k "$EVAL_KIND" --arg s "$status" --arg m "$message" \
+            '{profile:$p, kind:$k, status:$s, message:$m}' > "$OUT/status.json"
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-evals-${{ env.EVAL_KIND }}-${{ matrix.profile }}
+          name: agent-evals-${{ env.EVAL_KIND }}-${{ matrix.profile }}-shard-${{ matrix.shard }}
           path: |
             _eval/out/**/benchmark.json
             _eval/out/**/benchmark.md
@@ -392,18 +520,22 @@ jobs:
           esac
 
   report:
+    # The required status check: it runs on every pull request.
+    name: agent-evals-report
     needs: [scope, eval]
-    if: >-
-      !cancelled() &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    # GitHub-hosted, like scope.
+    if: ${{ !cancelled() }}
+    # GitHub-hosted, like scope, so a fork pull request never reaches a
+    # self-hosted runner either: there it evaluates nothing and passes.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
     steps:
+      # A shard killed before its upload leaves nothing to download; the
+      # report must still run, so a failed download never stops it.
       - if: needs.eval.result != 'skipped'
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           pattern: agent-evals-${{ env.EVAL_KIND }}-*
@@ -417,7 +549,9 @@ jobs:
           SCOPE_MODE: ${{ needs.scope.outputs.mode }}
           SCOPE_SUITES: ${{ needs.scope.outputs.suites }}
           SCOPE_REASON: ${{ needs.scope.outputs.reason }}
-          PROFILES: '["deepseek-v4-flash", "qwen3.8-27b"]'
+          SCOPE_SHARDS: ${{ needs.scope.outputs.shards }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          PROFILES: ${{ env.EVAL_PROFILES }}
         with:
           script: |
             // BEGIN agent-evals report (tested by HaikeiLabs/kei scripts/agent-evals/test-report.mjs)
@@ -426,110 +560,30 @@ jobs:
 
             const kind = process.env.EVAL_KIND;
             const threshold = Number(process.env.EVAL_THRESHOLD);
-            const profiles = JSON.parse(process.env.PROFILES);
             const marker = '<!-- agent-evals -->';
             const kindMarker = `<!-- agent-evals:${kind} -->`;
             const safe = (s) => String(s ?? '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80);
             const pct = (r) => `${(100 * r).toFixed(1)}%`;
             const safePath = (s) => String(s ?? '').replace(/[^A-Za-z0-9._\/ -]/g, '_').slice(0, 120);
 
-            // The scope job's selection: changed (only these suites ran), all, or
-            // none (nothing eval-relevant changed, so nothing ran and that passes).
-            const scopeResult = process.env.SCOPE_RESULT;
-            const scopeMode = process.env.SCOPE_MODE;
-            const scopeSuites = String(process.env.SCOPE_SUITES ?? '').split(/\s+/).filter(Boolean);
-            const skipped = scopeResult === 'success' && scopeMode === 'none';
-
-            function walk(dir) {
-              if (!fs.existsSync(dir)) return [];
-              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-                e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
+            // A fork pull request: scope and eval never ran (forks get no
+            // self-hosted runner) and its token cannot comment. Pass as "not
+            // evaluated" so a required check is never missing.
+            if (process.env.SAME_REPO !== 'true') {
+              await core.summary.addRaw([
+                `### Agent evals (${kind}): not evaluated`,
+                '',
+                'Fork pull request: evals run only on pull requests from this repository. To evaluate this change, push its branch to this repository.',
+              ].join('\n')).write();
+              return;
             }
 
-            // cells[suite][profile] = {passed, total}; status[profile] = ok|below|unreachable|error|missing
-            const cells = {};
-            const problems = [];
-            const status = Object.fromEntries(profiles.map((p) => [p, 'missing']));
-            if (scopeResult !== 'success') problems.push(`suite selection did not complete (${safe(scopeResult)}), so nothing was scored`);
-            for (const profile of scopeResult === 'success' && !skipped ? profiles : []) {
-              const dir = path.join(process.env.RESULTS_DIR, `agent-evals-${kind}-${profile}`);
-              const files = walk(dir);
-              const statusFile = files.find((f) => path.basename(f) === 'status.json' && path.dirname(f) === dir);
-              if (statusFile) status[profile] = JSON.parse(fs.readFileSync(statusFile, 'utf8')).status || 'error';
-              for (const f of files.filter((f) => path.basename(f) === 'benchmark.json')) {
-                // EV-C1 §5 only.
-                const doc = JSON.parse(fs.readFileSync(f, 'utf8'));
-                if (doc.schema !== 'haikei.eval-benchmark.v1' || !Array.isArray(doc.results)) {
-                  problems.push(`\`${safe(profile)}\`: a benchmark.json is not haikei.eval-benchmark.v1`);
-                  continue;
-                }
-                for (const r of doc.results) {
-                  const suite = safe(r.suite);
-                  const cell = ((cells[suite] ??= {})[profile] ??= { passed: 0, total: 0 });
-                  cell.passed += Number(r.passed) || 0;
-                  cell.total += Number(r.total) || 0;
-                }
-              }
-            }
-
-            for (const profile of scopeResult === 'success' && !skipped ? profiles : []) {
-              const st = status[profile];
-              if (st === 'unreachable') problems.push(`models unreachable: \`${safe(profile)}\` did not answer, so nothing was scored`);
-              else if (st === 'error' || st === 'missing') problems.push(`\`${safe(profile)}\`: the eval job did not produce results (${st})`);
-            }
-            const suites = Object.keys(cells).sort();
-            for (const suite of suites) {
-              for (const profile of profiles) {
-                const c = cells[suite][profile];
-                if (status[profile] === 'unreachable') continue;
-                if (!c || c.total === 0) problems.push(`\`${suite}\` has no scored cases on \`${safe(profile)}\``);
-                else if (c.passed / c.total < threshold) problems.push(`\`${suite}\` is below ${pct(threshold)} on \`${safe(profile)}\``);
-              }
-            }
-            if (!suites.length && !problems.length && !skipped) problems.push('no suite results were produced');
-            const scopeLine = skipped
-              ? 'No eval-relevant changes: no changed file is in an eval suite, and neither this workflow nor an `EVAL_GLOBAL_PATHS` file changed. Nothing was run.'
-              : scopeMode === 'changed'
-                ? `Scope: changed suites only (${scopeSuites.map((s) => `\`${safePath(s)}\``).join(', ')})`
-                : scopeMode === 'all'
-                  ? `Scope: all suites (${safePath(process.env.SCOPE_REASON)})`
-                  : '';
-
-            const head = ['Suite', ...profiles.map((p) => `\`${safe(p)}\``), 'Δ vs main'];
-            const rows = suites.map((suite) => [
-              `\`${suite}\``,
-              ...profiles.map((p) => {
-                if (status[p] === 'unreachable') return '⚠️ unreachable';
-                const c = cells[suite][p];
-                if (!c || c.total === 0) return '—';
-                const r = c.passed / c.total;
-                return `${r >= threshold ? '✅' : '❌'} ${pct(r)} (${c.passed}/${c.total})`;
-              }),
-              // TODO(agent-evals): delta vs the last main baseline. No baseline
-              // store exists yet (HaikeiLabs/kei docs/agent-evals-gate.md).
-              'n/a',
-            ]);
-            const line = (cells) => `| ${cells.join(' | ')} |`;
-            const passed = problems.length === 0;
-            const sha = context.payload.pull_request?.head?.sha ?? context.sha;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              marker,
-              kindMarker,
-              `### ${passed ? '✅' : '❌'} Agent evals (${kind}): ${skipped ? 'no eval-relevant changes' : passed ? 'passed' : 'failed'}`,
-              '',
-              ...(scopeLine ? [scopeLine, ''] : []),
-              `Threshold ${pct(threshold)} per suite per model · commit \`${String(sha).slice(0, 7)}\` · [run](${runUrl})`,
-              '',
-              ...(suites.length ? [line(head), line(head.map(() => '---')), ...rows.map(line), ''] : []),
-              ...(problems.length ? ['**Failing:**', ...problems.map((p) => `- ${p}`), ''] : []),
-              '<sub>Deterministic table tests (EV-C1); no LLM grader. Δ vs main is not yet available: no baseline store.</sub>',
-            ].join('\n');
-
-            await core.summary.addRaw(body).write();
-
-            const issue_number = context.payload.pull_request?.number;
-            if (issue_number) {
+            // Create or update the one sticky comment for this kind.
+            async function upsert(body) {
+              await core.summary.addRaw(body).write();
+              const issue_number = context.payload.pull_request?.number;
+              if (!issue_number) return;
               const comments = await github.paginate(github.rest.issues.listComments, {
                 ...context.repo, issue_number, per_page: 100,
               });
@@ -541,6 +595,157 @@ jobs:
                 await github.rest.issues.createComment({ ...context.repo, issue_number, body });
               }
             }
+            // Unreadable JSON (a partial upload, a crashed shard) is a result, not a crash.
+            const readJson = (f) => {
+              try {
+                return JSON.parse(fs.readFileSync(f, 'utf8'));
+              } catch {
+                return null;
+              }
+            };
+            // Free text from status.json or a case reason: plain words only, as
+            // a code span, so pull-request data cannot shape the comment.
+            const clean = (s) => String(s ?? '').replace(/^repeat \d+(\/\d+)?: /, '').replace(/[^A-Za-z0-9 ._:\/()=-]/g, ' ')
+              .replace(/\s+/g, ' ').trim().slice(0, 100);
 
-            if (!passed) core.setFailed(problems.join('; '));
+            // Everything below posts a comment; if it throws, the catch at the
+            // end still posts one, so the sticky comment never goes stale.
+            try {
+              const profiles = JSON.parse(process.env.PROFILES);
+              const repeats = Math.max(1, Math.floor(Number(process.env.EVAL_REPEATS)) || 1);
+              // The scope job's selection: changed (only these suites ran), all, or
+              // none (nothing eval-relevant changed, so nothing ran and that passes).
+              const scopeResult = process.env.SCOPE_RESULT;
+              const scopeMode = process.env.SCOPE_MODE;
+              const scopeSuites = String(process.env.SCOPE_SUITES ?? '').split(/\s+/).filter(Boolean);
+              const skipped = scopeResult === 'success' && scopeMode === 'none';
+
+              function walk(dir) {
+                if (!fs.existsSync(dir)) return [];
+                return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+                  e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
+              }
+
+              // cells[suite][profile] = {passed, total} in runs, summed over the profile's
+              // shards; shardStatus[profile][k] = ok|below|unreachable|error|missing;
+              // status[profile] = unreachable when every shard was, else ok.
+              const shardCount = Math.max(1, Number(process.env.SCOPE_SHARDS) || 1);
+              const shardIds = Array.from({ length: shardCount }, (_, i) => i + 1);
+              const cells = {};
+              const problems = [];
+              const status = Object.fromEntries(profiles.map((p) => [p, 'missing']));
+              const shardStatus = Object.fromEntries(profiles.map((p) => [p, Object.fromEntries(shardIds.map((k) => [k, 'missing']))]));
+              const shardMessage = Object.fromEntries(profiles.map((p) => [p, {}]));
+              if (scopeResult !== 'success') problems.push(`suite selection did not complete (${safe(scopeResult)}), so nothing was scored`);
+              for (const profile of scopeResult === 'success' && !skipped ? profiles : []) {
+                const files = [];
+                for (const k of shardIds) {
+                  const dir = path.join(process.env.RESULTS_DIR, `agent-evals-${kind}-${profile}-shard-${k}`);
+                  const shardFiles = walk(dir);
+                  const statusFile = shardFiles.find((f) => path.basename(f) === 'status.json' && path.dirname(f) === dir);
+                  if (statusFile) {
+                    const doc = readJson(statusFile);
+                    shardStatus[profile][k] = String(doc?.status || 'error');
+                    shardMessage[profile][k] = doc ? clean(doc.message) : 'status.json is unreadable';
+                  }
+                  files.push(...shardFiles);
+                }
+                status[profile] = shardIds.every((k) => shardStatus[profile][k] === 'unreachable') ? 'unreachable' : 'ok';
+                for (const f of files.filter((f) => path.basename(f) === 'benchmark.json')) {
+                  // EV-C1 §5 only.
+                  const doc = readJson(f);
+                  if (doc?.schema !== 'haikei.eval-benchmark.v1' || !Array.isArray(doc.results)) {
+                    problems.push(`\`${safe(profile)}\`: a benchmark.json is not haikei.eval-benchmark.v1`);
+                    continue;
+                  }
+                  for (const r of doc.results) {
+                    const suite = safe(r.suite);
+                    const cell = ((cells[suite] ??= {})[profile] ??= { passed: 0, total: 0, errors: 0, reasons: {} });
+                    cell.passed += Number(r.passed) || 0;
+                    cell.total += Number(r.total) || 0;
+                    cell.errors += Number(r.errors) || 0;
+                    // Why runs failed or errored (missing_checks, a timeout...): a
+                    // case's reason lists its runs as "repeat N: why; repeat M: why".
+                    for (const c of Array.isArray(r.cases) ? r.cases : []) {
+                      if (c?.passed || !c?.reason) continue;
+                      for (const part of String(c.reason).split(/;\s*(?=repeat \d)/)) {
+                        const why = clean(part);
+                        if (why) cell.reasons[why] = (cell.reasons[why] || 0) + 1;
+                      }
+                    }
+                  }
+                }
+              }
+
+              for (const profile of scopeResult === 'success' && !skipped ? profiles : []) {
+                for (const k of shardIds) {
+                  const st = shardStatus[profile][k];
+                  const who = shardCount > 1 ? `\`${safe(profile)}\` shard ${k}/${shardCount}` : `\`${safe(profile)}\``;
+                  const msg = shardMessage[profile][k];
+                  if (st === 'unreachable') problems.push(`models unreachable: ${who} did not answer, so nothing was scored${msg ? ` (\`${msg}\`)` : ''}`);
+                  else if (st === 'missing') problems.push(`${who}: the eval job did not produce results (missing)`);
+                  else if (st === 'error') problems.push(`${who}: the eval runner failed (\`${msg || 'error'}\`)`);
+                }
+              }
+              const suites = Object.keys(cells).sort();
+              for (const suite of suites) {
+                for (const profile of profiles) {
+                  const c = cells[suite][profile];
+                  if (status[profile] === 'unreachable') continue;
+                  if (!c || c.total === 0) problems.push(`\`${suite}\` has no scored runs on \`${safe(profile)}\``);
+                  else if (c.passed / c.total < threshold) {
+                    const top = Object.entries(c.reasons).sort((a, b) => b[1] - a[1]).slice(0, 2)
+                      .map(([why, n]) => `\`${why}\` ×${n}`).join(', ');
+                    const detail = [c.errors ? `${c.errors} of ${c.total} runs errored` : '', top].filter(Boolean).join(': ');
+                    problems.push(`\`${suite}\` is below ${pct(threshold)} on \`${safe(profile)}\`${detail ? ` (${detail})` : ''}`);
+                  }
+                }
+              }
+              if (!suites.length && !problems.length && !skipped) problems.push('no suite results were produced');
+              const scopeLine = skipped
+                ? 'No eval-relevant changes: no changed file is in an eval suite, and neither this workflow nor an `EVAL_GLOBAL_PATHS` file changed. Nothing was run.'
+                : scopeMode === 'changed'
+                  ? `Scope: changed suites only (${scopeSuites.map((s) => `\`${safePath(s)}\``).join(', ')})`
+                  : scopeMode === 'all'
+                    ? `Scope: all suites (${safePath(process.env.SCOPE_REASON)})`
+                    : '';
+
+              const head = ['Suite', ...profiles.map((p) => `\`${safe(p)}\``), 'Δ vs main'];
+              const rows = suites.map((suite) => [
+                `\`${suite}\``,
+                ...profiles.map((p) => {
+                  if (status[p] === 'unreachable') return '⚠️ unreachable';
+                  const c = cells[suite][p];
+                  if (!c || c.total === 0) return '—';
+                  const r = c.passed / c.total;
+                  return `${r >= threshold ? '✅' : '❌'} ${pct(r)} (${c.passed}/${c.total} runs)`;
+                }),
+                // TODO(agent-evals): delta vs the last main baseline. No baseline
+                // store exists yet (HaikeiLabs/kei docs/agent-evals-gate.md).
+                'n/a',
+              ]);
+              const line = (cells) => `| ${cells.join(' | ')} |`;
+              const passed = problems.length === 0;
+              const sha = context.payload.pull_request?.head?.sha ?? context.sha;
+              const body = [
+                marker,
+                kindMarker,
+                `### ${passed ? '✅' : '❌'} Agent evals (${kind}): ${skipped ? 'no eval-relevant changes' : passed ? 'passed' : 'failed'}`,
+                '',
+                ...(scopeLine ? [scopeLine, ''] : []),
+                `Threshold ${pct(threshold)} of passed runs / total runs per suite per model · ${repeats} run(s) per case · commit \`${String(sha).slice(0, 7)}\` · [run](${runUrl})`,
+                '',
+                ...(suites.length ? [line(head), line(head.map(() => '---')), ...rows.map(line), ''] : []),
+                ...(problems.length ? ['**Failing:**', ...problems.map((p) => `- ${p}`), ''] : []),
+                '<sub>Deterministic table tests (EV-C1); no LLM grader. Δ vs main is not yet available: no baseline store.</sub>',
+              ].join('\n');
+
+              await upsert(body);
+              if (!passed) core.setFailed(problems.join('; '));
+            } catch (err) {
+              const why = clean(err?.message) || 'unknown error';
+              await upsert([marker, kindMarker, `### ❌ Agent evals (${kind}): report error`, '',
+                `The report could not be built (\`${why}\`), so nothing is shown as passing. See the [run](${runUrl}).`].join('\n'));
+              core.setFailed(`agent-evals report error: ${why}`);
+            }
             // END agent-evals report

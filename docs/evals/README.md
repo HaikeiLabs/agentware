@@ -34,7 +34,7 @@ export EVAL_DEEPSEEK_BASE_URL=<openai-compatible base URL incl. /v1>
 PYTHONPATH=src python3 -m evals.main \
   --suite ../evals/suites/agentware.beta-tools.json \
   --model-profile deepseek-v4-flash \
-  --out ../evals/results/$(date +%F)-deepseek-v4-flash \
+  --out ../evals-out/$(date +%F)-deepseek-v4-flash \
   --jobs 1 --threshold 0.95
 # or: make evals-suite EVAL_PROFILE=qwen3.8-27b
 ```
@@ -50,6 +50,7 @@ PYTHONPATH=src python3 -m evals.main \
 | `--max-turns` | Tool-loop turns per case | `10` |
 | `--timeout` | Per-request model timeout, seconds | `600` |
 | `--max-tokens` | Completion budget per turn; a reply cut off here fails as truncated | `1024` |
+| `--repeats` | Runs per case, overriding each suite's `repeats` (the CI gate passes 3) | the suite's |
 | `--case` | Run only this case id (repeatable), e.g. to re-run failures | all |
 | `--transcripts` | JSONL of tool calls + final text per run (diagnostics, scrubbed) | off |
 
@@ -106,7 +107,8 @@ directory.
 
 ### How a case is scored
 
-The runner drives a tool loop at temperature 0. Each extra turn re-sends
+The runner drives a tool loop with the profile's `temperature` (default 0)
+and `seed` on every request. Each extra turn re-sends
 the whole prompt, so a case stops at its **first decisive event**:
 
 - A case with `"tool": "x"`, or with no `tool` key, is graded on the first
@@ -157,8 +159,9 @@ hold:
 - if `expect.tool` was attempted, its arguments are valid
 - the `content` checks pass (use `not_contains` for claims of success)
 
-**Repeats.** Each case runs `repeats` times and passes only if every repeat
-passes. A model or transport exception counts in `errors`, not `failed`.
+**Repeats.** Each case runs `repeats` times, and each repeat is one run. A
+suite's score is passed runs / total runs (the average over repeats, as for
+tool-call evals), and the threshold applies to that average. A model or transport exception counts in `errors`, not `failed`.
 
 ### Model profiles
 
@@ -171,6 +174,9 @@ URL, so endpoints, tailnet IPs and hostnames stay out of public repos.
 |---|---|---|---|---|
 | `deepseek-v4-flash` | vllm | `deepseek-ai/DeepSeek-V4-Flash` | `EVAL_DEEPSEEK_BASE_URL` | 4 |
 | `qwen3.8-27b` | llamacpp | `qwen3.8-27b` | `EVAL_QWEN_BASE_URL` | 2 |
+
+Both set `temperature: 0` and `seed: 42`. A profile without them samples at
+temperature 0 and sends no seed.
 
 Add a model by adding one entry. The endpoints are shared with other
 workers, so use `--jobs 1` unless you hold the host.
@@ -187,13 +193,17 @@ workers, so use `--jobs 1` unless you hold the host.
 `git_sha` is the runner checkout's HEAD, read when the run **starts**. It
 gets a `-dirty` suffix when tracked files differ from HEAD. Untracked
 files don't count, so results written into the checkout don't trigger it.
-`cases[].duration_ms` is the case's wall time summed across repeats. It
-is an additive v1 field (an EV-C1 contract change); consumers ignore
+`passed`, `failed`, `errors` and `total` count runs (cases x repeats), and
+`pass_rate` is passed runs / total runs. `cases[].runs` and
+`cases[].passed_runs` give each case's share; `cases[].passed` is true only
+when every run passed.
+`cases[].duration_ms` is the case's wall time summed across repeats. These
+are additive v1 fields (EV-C1 contract changes); consumers ignore
 fields they don't know. `benchmark.md` holds the same numbers as a table,
 with the mean case time, plus the failing cases with
 their reasons. Reasons are scrubbed of URLs, IPv4 addresses and `*.ts.net`
-hostnames. Committed results go in
-`evals/results/<YYYY-MM-DD>-<model_profile>/benchmark.{json,md}`.
+hostnames. Don't commit local runs: the agent-evals CI gate and its sticky
+pull request comment are the record; local runs are for tuning.
 
 ## Legacy CLI Options
 

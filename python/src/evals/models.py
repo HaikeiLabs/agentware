@@ -39,6 +39,7 @@ class BaseModelClient(ABC):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        seed: int | None = None,
     ) -> ModelResult: ...
 
 
@@ -61,6 +62,7 @@ class OpenAIClient(BaseModelClient):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        seed: int | None = None,
     ) -> ModelResult:
         payload = {
             "model": self.model,
@@ -68,6 +70,8 @@ class OpenAIClient(BaseModelClient):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if seed is not None:
+            payload["seed"] = seed
 
         if tools:
             payload["tools"] = tools
@@ -129,6 +133,7 @@ class AnthropicClient(BaseModelClient):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        seed: int | None = None,
     ) -> ModelResult:
         system_msg = ""
         filtered_messages = []
@@ -216,6 +221,7 @@ class OllamaClient(BaseModelClient):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        seed: int | None = None,
     ) -> ModelResult:
         ollama_messages = []
         for msg in messages:
@@ -246,11 +252,14 @@ class OllamaClient(BaseModelClient):
             else:
                 ollama_messages.append(msg)
 
+        options: dict[str, Any] = {"num_predict": max_tokens, "temperature": temperature}
+        if seed is not None:
+            options["seed"] = seed
         payload = {
             "model": self.model,
             "messages": ollama_messages,
             "temperature": temperature,
-            "options": {"num_predict": max_tokens},
+            "options": options,
             "stream": False,
         }
 
@@ -313,6 +322,7 @@ class VLLMClient(BaseModelClient):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        seed: int | None = None,
     ) -> ModelResult:
         payload = {
             "model": self.model,
@@ -320,6 +330,8 @@ class VLLMClient(BaseModelClient):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if seed is not None:
+            payload["seed"] = seed
 
         if tools:
             payload["tools"] = tools
@@ -385,6 +397,7 @@ class LlamaCPPClient(VLLMClient):
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        seed: int | None = None,
     ) -> ModelResult:
         payload = {
             "model": self.model,
@@ -392,6 +405,8 @@ class LlamaCPPClient(VLLMClient):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if seed is not None:
+            payload["seed"] = seed
 
         if tools:
             payload["tools"] = tools

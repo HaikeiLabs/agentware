@@ -34,25 +34,41 @@ def scrub(text: str, secrets: tuple[str, ...] = ()) -> str:
 class CaseOutcome:
     id: str
     passed: bool
+    """True only when every run of the case passed."""
     reason: str = ""
     errored: bool = False
     duration_ms: int = 0
     """Wall time across all repeats of the case."""
+    runs: int = 1
+    passed_runs: int = -1
+    """Runs that passed; defaults to all runs when ``passed``, else none."""
+    errored_runs: int = -1
+    """Runs that errored; defaults to all runs when ``errored``, else none."""
+
+    def __post_init__(self) -> None:
+        if self.passed_runs < 0:
+            object.__setattr__(self, "passed_runs", self.runs if self.passed else 0)
+        if self.errored_runs < 0:
+            object.__setattr__(self, "errored_runs", self.runs if self.errored else 0)
 
 
 @dataclass
 class SuiteResult:
+    """One suite on one model. Counts are runs (each repeat of a case is a run),
+    so ``pass_rate`` is passed runs / total runs: the average over repeats,
+    as for tool-call evals. With one repeat a run is a case."""
+
     suite: str
     kind: str
     cases: list[CaseOutcome] = field(default_factory=list)
 
     @property
     def passed(self) -> int:
-        return sum(1 for c in self.cases if c.passed)
+        return sum(c.passed_runs for c in self.cases)
 
     @property
     def errors(self) -> int:
-        return sum(1 for c in self.cases if c.errored)
+        return sum(c.errored_runs for c in self.cases)
 
     @property
     def failed(self) -> int:
@@ -60,7 +76,7 @@ class SuiteResult:
 
     @property
     def total(self) -> int:
-        return len(self.cases)
+        return sum(c.runs for c in self.cases)
 
     @property
     def pass_rate(self) -> float:
@@ -100,7 +116,10 @@ def build_benchmark(
     """The benchmark document in the v1 shape. Reasons are scrubbed.
 
     ``cases[].duration_ms`` is an additive v1 field (EV-C1 contract change,
-    2026-10-08); consumers ignore fields they do not know.
+    2026-10-08); consumers ignore fields they do not know. So are
+    ``cases[].runs`` and ``cases[].passed_runs`` (EV-C1 contract change,
+    2026-10-10): suite counts are runs, and ``pass_rate`` is passed runs /
+    total runs.
     """
     return {
         "schema": BENCHMARK_SCHEMA,
@@ -124,6 +143,8 @@ def build_benchmark(
                         "passed": c.passed,
                         "reason": scrub(c.reason, secrets),
                         "duration_ms": c.duration_ms,
+                        "runs": c.runs,
+                        "passed_runs": c.passed_runs,
                     }
                     for c in r.cases
                 ],
@@ -146,6 +167,7 @@ def render_markdown(benchmark: dict[str, Any], threshold: float) -> str:
         f"- Created: {benchmark['created_at']}",
         f"- Git SHA: `{benchmark['git_sha'] or 'unknown'}`",
         f"- Threshold: {threshold:.0%}",
+        "- Counts are runs (cases x repeats); the pass rate is passed runs / total runs.",
         "",
         "| Suite | Kind | Passed | Failed | Errors | Total | Pass rate | Mean case time | Status |",
         "|---|---|---:|---:|---:|---:|---:|---:|---|",
