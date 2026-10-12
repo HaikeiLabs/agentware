@@ -827,7 +827,7 @@ class TestProfiles:
         qwen = profiles["qwen3.8-27b"]
         assert qwen.backend is ModelBackend.LLAMACPP
         assert qwen.base_url_env == "EVAL_QWEN_BASE_URL"
-        assert qwen.concurrency == 2
+        assert qwen.concurrency == 1
 
     def test_canonical_profiles_carry_no_endpoints(self) -> None:
         text = CANONICAL_PROFILES.read_text()

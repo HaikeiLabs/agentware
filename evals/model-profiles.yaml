@@ -26,6 +26,8 @@ profiles:
     backend: llamacpp
     model: qwen3.8-27b
     base_url_env: EVAL_QWEN_BASE_URL
-    concurrency: 2
+    # One GPU serves Qwen to up to 4 CI runners and the workers' local runs,
+    # so each job sends one request at a time (owner decision 2026-10-12).
+    concurrency: 1
     temperature: 0
     seed: 42

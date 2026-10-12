@@ -173,7 +173,7 @@ URL, so endpoints, tailnet IPs and hostnames stay out of public repos.
 | Profile | Backend | Model | Env | Concurrency |
 |---|---|---|---|---|
 | `deepseek-v4-flash` | vllm | `deepseek-ai/DeepSeek-V4-Flash` | `EVAL_DEEPSEEK_BASE_URL` | 4 |
-| `qwen3.8-27b` | llamacpp | `qwen3.8-27b` | `EVAL_QWEN_BASE_URL` | 2 |
+| `qwen3.8-27b` | llamacpp | `qwen3.8-27b` | `EVAL_QWEN_BASE_URL` | 1 |
 
 Both set `temperature: 0` and `seed: 42`. A profile without them samples at
 temperature 0 and sends no seed.
