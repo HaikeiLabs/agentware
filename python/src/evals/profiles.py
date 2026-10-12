@@ -31,6 +31,9 @@ class ModelProfile:
     """Sampling temperature for every request (EV-C1 §3); 0 = greedy."""
     seed: int | None = None
     """Sampling seed sent with every request; ``None`` sends none."""
+    thinking: bool | None = None
+    """``False`` turns the model's reasoning off on every request; ``None``
+    leaves the server's default."""
 
     def base_url(self, environ: Mapping[str, str] | None = None) -> str:
         """Resolve the base URL from ``base_url_env``.
@@ -74,6 +77,9 @@ def _profile(name: str, raw: Any) -> ModelProfile:
     seed = raw.get("seed")
     if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool) or seed < 0):
         raise ProfileError(f"profile {name!r}: seed must be a non-negative integer")
+    thinking = raw.get("thinking")
+    if thinking is not None and not isinstance(thinking, bool):
+        raise ProfileError(f"profile {name!r}: thinking must be true or false")
     return ModelProfile(
         name=name,
         backend=backend,
@@ -83,6 +89,7 @@ def _profile(name: str, raw: Any) -> ModelProfile:
         opencode_model=opencode_model,
         temperature=float(temperature),
         seed=seed,
+        thinking=thinking,
     )
 
 

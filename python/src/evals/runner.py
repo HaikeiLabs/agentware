@@ -253,6 +253,7 @@ class EvalRunner:
         max_tokens: int = 2048,
         temperature: float = 0.0,
         seed: int | None = None,
+        thinking: bool | None = None,
     ):
         self.base_url = base_url
         self.max_turns = max_turns
@@ -261,6 +262,7 @@ class EvalRunner:
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.seed = seed
+        self.thinking = thinking
         self.results: list[EvalResult] = []
 
     def _client(self, model: str) -> BaseModelClient:
@@ -464,10 +466,12 @@ class EvalRunner:
         )
 
     def _sampling(self) -> dict[str, Any]:
-        """The profile's sampling settings; ``seed`` only when one is set."""
+        """The profile's sampling settings; ``seed`` and ``thinking`` only when set."""
         sampling: dict[str, Any] = {"temperature": self.temperature}
         if self.seed is not None:
             sampling["seed"] = self.seed
+        if self.thinking is not None:
+            sampling["thinking"] = self.thinking
         return sampling
 
     def preflight(self, model: str) -> None:
