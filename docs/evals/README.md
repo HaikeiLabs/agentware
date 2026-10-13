@@ -175,15 +175,20 @@ URL, so endpoints, tailnet IPs and hostnames stay out of public repos.
 | `deepseek-v4-flash` | vllm | `deepseek-ai/DeepSeek-V4-Flash` | `EVAL_DEEPSEEK_BASE_URL` | 4 |
 | `qwen3.8-27b` | llamacpp | `qwen3.8-27b` | `EVAL_QWEN_BASE_URL` | 1 |
 
-Both set `temperature: 0`, `seed: 42` and `thinking: false`. A profile
-without them samples at temperature 0, sends no seed and leaves thinking at
-the server's default.
+Both set `seed: 42` and `thinking: true` (owner decision 2026-10-13: with
+thinking off, DeepSeek fell to 44-72% on several skills). DeepSeek samples at
+`temperature: 0`. Qwen uses its recommended thinking-mode sampling,
+`temperature: 0.6`, `top_p: 0.95` and `top_k: 20`, because greedy sampling
+makes it loop with thinking on. A profile without these fields samples at
+temperature 0, sends no seed, `top_p` or `top_k`, and leaves thinking at the
+server's default.
 
-`thinking: false` turns the model's reasoning off, because evals don't need
-it. The vLLM, LM Studio and llama.cpp clients send `chat_template_kwargs` with
-`enable_thinking: false` (Qwen's template) and `thinking: false` (DeepSeek
-V4's). Each template ignores the other's key. Ollama gets `think: false`. The
-OpenAI and Anthropic clients send nothing.
+`thinking` switches the model's reasoning on or off on every request. The
+vLLM, LM Studio and llama.cpp clients send `chat_template_kwargs` with
+`enable_thinking` (Qwen's template) and `thinking` (DeepSeek V4's), both set to
+the profile's value. Each template ignores the other's key. Ollama gets
+`think`. The OpenAI and Anthropic clients send nothing. `top_p` and `top_k`
+go to every client that accepts them; OpenAI's API has no `top_k`.
 
 Add a model by adding one entry. The endpoints are shared with other
 workers, so use `--jobs 1` unless you hold the host.
