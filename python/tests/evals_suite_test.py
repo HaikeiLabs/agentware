@@ -866,14 +866,14 @@ class TestProfiles:
         with pytest.raises(ProfileError, match=message):
             load_profiles(_profiles(tmp_path, body))
 
-    def test_canonical_profiles_sample_greedily_with_a_fixed_seed(self) -> None:
+    def test_canonical_profiles_sample_greedily_with_a_fixed_seed_and_no_thinking(self) -> None:
         for profile in load_profiles(CANONICAL_PROFILES).values():
-            assert (profile.temperature, profile.seed) == (0.0, 42), profile.name
+            assert (profile.temperature, profile.seed, profile.thinking) == (0.0, 42, False), profile.name
 
     def test_sampling_defaults(self, tmp_path: Path) -> None:
         path = _profiles(tmp_path, "profiles:\n  p: {backend: vllm, model: m, base_url_env: E}\n")
         profile = resolve_profile(path, "p")
-        assert (profile.temperature, profile.seed) == (0.0, None)
+        assert (profile.temperature, profile.seed, profile.thinking) == (0.0, None, None)
 
     @pytest.mark.parametrize(
         "field, message",
@@ -884,6 +884,8 @@ class TestProfiles:
             ("seed: 1.5", "seed"),
             ("seed: -1", "seed"),
             ("seed: '42'", "seed"),
+            ("thinking: 0", "thinking"),
+            ("thinking: 'false'", "thinking"),
         ],
     )
     def test_rejects_bad_sampling(self, tmp_path: Path, field: str, message: str) -> None:
@@ -1347,7 +1349,7 @@ class _WireResp:
 
 
 class TestSampling:
-    """The profile's temperature and seed reach every request on the wire."""
+    """The profile's temperature, seed and thinking switch reach every request on the wire."""
 
     REPLY = {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}]}
 
@@ -1368,6 +1370,38 @@ class TestSampling:
         assert (sent[0]["temperature"], sent[0]["seed"]) == (0.0, 42)
         assert "seed" not in sent[1]
 
+    @pytest.mark.parametrize("backend", ["vllm", "llamacpp", "lmstudio"])
+    def test_self_hosted_clients_turn_thinking_off_through_the_chat_template(
+        self, backend: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from evals.models import create_model_client
+
+        sent: list[dict[str, Any]] = []
+        monkeypatch.setattr(
+            "evals.models.urllib.request.urlopen",
+            lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
+        )
+        client = create_model_client(ModelBackend(backend), "m", "http://stub/v1")
+        client.complete([{"role": "user", "content": "x"}], thinking=False)
+        client.complete([{"role": "user", "content": "x"}], thinking=True)
+        client.complete([{"role": "user", "content": "x"}])
+        # Qwen's template reads enable_thinking, DeepSeek V4's reads thinking.
+        assert sent[0]["chat_template_kwargs"] == {"enable_thinking": False, "thinking": False}
+        assert "chat_template_kwargs" not in sent[1] and "chat_template_kwargs" not in sent[2]
+
+    def test_openai_client_sends_no_template_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from evals.models import create_model_client
+
+        sent: list[dict[str, Any]] = []
+        monkeypatch.setattr(
+            "evals.models.urllib.request.urlopen",
+            lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
+        )
+        create_model_client(ModelBackend.OPENAI, "m", "http://stub/v1").complete(
+            [{"role": "user", "content": "x"}], thinking=False
+        )
+        assert "chat_template_kwargs" not in sent[0]
+
     def test_ollama_sends_sampling_in_options(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from evals.models import OllamaClient
 
@@ -1379,8 +1413,9 @@ class TestSampling:
                 _WireResp({"message": {"content": "hi"}, "done": True}),
             )[1],
         )
-        OllamaClient("m").complete([{"role": "user", "content": "x"}], temperature=0.0, seed=42)
+        OllamaClient("m").complete([{"role": "user", "content": "x"}], temperature=0.0, seed=42, thinking=False)
         assert sent["options"]["temperature"] == 0.0 and sent["options"]["seed"] == 42
+        assert sent["think"] is False
 
     def test_cli_sends_profile_sampling_on_every_request_and_repeats_override(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1395,7 +1430,7 @@ class TestSampling:
         profiles = _profiles(
             tmp_path,
             "profiles:\n  stub: {backend: vllm, model: stub-model, "
-            "base_url_env: EVAL_STUB_BASE_URL, temperature: 0, seed: 7}\n",
+            "base_url_env: EVAL_STUB_BASE_URL, temperature: 0, seed: 7, thinking: false}\n",
         )
         out = tmp_path / "out"
         argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
@@ -1403,6 +1438,9 @@ class TestSampling:
         assert eval_main.main(argv) == 0
         assert len(sent) == 4  # preflight + one request per repeat
         assert all((body["temperature"], body["seed"]) == (0, 7) for body in sent)
+        assert all(
+            body["chat_template_kwargs"] == {"enable_thinking": False, "thinking": False} for body in sent
+        )
         (result,) = json.loads((out / "benchmark.json").read_text())["results"]
         assert (result["passed"], result["total"]) == (3, 3)
         assert result["cases"] == [

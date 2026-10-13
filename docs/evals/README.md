@@ -175,8 +175,15 @@ URL, so endpoints, tailnet IPs and hostnames stay out of public repos.
 | `deepseek-v4-flash` | vllm | `deepseek-ai/DeepSeek-V4-Flash` | `EVAL_DEEPSEEK_BASE_URL` | 4 |
 | `qwen3.8-27b` | llamacpp | `qwen3.8-27b` | `EVAL_QWEN_BASE_URL` | 1 |
 
-Both set `temperature: 0` and `seed: 42`. A profile without them samples at
-temperature 0 and sends no seed.
+Both set `temperature: 0`, `seed: 42` and `thinking: false`. A profile
+without them samples at temperature 0, sends no seed and leaves thinking at
+the server's default.
+
+`thinking: false` turns the model's reasoning off, because evals don't need
+it. The vLLM, LM Studio and llama.cpp clients send `chat_template_kwargs` with
+`enable_thinking: false` (Qwen's template) and `thinking: false` (DeepSeek
+V4's). Each template ignores the other's key. Ollama gets `think: false`. The
+OpenAI and Anthropic clients send nothing.
 
 Add a model by adding one entry. The endpoints are shared with other
 workers, so use `--jobs 1` unless you hold the host.
