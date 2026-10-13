@@ -181,6 +181,50 @@ Reasons read `kei-proxy <class>[: <detail>]`, where the class is one of
 `REASON_CLASSES`. The behaviour is shared with the TypeScript and Go ports —
 see `docs/kei-proxy-evaluator-parity.md`.
 
+### Over the kei-proxy daemon socket
+
+When `kei-proxy serve` runs beside the harness, talk to it over its Unix
+socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)
+instead of spawning a process per call. `KeiProxySocketAuthorizeClient` is the
+async client, named and behaving like the TypeScript SDK's: it opens a
+`kei.session/v2` session per `(source, external_id)`, and authorizes, lists
+models and runs chat completions inside it. The request never names the user;
+the daemon decides for the session's subject. An unreachable daemon, a non-2xx
+answer or a body that is not the expected JSON raises `KeiProxySocketError`,
+a refusal. A `session_not_found` session is reopened once.
+
+```python
+from pedro_agentware.kei import (
+    KeiProxyEvaluator,
+    KeiProxySocketAuthorizeClient,
+    KeiProxySocketIdentity,
+    select_authorization_client,
+)
+
+runtime = KeiProxySocketAuthorizeClient()
+session = await runtime.open_session(KeiProxySocketIdentity("openwebui", user_id))
+answer = await runtime.authorize(session, tool="github.get_issue", action="execute")
+reply = await runtime.chat_completion(session, {"model": "gpt-4.1", "messages": messages})
+async for line in runtime.stream_chat_completion(session, body):  # SSE "data:" lines
+    ...
+await runtime.close_session(session)
+
+# The evaluator uses the socket when one is configured, else `kei-proxy authorize`.
+evaluator = KeiProxyEvaluator(select_authorization_client("openwebui"))
+```
+
+Register the harness's tools before serving with `sync_tool_manifest`: it
+`PUT`s the tool manifest v2 to `$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools`
+with `KEI_RUNTIME_TOKEN`, replacing the installation's tools, so it refuses to
+send an empty manifest. It honours `KEI_PROXY_EGRESS_PROXY` and
+`KEI_PROXY_NO_PROXY`.
+
+```python
+from pedro_agentware.kei import ToolManifestSyncConfig, sync_tool_manifest
+
+sync_tool_manifest(manifest, ToolManifestSyncConfig.from_env(), expect_tools=bool(packs))
+```
+
 For the fail-closed design principles — the decision table,
 `KEI_PROXY_DISABLED` as fail-closed (never an allow switch), governed vs
 non-governed tool calls, and testing patterns — see `docs/fail-closed-design.md`.

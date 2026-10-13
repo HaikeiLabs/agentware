@@ -9,6 +9,9 @@ Key components:
 - Local proxy executable discovery and subprocess invocation (fail closed)
 - KeiProxyEvaluator: a middleware PolicyEvaluator backed by kei-proxy, so
   enforcement lives here rather than in each agent harness
+- KeiProxySocketAuthorizeClient: the async Unix-socket client for the
+  ``kei-proxy serve`` daemon (sessions, authorize, model routes), and
+  sync_tool_manifest for registering a harness's tools with the control plane
 - RuntimeLink contract types and helpers for the harness → Agentware →
   kei-connector-runtime heartbeat protocol
 
@@ -123,6 +126,29 @@ from .runtime_link import (
     parse_child_line,
     parse_child_line_counted,
 )
+from .runtime_socket import (
+    AUTHORIZE_REQUEST_SCHEMA,
+    AUTHORIZE_RESPONSE_SCHEMA,
+    DEFAULT_RUNTIME_SOCKET_PATH,
+    RUNTIME_SOCKET_PATH_ENV,
+    SESSION_HEADER,
+    SESSION_SCHEMA,
+    KeiProxySocketAuthorizationClient,
+    KeiProxySocketAuthorizeClient,
+    KeiProxySocketError,
+    KeiProxySocketIdentity,
+    KeiProxySocketSession,
+    select_authorization_client,
+)
+from .tool_sync import (
+    TOOL_MANIFEST_V2_MEDIA_TYPE,
+    TOOLS_PATH,
+    ToolManifestSyncConfig,
+    ToolManifestSyncError,
+    ToolManifestSyncResult,
+    manifest_tool_count,
+    sync_tool_manifest,
+)
 
 __all__ = [
     "AFFIRMATIVE_DECISIONS",
@@ -213,4 +239,23 @@ __all__ = [
     "MetricsSink",
     "LifecycleAuditSink",
     "new_link",
+    "AUTHORIZE_REQUEST_SCHEMA",
+    "AUTHORIZE_RESPONSE_SCHEMA",
+    "DEFAULT_RUNTIME_SOCKET_PATH",
+    "RUNTIME_SOCKET_PATH_ENV",
+    "SESSION_HEADER",
+    "SESSION_SCHEMA",
+    "KeiProxySocketAuthorizationClient",
+    "KeiProxySocketAuthorizeClient",
+    "KeiProxySocketError",
+    "KeiProxySocketIdentity",
+    "KeiProxySocketSession",
+    "select_authorization_client",
+    "TOOL_MANIFEST_V2_MEDIA_TYPE",
+    "TOOLS_PATH",
+    "ToolManifestSyncConfig",
+    "ToolManifestSyncError",
+    "ToolManifestSyncResult",
+    "manifest_tool_count",
+    "sync_tool_manifest",
 ]
