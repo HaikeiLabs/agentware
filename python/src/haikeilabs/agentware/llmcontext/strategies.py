@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from pedro_agentware.llm import Message
-from pedro_agentware.middleware.types import MessageType
+from haikeilabs.agentware.llm import Message
+from haikeilabs.agentware.middleware.types import MessageType
 
 
 class TokenCounter(Protocol):

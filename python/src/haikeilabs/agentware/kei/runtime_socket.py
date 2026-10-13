@@ -19,8 +19,8 @@ harness needs:
 Fail-closed contract: an unreachable daemon, a timeout, a non-2xx answer, a
 body that is not a JSON object, or a response with the wrong schema raises
 :class:`KeiProxySocketError`. It subclasses
-:class:`~pedro_agentware.kei.evaluator.KeiProxyAuthorizeError`, so
-:class:`~pedro_agentware.kei.KeiProxyEvaluator` turns every one of them into a
+:class:`~haikeilabs.agentware.kei.evaluator.KeiProxyAuthorizeError`, so
+:class:`~haikeilabs.agentware.kei.KeiProxyEvaluator` turns every one of them into a
 DENY with the matching reason class. A session the daemon no longer knows
 (``session_not_found``) is reopened once; a second miss fails closed.
 
@@ -84,7 +84,7 @@ class KeiProxySocketError(KeiProxyAuthorizeError):
     """A daemon call that produced no usable answer. Callers fail closed.
 
     ``reason_class`` is one of
-    :data:`~pedro_agentware.kei.evaluator.REASON_CLASSES`. ``code`` is the
+    :data:`~haikeilabs.agentware.kei.evaluator.REASON_CLASSES`. ``code`` is the
     daemon's error code (``{"error": {"code": ...}}``) when it sent one, e.g.
     ``invalid_runtime_token`` or ``session_not_found``.
     """
@@ -406,7 +406,7 @@ class KeiProxySocketAuthorizeClient:
 class KeiProxySocketAuthorizationClient:
     """The socket client as a synchronous :class:`AuthorizationClient`.
 
-    :class:`~pedro_agentware.kei.KeiProxyEvaluator` is synchronous and names
+    :class:`~haikeilabs.agentware.kei.KeiProxyEvaluator` is synchronous and names
     the acting user (``user_id``, the invoking subject) on every call. This
     adapter opens, or reuses, the daemon session for ``(source, user_id)`` and
     authorizes in it. Each call runs on a private event loop in a worker
@@ -489,7 +489,7 @@ def select_authorization_client(
     timeout: float = DEFAULT_SOCKET_TIMEOUT,
     expected_sha256: str | None = None,
 ) -> AuthorizationClient:
-    """The :class:`AuthorizationClient` for :class:`~pedro_agentware.kei.KeiProxyEvaluator`.
+    """The :class:`AuthorizationClient` for :class:`~haikeilabs.agentware.kei.KeiProxyEvaluator`.
 
     The socket client when a socket is configured (``socket_path``, or
     ``KEI_RUNTIME_SOCKET_PATH`` in ``env``), otherwise the ``kei-proxy

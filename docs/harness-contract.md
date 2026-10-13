@@ -17,7 +17,7 @@ A harness must provide three **required** components:
 Provides authentication tokens for the KEI API. The library defines the interface:
 
 ```python
-from pedro_agentware.kei import AuthProvider, OpaqueTokenProvider
+from haikeilabs.agentware.kei import AuthProvider, OpaqueTokenProvider
 
 # Simple implementation using the built-in opaque token provider
 auth_provider = OpaqueTokenProvider(
@@ -29,7 +29,7 @@ Or implement the protocol yourself:
 
 ```python
 from typing import Protocol
-from pedro_agentware.kei import TokenInfo, TokenType
+from haikeilabs.agentware.kei import TokenInfo, TokenType
 
 class MyAuthProvider(Protocol):
     def get_token(self) -> TokenInfo: ...
@@ -42,7 +42,7 @@ class MyAuthProvider(Protocol):
 Executes tools on behalf of agents. The library defines the interface:
 
 ```python
-from pedro_agentware.kei import ToolExecutor
+from haikeilabs.agentware.kei import ToolExecutor
 
 class MyToolExecutor:
     def execute(self, tool_name: str, args: dict) -> Any:
@@ -57,7 +57,7 @@ class MyToolExecutor:
 Sources the bootstrap secret (`KEI_RUNTIME_TOKEN`). Use the built-in:
 
 ```python
-from pedro_agentware.kei import EnvSecretProvider
+from haikeilabs.agentware.kei import EnvSecretProvider
 
 secret_provider = EnvSecretProvider()
 ```
@@ -74,7 +74,7 @@ class MySecretProvider(Protocol):
 ## Smallest Working Example
 
 ```python
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     HarnessContract,
     OpaqueTokenProvider,
     EnvSecretProvider,
@@ -97,7 +97,7 @@ contract = HarnessContract(
 )
 
 # 3. Validate it
-from pedro_agentware.kei import validate_contract
+from haikeilabs.agentware.kei import validate_contract
 errors = validate_contract(contract)
 if errors:
     raise ValueError(f"Contract invalid: {errors}")
@@ -112,7 +112,7 @@ if errors:
 The library provides policy evaluation via `PolicyEvaluator`. See `kei/evaluator.py` for the `KeiProxyEvaluator` implementation that connects to the KEI proxy for policy decisions.
 
 ```python
-from pedro_agentware.middleware import AuditedToolClient
+from haikeilabs.agentware.middleware import AuditedToolClient
 
 client = AuditedToolClient(
     source="my-harness",
@@ -129,7 +129,7 @@ client = contract.create_tool_client(source="my-harness")
 Every tool call is recorded. Use the built-in or provide your own:
 
 ```python
-from pedro_agentware.middleware import InMemoryAuditor
+from haikeilabs.agentware.middleware import InMemoryAuditor
 
 auditor = InMemoryAuditor()
 # Access records: auditor.query(filter)
@@ -140,7 +140,7 @@ auditor = InMemoryAuditor()
 The library tracks human identity across subagent delegation:
 
 ```python
-from pedro_agentware.middleware import CallerContext
+from haikeilabs.agentware.middleware import CallerContext
 
 # At human entry point
 caller = CallerContext(
@@ -247,4 +247,4 @@ The contract reuses existing types:
 
 ## Testing
 
-A third-party harness should be testable without importing `pedro-tag` or `pedro_service`. The test in `python/tests/third_party_harness_test.py` demonstrates this by building a complete harness using only `pedro_agentware`.
+A third-party harness should be testable without importing `pedro-tag` or `pedro_service`. The test in `python/tests/third_party_harness_test.py` demonstrates this by building a complete harness using only `haikeilabs.agentware`.

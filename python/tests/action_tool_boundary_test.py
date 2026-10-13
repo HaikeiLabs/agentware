@@ -27,19 +27,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-import pedro_agentware.kei.config as kei_config
-import pedro_agentware.kei.evaluator as kei_evaluator
-import pedro_agentware.middleware as middleware
-from pedro_agentware.kei import KeiProxyEvaluator
-from pedro_agentware.kei.config import (
+import haikeilabs.agentware.kei.config as kei_config
+import haikeilabs.agentware.kei.evaluator as kei_evaluator
+import haikeilabs.agentware.middleware as middleware
+from haikeilabs.agentware.kei import KeiProxyEvaluator
+from haikeilabs.agentware.kei.config import (
     HarnessConfig,
     SecretRef,
     ToolBinding,
     get_config,
     load_manifest,
 )
-from pedro_agentware.middleware import Action, AuditedToolClient, CallerContext
-from pedro_agentware.middleware.policy import Policy, Rule, SimplePolicyEvaluator
+from haikeilabs.agentware.middleware import Action, AuditedToolClient, CallerContext
+from haikeilabs.agentware.middleware.policy import Policy, Rule, SimplePolicyEvaluator
 
 VALID_MANIFEST = Path(__file__).parent / "fixtures" / "kei" / "harness-v1.json"
 
@@ -124,7 +124,7 @@ class TestLocalLoopHasNoABACDependency:
         # The local governance layer must not pull in the ABAC/proxy module.
         for py in Path(middleware.__file__).parent.rglob("*.py"):
             src = py.read_text()
-            assert "pedro_agentware.kei" not in src, py
+            assert "haikeilabs.agentware.kei" not in src, py
             assert "from ..kei" not in src, py
             assert "from .kei" not in src, py
 
@@ -158,7 +158,7 @@ class TestProxyIsAnOptionalAdapterBoundary:
             src = py.read_text()
             assert "subprocess" not in src, py
             assert "os.environ" not in src, py
-            assert "pedro_agentware.kei" not in src, py
+            assert "haikeilabs.agentware.kei" not in src, py
 
     def test_kei_proxy_evaluator_requires_an_injected_client(self):
         # The evaluator never builds its own network client or proxy; the

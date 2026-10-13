@@ -1,7 +1,7 @@
 # Contributing to pedro-agentware
 
 pedro-agentware is implemented three times — **Go (`go/`, the reference
-implementation), Python (`python/`, package `pedro_agentware`), and
+implementation), Python (`python/`, package `haikeilabs.agentware`), and
 TypeScript (`typescript/`)** — with deliberately mirrored package structure and
 mirrored test suites. Changes to shared logic (middleware, guardrails,
 toolformat, llmcontext, tools) must be mirrored in all three languages and
@@ -36,7 +36,7 @@ type ToolFormatter interface {
 }
 ```
 
-**Python** (`python/src/pedro_agentware/toolformat/formatter.py`):
+**Python** (`python/src/haikeilabs/agentware/toolformat/formatter.py`):
 
 ```python
 class ToolFormatter(Protocol):
@@ -72,7 +72,7 @@ through to `GenericFormatter` for anything unrecognized:
 
 - Go: `GetFormatter` in `go/toolformat/selector.go` (a `switch` over
   `strings.Contains` on the lowercased name).
-- Python: `get_formatter` in `python/src/pedro_agentware/toolformat/formatter.py`.
+- Python: `get_formatter` in `python/src/haikeilabs/agentware/toolformat/formatter.py`.
 - TypeScript: `getFormatter` in `typescript/src/toolformat/formatter.ts`.
 
 Existing mappings (verified in `docs/model-format-reference.md` and the
@@ -89,7 +89,7 @@ through to `GenericFormatter`.
 ### 3. Reasoning and thinking tags
 
 Reasoning handling lives in the reasoning adapter, mirrored in
-`go/reasoning/adapter.go`, `python/src/pedro_agentware/reasoning/adapter.py`,
+`go/reasoning/adapter.go`, `python/src/haikeilabs/agentware/reasoning/adapter.py`,
 and `typescript/src/reasoning/adapter.ts` (contract:
 `docs/reasoning-adapter.md`). Verified behavior for the five supported
 families (`docs/model-format-reference.md`):

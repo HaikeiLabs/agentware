@@ -11,7 +11,7 @@ from typing import Any
 
 from evals.expectations import ContentChecks, check_content
 from evals.models import BaseModelClient, ModelBackend, create_model_client
-from pedro_agentware.middleware import (
+from haikeilabs.agentware.middleware import (
     Action,
     CallerContext,
     InMemoryAuditor,

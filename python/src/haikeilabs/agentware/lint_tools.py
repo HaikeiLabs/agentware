@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-_ROOT = Path(__file__).resolve().parents[3]
+_ROOT = Path(__file__).resolve().parents[4]  # src/haikeilabs/agentware/ -> repo root
 _CAPABILITIES = json.loads((_ROOT / "fixtures/kei/connector-capabilities.v0.5.0.json").read_text())
 _IDENTIFIER = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 _RETIRED = {"allow", "approval", "approval_id", "approval_required", "requires_approval"}
@@ -101,7 +101,7 @@ def main() -> int:
             json.dumps(
                 {
                     "valid": False,
-                    "errors": ["usage: python -m pedro_agentware.lint_tools MANIFEST.json"],
+                    "errors": ["usage: python -m haikeilabs.agentware.lint_tools MANIFEST.json"],
                 }
             )
         )

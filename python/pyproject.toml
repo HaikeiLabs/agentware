@@ -1,17 +1,37 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+# setuptools 77 implements PEP 639 (SPDX `license` + `license-files`).
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pedro-agentware"
-version = "0.9.0"
-description = "Agent middleware and tooling for LLM tool calling"
+name = "haikeilabs-agentware"
+# The single version source: the wheel's metadata, and so
+# haikeilabs.agentware.__version__, come from here. Versioned independently of
+# the TypeScript SDK; a release tag is agentware-py-v<version>.
+version = "0.1.0"
+description = "Policy enforcement and audit middleware for LLM agent tool calls"
 readme = "README.md"
-license = {text = "MIT"}
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
-    {name = "Pedro Team", email = "team@pedro.ai"}
+    {name = "HaikeiLabs"},
 ]
 requires-python = ">=3.10"
+keywords = ["llm", "agents", "tool-calling", "mcp", "policy", "audit", "middleware"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "pydantic>=2.0",
     "httpx>=0.27.0",
@@ -34,8 +54,30 @@ dev = [
     "mypy>=1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/HaikeiLabs/agentware"
+Documentation = "https://github.com/HaikeiLabs/agentware/tree/main/docs/python"
+Repository = "https://github.com/HaikeiLabs/agentware"
+Issues = "https://github.com/HaikeiLabs/agentware/issues"
+Changelog = "https://github.com/HaikeiLabs/agentware/blob/main/python/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+# haikeilabs/ is a PEP 420 implicit namespace package (no __init__.py), so other
+# haikeilabs.* distributions can install beside this one.
+namespaces = true
+# The SDK and its deprecated pedro_agentware alias. src/evals is the repo's eval
+# runner (run with PYTHONPATH=src) and must not land on PyPI as a top-level
+# "evals" package.
+include = ["haikeilabs.agentware*", "pedro_agentware*"]
+exclude = ["*.__pycache__"]
+
+[tool.setuptools.package-data]
+"haikeilabs.agentware" = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = ["*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -52,6 +94,9 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
+# src/haikeilabs is a namespace package: module names are relative to src/.
+mypy_path = "src"
+explicit_package_bases = true
 strict = true
 ignore_missing_imports = true
 warn_return_any = false

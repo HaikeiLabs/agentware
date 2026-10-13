@@ -8,7 +8,7 @@ sampling fallback if it fails.
 
 Runnable as a subprocess (the Go core's transport)::
 
-    python -m pedro_agentware.memory.infer < request.json > response.json
+    python -m haikeilabs.agentware.memory.infer < request.json > response.json
 
 Requires the ``inference`` extra (pgmpy).
 """

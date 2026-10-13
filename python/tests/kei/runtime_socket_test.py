@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     KeiProxyAuthorizeClient,
     KeiProxyEvaluator,
     KeiProxySocketAuthorizationClient,
@@ -18,7 +18,7 @@ from pedro_agentware.kei import (
     KeiProxySocketSession,
     select_authorization_client,
 )
-from pedro_agentware.middleware.types import Action, CallerContext
+from haikeilabs.agentware.middleware.types import Action, CallerContext
 
 TOKEN = "kei_rt_unit-secret-token-0123456789"
 ENV = {"KEI_RUNTIME_TOKEN": TOKEN}

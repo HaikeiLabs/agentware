@@ -51,7 +51,7 @@ go vet ./... && golangci-lint run   # lint (CI runs golangci-lint)
 go build ./cmd/pedro-proxy          # build the proxy binary
 ```
 
-**Python** (run from `python/`; src-layout package `pedro_agentware`, Python ≥3.10):
+**Python** (run from `python/`; src-layout package `haikeilabs.agentware`, Python ≥3.10):
 
 ```bash
 pip install -e ".[dev]"
@@ -102,4 +102,4 @@ Each language implementation contains the same packages (Go names shown; Python/
 - `docs/build-history/` — archived working files from the wiki-memory build loop. `DECISIONS.md` there explains why the component is shaped as it is; worth reading before changing `go/memory`. Historical, not maintained.
 - `docs/{go,python,typescript}/README.md` — usage examples per language.
 - `AGENTS.md` — build/test commands and Go style conventions (naming, imports, error wrapping with `%w`, sentinel errors, structured logging).
-- Staleness warning: older docs reference the pre-rename packages `middleware-py` / `middleware_py`. The actual Python package is `pedro_agentware`; actual Go types live in `go/middleware` (e.g. `middleware.Decision`, `tools.Result`). Trust the code over the docs.
+- Staleness warning: older docs reference the pre-rename packages `middleware-py` / `middleware_py`. The actual Python package is `haikeilabs.agentware`; actual Go types live in `go/middleware` (e.g. `middleware.Decision`, `tools.Result`). Trust the code over the docs.

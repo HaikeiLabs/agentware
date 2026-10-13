@@ -107,7 +107,7 @@ class AgentResult:
 
 ## Example Usage
 ```python
-from pedro_agentware.middleware import Middleware
+from haikeilabs.agentware.middleware import Middleware
 from adapters.kitaru import KitaruAdapter
 from adapters.hermes import HermesAdapter
 from adapters.pydantic import PydanticAdapter

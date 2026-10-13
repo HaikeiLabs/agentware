@@ -3,7 +3,13 @@
 ## Purpose and scope
 
 This document defines how the Python implementation of Agentware should be
-packaged and released as `pedro-agentware` on PyPI. It is a release contract
+packaged and released as `haikeilabs-agentware` on PyPI, imported as
+`haikeilabs.agentware`. The distribution name matches the npm package
+`@haikeilabs/agentware`, and `haikeilabs` is a PEP 420 namespace package (no
+`haikeilabs/__init__.py`) so other `haikeilabs.*` distributions can install
+beside it (owner decisions, 2026-10-13). The previous import name,
+`pedro_agentware`, ships as a deprecated alias that resolves to the same module
+objects and emits a `DeprecationWarning`. It is a release contract
 and rollout plan; it does not add runtime functionality or change the public
 API.
 
@@ -17,11 +23,16 @@ changing packaging in a documentation change.
 
 ## Current package shape
 
-The current package configuration has these properties:
+> **Status (HAI-54):** `.github/workflows/publish-python.yml` and the packaging
+> changes that came with it close Phase 1 and most of Phase 2 below. The
+> "Known packaging gaps" section describes the tree *before* that change and is
+> kept for the record; each gap is marked with how it was closed.
 
-- Distribution name: `pedro-agentware`; import name: `pedro_agentware`.
-- Version: `0.9.0` in the repository at the time of writing.
-- Layout: src-layout, with the package under `python/src/pedro_agentware/`.
+The package configuration before HAI-54 had these properties:
+
+- Distribution name: `pedro-agentware` (now `haikeilabs-agentware`); import name: `pedro_agentware` (now `haikeilabs.agentware`, with `pedro_agentware` as a deprecated alias).
+- Version: `0.9.0` at the time of writing, in lockstep with the TypeScript SDK (now `0.1.0` for the first PyPI release, versioned independently).
+- Layout: src-layout, with the package under `python/src/pedro_agentware/` (now `python/src/haikeilabs/agentware/`).
 - Build backend: setuptools (`setuptools>=61.0`) via `setuptools.build_meta`.
 - Requires-Python: `>=3.10`.
 - Runtime dependencies: `pydantic>=2.0` and `httpx>=0.27.0`.
@@ -30,7 +41,7 @@ The current package configuration has these properties:
 - License declared as MIT in metadata; the only `LICENSE` file lives at the
   repository root, not under `python/`.
 
-The public surface is the root `pedro_agentware/__init__.py` barrel, which
+The public surface is the root `haikeilabs/agentware/__init__.py` barrel, which
 re-exports `Tool`, `ToolRegistry`, `Result`, `Middleware`, `PolicyEvaluator`,
 `Auditor`, `Executor`, `Job`, `JobManager`, `Message`, `Backend`,
 `ContextManager`, `PromptGenerator`, and `ToolFormatter`. Submodules
@@ -47,24 +58,30 @@ stands, and each maps to a follow-up item below:
 
 1. **`evals` is published as a second top-level package.** `src/evals/` is
    picked up by setuptools auto-discovery, so the wheel's `top_level.txt` reads
-   `evals` and `pedro_agentware`. Installing the package therefore claims the
+   `evals` and `haikeilabs.agentware`. Installing the package therefore claims the
    generic top-level name `evals` in the consumer's environment. This is a
    namespace collision hazard and must be fixed before the first publish.
+   *Closed:* `[tool.setuptools.packages.find] include = ["haikeilabs.agentware*"]`;
+   the release workflow fails if the wheel has any other top-level entry.
 2. **No `README.md` under `python/`.** `pyproject.toml` declares
    `readme = "README.md"`, and the build silently emits metadata with
    `Description-Content-Type: text/markdown` and an empty body. The published
-   PyPI project page would be blank.
+   PyPI project page would be blank. *Closed:* `python/README.md`.
 3. **No `LICENSE` file in either artifact.** The license is declared as
    `{text = "MIT"}` metadata only; no license file is included in the wheel or
-   sdist.
+   sdist. *Closed:* the metadata was also wrong (the repository is Apache-2.0).
+   It is now `license = "Apache-2.0"` with `license-files = ["LICENSE"]` (PEP 639).
 4. **No `py.typed` marker.** The package is type-checked under `mypy --strict`
    in CI, but consumers get no type information from an installed copy, because
-   PEP 561 requires the marker file to be shipped.
+   PEP 561 requires the marker file to be shipped. *Closed:* `py.typed` ships
+   as package data.
 5. **The sdist omits tests and packaging metadata.** It contains only
    `pyproject.toml`, `setup.cfg`, `PKG-INFO`, and `src/`. There is no
-   `MANIFEST.in`, so `tests/` and any package data are excluded.
+   `MANIFEST.in`, so `tests/` and any package data are excluded. *Closed:*
+   `python/MANIFEST.in`.
 6. **No explicit `packages`/`package-data` configuration.** Artifact contents
    are whatever auto-discovery happens to find, which is how gap 1 arose.
+   *Closed:* explicit `packages.find` and `package-data`.
 
 The three adapters under `python/adapters/` (`pedro-agentware-hermes`,
 `pedro-agentware-kitaru`, `pedro-agentware-pydantic`) each carry their own
@@ -77,25 +94,28 @@ pipeline is proven.
 The target publishable artifacts are a wheel and an sdist that contain only
 what consumers need to import, execute, and type-check the library.
 
-The **wheel** should contain exactly one top-level import package:
+The **wheel** should contain the `haikeilabs` namespace (with no
+`haikeilabs/__init__.py`) and the deprecated `pedro_agentware` alias, and
+nothing else at the top level:
 
 ```text
-pedro_agentware/**/*.py
-pedro_agentware/py.typed
-pedro_agentware-<version>.dist-info/METADATA
-pedro_agentware-<version>.dist-info/WHEEL
-pedro_agentware-<version>.dist-info/RECORD
-pedro_agentware-<version>.dist-info/licenses/LICENSE
+haikeilabs/agentware/**/*.py
+haikeilabs/agentware/py.typed
+pedro_agentware/__init__.py
+haikeilabs_agentware-<version>.dist-info/METADATA
+haikeilabs_agentware-<version>.dist-info/WHEEL
+haikeilabs_agentware-<version>.dist-info/RECORD
+haikeilabs_agentware-<version>.dist-info/licenses/LICENSE
 ```
 
 It must not contain `evals`, tests, fixtures, evaluation cases, adapters,
-coverage output, or repository-level documentation. `top_level.txt` (or the
-equivalent record) must list `pedro_agentware` and nothing else. Until an
-explicit package configuration is added, inspect the built wheel and treat any
-unexpected top-level entry as a release blocker.
+coverage output, or repository-level documentation. The wheel's
+top-level entries must be exactly `haikeilabs` and `pedro_agentware`; the
+release workflow fails on anything else, and on a packaged
+`haikeilabs/__init__.py`.
 
 The **sdist** should be a buildable source snapshot: `pyproject.toml`,
-`README.md`, `LICENSE`, `src/pedro_agentware/`, and `tests/`, so that a
+`README.md`, `LICENSE`, `src/haikeilabs/agentware/`, and `tests/`, so that a
 downstream packager can reproduce the wheel and run the test suite from the
 sdist alone.
 
@@ -109,14 +129,14 @@ The package should eventually declare which import paths are supported. The
 initial set should be the root barrel plus the subpaths already documented in
 `docs/python/README.md` and `docs/harness-contract.md`:
 
-- `pedro_agentware` (root barrel)
-- `pedro_agentware.middleware`
-- `pedro_agentware.middleware.guardrails`
-- `pedro_agentware.kei`
-- `pedro_agentware.tools`
-- `pedro_agentware.toolformat`
-- `pedro_agentware.executor`
-- `pedro_agentware.llm` and `pedro_agentware.llmcontext`
+- `haikeilabs.agentware` (root barrel)
+- `haikeilabs.agentware.middleware`
+- `haikeilabs.agentware.middleware.guardrails`
+- `haikeilabs.agentware.kei`
+- `haikeilabs.agentware.tools`
+- `haikeilabs.agentware.toolformat`
+- `haikeilabs.agentware.executor`
+- `haikeilabs.agentware.llm` and `haikeilabs.agentware.llmcontext`
 
 Python has no `exports` map, so this is enforced by convention, by the smoke
 test below, and by documenting anything else as internal. Do not promise a
@@ -149,12 +169,14 @@ files, which is exactly the current failure mode.
 Assert the contents of both artifacts, not just that they built:
 
 ```bash
-python -m zipfile -l dist/pedro_agentware-*.whl
-tar tzf dist/pedro_agentware-*.tar.gz
+python -m zipfile -l dist/haikeilabs_agentware-*.whl
+tar tzf dist/haikeilabs_agentware-*.tar.gz
 ```
 
-The wheel must show a single top-level `pedro_agentware/` tree, a `py.typed`
-marker, and a bundled license. Any other top-level directory is a release
+The wheel must show exactly the `haikeilabs/` namespace (holding
+`haikeilabs/agentware/`, with no `haikeilabs/__init__.py`) and the
+`pedro_agentware/` alias, a `py.typed` marker, and a bundled license. Any other
+top-level directory is a release
 blocker.
 
 ### Wheel smoke test
@@ -163,13 +185,13 @@ Before publishing, validate the built wheel rather than importing from the
 workspace. The smoke test must install the generated `.whl` into a fresh
 virtualenv that does not have the repository on `sys.path`, and verify:
 
-1. `import pedro_agentware` succeeds and `pedro_agentware.__version__` matches
+1. `import haikeilabs.agentware` succeeds and `haikeilabs.agentware.__version__` matches
    the version being released.
 2. Every documented subpath above imports without error.
 3. The names in `__all__` are all importable from the root barrel.
 4. A tool can be registered and executed through `Middleware` without any
    repository source file present.
-5. `pedro_agentware.__file__` resolves inside `site-packages`, proving the test
+5. `haikeilabs.agentware.__file__` resolves inside `site-packages`, proving the test
    exercised the installed copy and not the source tree.
 6. `mypy` in a consumer project resolves the package's types, once `py.typed`
    ships.
@@ -177,10 +199,10 @@ virtualenv that does not have the repository on `sys.path`, and verify:
    works without it.
 
 ```bash
-python -m venv /tmp/smoke && /tmp/smoke/bin/pip install dist/pedro_agentware-*.whl
+python -m venv /tmp/smoke && /tmp/smoke/bin/pip install dist/haikeilabs_agentware-*.whl
 cd /tmp && /tmp/smoke/bin/python -c "
-import pedro_agentware, pedro_agentware.middleware, pedro_agentware.kei
-print(pedro_agentware.__version__, pedro_agentware.__file__)
+import haikeilabs.agentware, haikeilabs.agentware.middleware, haikeilabs.agentware.kei
+print(haikeilabs.agentware.__version__, haikeilabs.agentware.__file__)
 "
 ```
 
@@ -220,16 +242,20 @@ All releases are immutable. A published version is never overwritten and its
 number is never reused. The version must be written once and then used
 consistently in `pyproject.toml`, `__init__.__version__`, the git tag, the
 GitHub release, and the published PyPI metadata. `pyproject.toml` and
-`__init__.py` currently carry the version in two places; a single source of
-truth (dynamic version read from the package, or a check in CI that the two
-agree) should be established before the first release.
+`__init__.py` used to carry the version in two places. Now `pyproject.toml` is
+the single source: `__version__` is read from the installed package metadata,
+and the release workflow checks the tag against `pyproject.toml` and the
+installed wheel's `__version__` against the tag.
 
 Each release needs a changelog entry describing public API changes, packaging
 changes, supported Python versions, and migration steps.
 
 ### Existing automation is not the target policy
 
-`.github/workflows/release.yml` currently runs on a weekly schedule, rewrites
+*Update:* `release.yml` is no longer in `.github/workflows/`; the paragraph
+below records why it was not the target.
+
+`.github/workflows/release.yml` ran on a weekly schedule, rewrites
 `python/pyproject.toml` to a date-based version (`0.1.$(date +%Y%m%d)`), commits
 to the default branch, and invokes `twine upload` with a static `PYPI_TOKEN`
 secret. This is not the target release mechanism:
@@ -253,13 +279,13 @@ secrets.
 
 Required configuration (none of it provisioned yet):
 
-1. **Confirm name ownership.** Verify that `pedro-agentware` is available or
-   already owned at `pypi.org/project/pedro-agentware/`. PyPI project ownership
+1. **Confirm name ownership.** Verify that `haikeilabs-agentware` is available or
+   already owned at `pypi.org/project/haikeilabs-agentware/`. PyPI project ownership
    is separate from GitHub organization ownership; the person who configures
    trusted publishing must be both a PyPI project owner and a repository admin.
    Name normalization follows
-   [PEP 503](https://peps.python.org/pep-0503/), so `pedro-agentware`,
-   `pedro_agentware`, and `Pedro.Agentware` all resolve to the same project.
+   [PEP 503](https://peps.python.org/pep-0503/), so `haikeilabs-agentware`,
+   `haikeilabs_agentware`, and `HaikeiLabs.Agentware` all resolve to the same project.
 2. **Add a pending publisher** at `pypi.org/manage/account/publishing/` naming
    the repository, the publishing workflow filename, and the `release`
    environment. Do the same on TestPyPI for the rehearsal.
@@ -278,8 +304,14 @@ The publish workflow should:
 - avoid echoing artifact contents or environment into logs;
 - record the tag, commit SHA, version, and PyPI project URL in the job summary.
 
+The implemented workflow is `.github/workflows/publish-python.yml`. It is
+triggered by `agentware-py-v<version>` tags (or `workflow_dispatch` with a
+`version`), mirrors the npm `publish.yml`, and splits prepare → build → smoke
+(3.10–3.13) → publish, with only the publish job holding `id-token: write`.
+The original proposal is kept below for reference.
+
 ```yaml
-# .github/workflows/publish-python.yaml (proposed)
+# .github/workflows/publish-python.yaml (original proposal; superseded)
 name: Publish Python
 
 on:
@@ -310,8 +342,9 @@ jobs:
 ```
 
 Because the repository publishes three language artifacts from one tree, tags
-must be language-scoped (for example `python-v0.2.0`) so the Python and npm
-release workflows cannot be triggered by each other's tags.
+must be language-scoped so the Python and npm release workflows cannot be
+triggered by each other's tags. npm uses `agentware-v<version>`; Python uses
+`agentware-py-v<version>`.
 
 ### Provenance and attestations
 
@@ -334,7 +367,7 @@ The first release must be rehearsed end to end on
 [TestPyPI](https://test.pypi.org/) before any production publish:
 
 1. Configure a separate pending publisher for TestPyPI.
-2. Tag a pre-release (`python-v0.2.0rc1`) and let the workflow publish to
+2. Tag a pre-release (`agentware-py-v0.1.0rc1`) and let the workflow publish to
    `https://test.pypi.org/legacy/`.
 3. Install from TestPyPI in a clean environment, with the real index available
    for dependencies, since `pydantic` and `httpx` are not mirrored there:
@@ -343,7 +376,7 @@ The first release must be rehearsed end to end on
    pip install \
      --index-url https://test.pypi.org/simple/ \
      --extra-index-url https://pypi.org/simple/ \
-     pedro-agentware==0.2.0rc1
+     haikeilabs-agentware==0.1.0rc1
    ```
 
 4. Run the wheel smoke test against the TestPyPI-installed copy.
@@ -382,7 +415,7 @@ publish a new one rather than trying to add the missing file.
 
 ## Dependency policy
 
-`pedro-agentware` is a library, not an application:
+`haikeilabs-agentware` is a library, not an application:
 
 - **No lockfile is published.** Consumers own their own resolution. A lockfile
   may be used for CI reproducibility, but it is never part of the distribution.
@@ -437,26 +470,28 @@ single person should be able to publish unreviewed.
 
 ### Phase 1 — Fix the artifact
 
-- [ ] Exclude `src/evals/` from distribution, or move it out of `src/`, so the
+- [x] Exclude `src/evals/` from distribution, or move it out of `src/`, so the
       wheel has exactly one top-level package.
-- [ ] Add `python/README.md` (package-facing usage) and `python/LICENSE`.
-- [ ] Add `pedro_agentware/py.typed` and ensure it ships as package data.
-- [ ] Add explicit `[tool.setuptools]` package configuration and a `MANIFEST.in`
+- [x] Add `python/README.md` (package-facing usage) and `python/LICENSE`.
+- [x] Add `haikeilabs/agentware/py.typed` and ensure it ships as package data.
+- [x] Add explicit `[tool.setuptools]` package configuration and a `MANIFEST.in`
       so sdist contents are intentional.
-- [ ] Add project URLs and trove classifiers to `pyproject.toml`.
-- [ ] Make the version single-sourced between `pyproject.toml` and
+- [x] Add project URLs and trove classifiers to `pyproject.toml`.
+- [x] Make the version single-sourced between `pyproject.toml` and
       `__init__.py`, or assert their agreement in CI.
 
 ### Phase 2 — Prove the pipeline
 
-- [ ] Confirm `pedro-agentware` name ownership on PyPI and TestPyPI.
+- [x] Confirm `haikeilabs-agentware` name ownership on PyPI (pending trusted
+      publisher registered by the owner); TestPyPI still to register.
 - [ ] Add a build + artifact-inspection + wheel-smoke-test job to Python CI,
-      running on every PR that touches `python/`.
+      running on every PR that touches `python/`. (The release workflow runs
+      them on every release; PR CI does not yet.)
 - [ ] Expand the CI matrix to 3.10–3.13.
 - [ ] Delete or repair the stale `ci-python.yaml` workflow, which still targets
       the removed `middleware_py/` path.
 - [ ] Configure the pending publishers and the protected `release` environment.
-- [ ] Add `.github/workflows/publish-python.yaml` with language-scoped tags.
+- [x] Add `.github/workflows/publish-python.yml` with language-scoped tags.
 - [ ] Publish a release candidate to TestPyPI and validate it end to end.
 
 ### Phase 3 — Publish
@@ -465,14 +500,14 @@ single person should be able to publish unreviewed.
       `PYPI_TOKEN` secret once trusted publishing works.
 - [ ] Tag and publish the first SemVer release to production PyPI.
 - [ ] Verify README rendering, metadata, and attestations on the project page.
-- [ ] Add a PyPI badge and `pip install pedro-agentware` instructions to
-      `docs/python/README.md`.
+- [ ] Add a PyPI badge to `docs/python/README.md` (the `pip install
+      haikeilabs-agentware` instructions are in).
 - [ ] Rehearse a yank on a throwaway release candidate so the procedure is known
       before it is needed.
 
 ### Phase 4 — Adapters (deferred)
 
-- [ ] Decide whether `pedro-agentware-hermes`, `-kitaru`, and `-pydantic` ship
+- [ ] Decide whether the adapters (`pedro-agentware-hermes`, `-kitaru`, `-pydantic`) ship
       to PyPI, and whether they pin the core package by range or exact version.
       Do not start this until Phase 3 is complete.
 
@@ -486,7 +521,7 @@ single person should be able to publish unreviewed.
 | Long-lived `PYPI_TOKEN` leaks | Critical | Move to trusted publishing; delete the secret in Phase 3 |
 | Scheduled workflow publishes an untested date-versioned release | High | Remove Python publishing from `release.yml` in Phase 3 |
 | Version published without the declared floor being tested | Medium | Expand the CI matrix to the full `requires-python` range in Phase 2 |
-| Cross-language tag collision triggers the wrong publish | Medium | Language-scoped tags (`python-v*`) and path-filtered workflows |
+| Cross-language tag collision triggers the wrong publish | Medium | Language-scoped tags (`agentware-py-v*` vs npm's `agentware-v*`) |
 | Consumers depend on an undocumented internal module | Medium | Document the supported subpaths; cover them in the smoke test |
 | Partial upload leaves wheel and sdist out of sync | Medium | Publish both in one action step; treat a partial upload as released and yank |
 | Python and Go/TypeScript versions drift apart | Low | Independent SemVer per language is intended; state the mapping in release notes |
@@ -495,8 +530,8 @@ single person should be able to publish unreviewed.
 
 | Criterion | Definition |
 |-----------|------------|
-| Name verified | `pedro-agentware` confirmed available or owned on PyPI and TestPyPI |
-| Clean wheel | Wheel contains exactly one top-level package, `pedro_agentware`, plus `dist-info` |
+| Name verified | `haikeilabs-agentware` confirmed available or owned on PyPI and TestPyPI |
+| Clean wheel | Wheel top level is exactly `haikeilabs/` (namespace, no `__init__.py`) and the `pedro_agentware/` alias, plus `dist-info` |
 | Metadata complete | README, LICENSE, project URLs, and classifiers present; `twine check` passes on wheel and sdist |
 | Typed | `py.typed` ships and a consumer project type-checks against the installed package |
 | Reproducible sdist | `pip wheel` on the sdist reproduces the published wheel's contents |

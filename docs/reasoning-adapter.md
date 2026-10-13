@@ -1,7 +1,7 @@
 # Reasoning Adapter — AR-1 / Linear DVL-21
 
 **Status**: Implemented. Mirrored across Go (`go/reasoning`), Python
-(`pedro_agentware/reasoning`), and TypeScript (`typescript/src/reasoning`).
+(`haikeilabs/agentware/reasoning`), and TypeScript (`typescript/src/reasoning`).
 
 A model-agnostic reasoning adapter. It recognizes reasoning wherever the model
 hides it, **strips it before ordinary tool-call parsing**, and normalizes the
@@ -110,7 +110,7 @@ tool call) pass through unchanged.
   `reasoning_content` into `Response.Reasoning`. `go/middleware/inference`
   strips reasoning before the validator and attaches the tree to
   `InferenceResult.ReasoningTree`.
-- **Python** — `pedro_agentware/reasoning` (new package).
+- **Python** — `haikeilabs/agentware/reasoning` (new package).
   `llm.Response.reasoning` added; `middleware/inference.py` strips before
   validation and attaches `reasoning_tree` to `InferenceResult`.
 - **TypeScript** — `typescript/src/reasoning` (new package).
@@ -179,7 +179,7 @@ mapping is treated as opaque text), which is the fail-closed default.
   Undo by reverting the commit touching:
   - `go/reasoning/`, `go/llm/response.go`, `go/llm/server.go`,
     `go/middleware/inference/`
-  - `python/src/pedro_agentware/reasoning/`, `llm/response.py`,
+  - `python/src/haikeilabs/agentware/reasoning/`, `llm/response.py`,
     `middleware/inference.py`
   - `typescript/src/reasoning/`, `llm/response.ts`, `llm/openai_backend.ts`,
     `middleware/inference.ts`

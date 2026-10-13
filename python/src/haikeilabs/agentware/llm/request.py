@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .response import ToolCall
 
-from pedro_agentware.middleware.types import MessageMeta
+from haikeilabs.agentware.middleware.types import MessageMeta
 
 
 class Role(str, Enum):

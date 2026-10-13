@@ -67,7 +67,7 @@ All SDK linters use the same rules and capability snapshot, `fixtures/kei/connec
 
 ```bash
 # From the repository root
-PYTHONPATH=python/src python -m pedro_agentware.lint_tools fixtures/kei/tool-manifest.v2.json
+PYTHONPATH=python/src python -m haikeilabs.agentware.lint_tools fixtures/kei/tool-manifest.v2.json
 (cd go && go run ./cmd/lint-tools ../fixtures/kei/tool-manifest.v2.json)
 (cd typescript && npm run build && node dist/tools/lint-cli.js ../fixtures/kei/tool-manifest.v2.json)
 # Published TypeScript package: npx agentware-lint-tools KEI_TOOL_MANIFEST
@@ -96,7 +96,7 @@ steps:
   - run: python -m pip install ./python
   # Replace this harness-owned exporter with its registry bootstrap module.
   - run: python -m my_harness.export_manifest --output KEI_TOOL_MANIFEST
-  - run: python -m pedro_agentware.lint_tools KEI_TOOL_MANIFEST
+  - run: python -m haikeilabs.agentware.lint_tools KEI_TOOL_MANIFEST
   - uses: actions/upload-artifact@v4
     with:
       name: kei-tool-manifest

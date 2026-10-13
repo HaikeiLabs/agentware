@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from pedro_agentware.kei.config import (
+from haikeilabs.agentware.kei.config import (
     BINDINGS_GRANT_PERMISSIONS,
     BOOTSTRAP_SECRET_NAME,
     HarnessConfig,

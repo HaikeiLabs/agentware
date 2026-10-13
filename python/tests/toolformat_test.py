@@ -5,18 +5,17 @@ import sys
 
 sys.path.insert(0, "src")
 
-from pedro_agentware.toolformat.formatter import (
+from haikeilabs.agentware.toolformat.formatter import (
     AnthropicFormatter,
     DeepSeekFormatter,
-    GLMFormatter,
     GenericFormatter,
+    GLMFormatter,
     OpenAIFOrmatter,
     ParsedToolCall,
     QwenFormatter,
     get_formatter,
 )
-from pedro_agentware.tools import Result, Tool
-
+from haikeilabs.agentware.tools import Result
 
 # ---------------------------------------------------------------------------
 # Mock helpers

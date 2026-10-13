@@ -7,14 +7,14 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from pedro_agentware.executor.executor import (
+from haikeilabs.agentware.executor.executor import (
     ExecuteRequest,
     InferenceExecutor,
     InferenceExecutorConfig,
 )
-from pedro_agentware.llm import Message, Role
-from pedro_agentware.llm.response import Response
-from pedro_agentware.tools import ToolRegistry
+from haikeilabs.agentware.llm import Message, Role
+from haikeilabs.agentware.llm.response import Response
+from haikeilabs.agentware.tools import ToolRegistry
 
 
 @dataclass

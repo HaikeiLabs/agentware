@@ -812,7 +812,7 @@ and audit metadata. **ABAC** is a metadata policy decision point only.
 - `tool_bindings` and `secret_refs` are **non-secret metadata**. They are
   routing/reference identifiers, never permissions, and never materialized
   credentials. The bootstrap secret is rejected from any manifest
-  (`python/src/pedro_agentware/kei/config.py` fails closed on this).
+  (`python/src/haikeilabs/agentware/kei/config.py` fails closed on this).
 - **ABAC is called for metadata policy decisions only**: subject/object/
   operation/environment over data-source resources. ABAC **decides**; it does
   **not** execute writes and does **not** serve or store credentials.

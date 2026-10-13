@@ -89,7 +89,7 @@ Invariants every port asserts on every case:
 
 | Language | Evaluator | Subprocess client | Table test |
 | --- | --- | --- | --- |
-| Python | `pedro_agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` (`subprocess.Popen`, `start_new_session=True`, `expected_sha256=`) | `python/tests/kei/authorize_cases_test.py` |
+| Python | `haikeilabs.agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` (`subprocess.Popen`, `start_new_session=True`, `expected_sha256=`) | `python/tests/kei/authorize_cases_test.py` |
 | TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`; async `evaluate`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; async `spawn`, `detached`, `expectedSha256`) | `typescript/tests/kei-evaluator.test.ts` |
 | Go | `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) | `evaluator.CLIClient` (`exec.CommandContext`, `Setpgid`, stderr discarded, `ExpectedSHA256`) | `go/kei/evaluator/evaluator_test.go` |
 

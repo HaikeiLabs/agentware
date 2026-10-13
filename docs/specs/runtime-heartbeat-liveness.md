@@ -65,7 +65,7 @@ The Go implementation is the reference. Python and TypeScript mirror its names a
 | Language | Package |
 | --- | --- |
 | Go | `go/kei/runtimelink` |
-| Python | `pedro_agentware.kei.runtime_link` |
+| Python | `haikeilabs.agentware.kei.runtime_link` |
 | TypeScript | `typescript/src/kei/runtimeLink.ts`, exported from the root barrel |
 
 ### 3.1 Types

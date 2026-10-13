@@ -28,9 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-from pedro_agentware.middleware import Action, AuditedToolClient, CallerContext
-from pedro_agentware.middleware.audit import AuditFilter
-from pedro_agentware.middleware.policy import (
+from haikeilabs.agentware.middleware import Action, AuditedToolClient, CallerContext
+from haikeilabs.agentware.middleware.audit import AuditFilter
+from haikeilabs.agentware.middleware.policy import (
     Condition,
     Operator,
     Policy,

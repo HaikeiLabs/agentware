@@ -64,7 +64,7 @@ governed external operations go through the proxy boundary. See
 ## Install
 
 ```bash
-# Python (src-layout package pedro_agentware)
+# Python (src-layout package haikeilabs.agentware)
 pip install -e ./python
 
 # Go
@@ -76,7 +76,7 @@ TypeScript lives in `typescript/`.
 ## Quick start (Python)
 
 ```python
-from pedro_agentware.middleware import AuditedToolClient, CallerContext
+from haikeilabs.agentware.middleware import AuditedToolClient, CallerContext
 
 def echo(**kwargs):
     return {"echo": kwargs.get("value", "")}
@@ -164,7 +164,7 @@ resource-level lineage is what makes the question tractable.
 | `go/adapters/` | Framework adapters (ADK, hermes) |
 | `go/memory/` | Wiki memory — see `SCHEMA.md` for the page contract |
 | `go/mcp/`, `go/llm/`, `go/executor/` | MCP server, model clients, execution |
-| `python/` | Python port (`pedro_agentware`), including the `kei/` harness surface |
+| `python/` | Python port (`haikeilabs.agentware`), including the `kei/` harness surface |
 | `typescript/` | TypeScript port |
 | `docs/{go,python,typescript}/` | Usage examples per language |
 | `docs/engineering-design.md` | Architecture |

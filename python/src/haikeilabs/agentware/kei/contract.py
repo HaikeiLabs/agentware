@@ -10,8 +10,8 @@ missing credentials, and expired tokens all result in DENY.
 
 from typing import Any, Protocol, runtime_checkable
 
-from pedro_agentware.middleware import AuditedToolClient
-from pedro_agentware.middleware.policy import Policy, SimplePolicyEvaluator
+from haikeilabs.agentware.middleware import AuditedToolClient
+from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
 from .auth import SecretProvider
 from .proxy import ProxyProcess

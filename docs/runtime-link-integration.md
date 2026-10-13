@@ -22,7 +22,7 @@ The smallest harness integration creates a `RuntimeLinkConfig` from the
 environment, starts the link, and stops it on shutdown:
 
 ```python
-from pedro_agentware.kei.runtime_link import (
+from haikeilabs.agentware.kei.runtime_link import (
     RuntimeLink,
     RuntimeLinkConfig,
     HarnessEnvelope,
@@ -382,7 +382,7 @@ To validate this documentation's examples compile and type-check:
 ```bash
 # Python
 cd python && python -c "
-from pedro_agentware.kei.runtime_link import (
+from haikeilabs.agentware.kei.runtime_link import (
     RuntimeLink, RuntimeLinkConfig, HarnessKind, HarnessEnvelope,
     RuntimeIdentity, LinkStatus, BinaryRef, SecretSource, Backoff,
     LinkState, FailureClass, BeatEvent, TerminalEvent, ChildEvent,

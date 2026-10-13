@@ -10,7 +10,7 @@ import pytest
 
 pytest.importorskip("pgmpy", reason="install the 'inference' extra")
 
-from pedro_agentware.memory.infer import InferenceError, infer  # noqa: E402
+from haikeilabs.agentware.memory.infer import InferenceError, infer  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO_ROOT / "go/memory/infer/schema.json"
@@ -114,7 +114,7 @@ def test_subprocess_contract_roundtrip() -> None:
         "edges": [edge("sourceOf", "s1", "c1")],
     }
     proc = subprocess.run(
-        [sys.executable, "-m", "pedro_agentware.memory.infer"],
+        [sys.executable, "-m", "haikeilabs.agentware.memory.infer"],
         input=json.dumps(request),
         capture_output=True,
         text=True,
@@ -125,7 +125,7 @@ def test_subprocess_contract_roundtrip() -> None:
     assert response["marginals"]["c1"] > 0.5
 
     bad = subprocess.run(
-        [sys.executable, "-m", "pedro_agentware.memory.infer"],
+        [sys.executable, "-m", "haikeilabs.agentware.memory.infer"],
         input="{}",
         capture_output=True,
         text=True,

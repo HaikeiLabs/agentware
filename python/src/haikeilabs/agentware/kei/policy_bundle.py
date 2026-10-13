@@ -107,7 +107,7 @@ class PolicyBundleData:
     """A policy bundle fetched from the control plane and ready for evaluation.
 
     ``rules`` are translated from the wire format into the middleware's own
-    :class:`~pedro_agentware.middleware.policy.Rule` objects so the lifecycle
+    :class:`~haikeilabs.agentware.middleware.policy.Rule` objects so the lifecycle
     can be used as a drop-in ``PolicyEvaluator``.
     """
 
@@ -159,7 +159,7 @@ class PolicyBundleData:
         return (now or datetime.now()) >= self.expires_at
 
     def to_policy(self) -> Policy:
-        """Convert this bundle to a :class:`~pedro_agentware.middleware.policy.Policy`."""
+        """Convert this bundle to a :class:`~haikeilabs.agentware.middleware.policy.Policy`."""
         return Policy(rules=self.rules, default_deny=self.default_deny)
 
     def digest(self) -> str:

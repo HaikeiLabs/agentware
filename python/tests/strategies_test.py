@@ -1,8 +1,8 @@
 """Tests for TieredCompact compaction strategy."""
 
-from pedro_agentware.llm import Message, Role
-from pedro_agentware.llmcontext.strategies import TieredCompact, _find_eligible_end
-from pedro_agentware.middleware.types import MessageMeta, MessageType
+from haikeilabs.agentware.llm import Message, Role
+from haikeilabs.agentware.llmcontext.strategies import TieredCompact, _find_eligible_end
+from haikeilabs.agentware.middleware.types import MessageMeta, MessageType
 
 
 def simple_token_counter(messages: list[Message]) -> int:

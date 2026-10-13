@@ -2,8 +2,8 @@
 
 import threading
 
-from pedro_agentware.llm import Message, Role
-from pedro_agentware.llmcontext.context_window import (
+from haikeilabs.agentware.llm import Message, Role
+from haikeilabs.agentware.llmcontext.context_window import (
     CompactEvent,
     ContextWindowManager,
     default_counter,

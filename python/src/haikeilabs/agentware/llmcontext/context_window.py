@@ -4,8 +4,8 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from pedro_agentware.llm import Message
-from pedro_agentware.llmcontext.strategies import (
+from haikeilabs.agentware.llm import Message
+from haikeilabs.agentware.llmcontext.strategies import (
     CompactionStrategy,
     TieredCompact,
     TokenCounter,

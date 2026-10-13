@@ -34,8 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-from pedro_agentware.kei import KeiProxyEvaluator
-from pedro_agentware.middleware import (
+from haikeilabs.agentware.kei import KeiProxyEvaluator
+from haikeilabs.agentware.middleware import (
     Action,
     AuditedToolClient,
     AuditFilter,
@@ -44,7 +44,7 @@ from pedro_agentware.middleware import (
     InMemoryAuditor,
     MiddlewareImpl,
 )
-from pedro_agentware.middleware.policy import Policy, SimplePolicyEvaluator
+from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
 ENVELOPE_PATH = Path(__file__).resolve().parent / "fixtures" / "kei" / "delegation-envelope-v1.json"
 ENVELOPE = json.loads(ENVELOPE_PATH.read_text())

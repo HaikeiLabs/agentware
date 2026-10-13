@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from pedro_agentware.middleware.guardrails.error_tracker import (
+from haikeilabs.agentware.middleware.guardrails.error_tracker import (
     ErrorCategory,
     ErrorTracker,
 )

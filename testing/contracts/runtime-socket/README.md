@@ -2,7 +2,7 @@
 
 Shared, language-neutral fixtures for the harness → `kei-proxy serve` Unix
 socket client and the tool-manifest sync. Python
-(`pedro_agentware.kei.runtime_socket`, `tool_sync`), TypeScript
+(`haikeilabs.agentware.kei.runtime_socket`, `tool_sync`), TypeScript
 (`typescript/src/kei/socketAuthorizeClient.ts`, `toolSync.ts`) and Go
 (`go/kei/runtimesocket`, `go/kei/toolsync`) each replay every case here and
 must produce identical results. A change to any fixture is a contract change:
