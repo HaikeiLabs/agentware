@@ -6,8 +6,9 @@ Table-test suites (EV-C1, canonical):
   python -m evals.main --suite <file-or-dir> --model-profile <name>
       [--profiles evals/model-profiles.yaml] --out <dir>
       [--threshold 0.95] [--jobs N] [--repeats N]
-  Every request uses the profile's temperature (default 0), seed and
-  thinking switch (thinking: false turns reasoning off). Each
+  Every request uses the profile's temperature (default 0), top_p, top_k,
+  seed and thinking switch (true or false; unset leaves the server's
+  default). Each
   repeat is a run; a suite's pass rate is passed runs / total runs.
   Exit 0 = every suite >= threshold; 1 = a suite below threshold;
   2 = endpoint unavailable or the run is misconfigured (never scored).
@@ -131,6 +132,8 @@ def run_suites(args: argparse.Namespace) -> int:
         temperature=profile.temperature,
         seed=profile.seed,
         thinking=profile.thinking,
+        top_p=profile.top_p,
+        top_k=profile.top_k,
     )
     try:
         runner.preflight(profile.model)
@@ -143,9 +146,14 @@ def run_suites(args: argparse.Namespace) -> int:
 
     seed = "none" if profile.seed is None else profile.seed
     thinking = "default" if profile.thinking is None else str(profile.thinking).lower()
+    nucleus = "".join(
+        f", {key}={value:g}"
+        for key, value in (("top_p", profile.top_p), ("top_k", profile.top_k))
+        if value is not None
+    )
     print(
         f"=== {profile.name} ({profile.model}), jobs={jobs}, "
-        f"temperature={profile.temperature:g}, seed={seed}, thinking={thinking} ==="
+        f"temperature={profile.temperature:g}{nucleus}, seed={seed}, thinking={thinking} ==="
     )
     on_result = transcript_writer(Path(args.transcripts), (base_url,)) if args.transcripts else None
     results = [

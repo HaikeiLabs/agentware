@@ -31,8 +31,12 @@ class ModelProfile:
     """Sampling temperature for every request (EV-C1 §3); 0 = greedy."""
     seed: int | None = None
     """Sampling seed sent with every request; ``None`` sends none."""
+    top_p: float | None = None
+    """Nucleus sampling cutoff sent with every request; ``None`` sends none."""
+    top_k: int | None = None
+    """Top-k cutoff sent with every request; ``None`` sends none."""
     thinking: bool | None = None
-    """``False`` turns the model's reasoning off on every request; ``None``
+    """Turns the model's reasoning on or off on every request; ``None``
     leaves the server's default."""
 
     def base_url(self, environ: Mapping[str, str] | None = None) -> str:
@@ -77,6 +81,14 @@ def _profile(name: str, raw: Any) -> ModelProfile:
     seed = raw.get("seed")
     if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool) or seed < 0):
         raise ProfileError(f"profile {name!r}: seed must be a non-negative integer")
+    top_p = raw.get("top_p")
+    if top_p is not None and (
+        not isinstance(top_p, (int, float)) or isinstance(top_p, bool) or not 0 < top_p <= 1
+    ):
+        raise ProfileError(f"profile {name!r}: top_p must be a number in (0, 1]")
+    top_k = raw.get("top_k")
+    if top_k is not None and (not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1):
+        raise ProfileError(f"profile {name!r}: top_k must be a positive integer")
     thinking = raw.get("thinking")
     if thinking is not None and not isinstance(thinking, bool):
         raise ProfileError(f"profile {name!r}: thinking must be true or false")
@@ -89,6 +101,8 @@ def _profile(name: str, raw: Any) -> ModelProfile:
         opencode_model=opencode_model,
         temperature=float(temperature),
         seed=seed,
+        top_p=None if top_p is None else float(top_p),
+        top_k=top_k,
         thinking=thinking,
     )
 

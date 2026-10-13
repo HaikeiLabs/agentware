@@ -31,13 +31,18 @@ class ModelResult:
     usage: dict[str, int]
 
 
-# ``thinking=False`` turns the model's reasoning off through the chat template.
+# ``thinking`` turns the model's reasoning on or off through the chat template,
+# so a run doesn't depend on the server's default; ``None`` sends nothing.
 # OpenAI-compatible servers spell the switch differently: Qwen's template reads
 # ``enable_thinking`` and DeepSeek V4's reads ``thinking``; each ignores the
 # other's key, so both are sent. Ollama has its own ``think`` field. The OpenAI
 # and Anthropic clients accept the argument and send nothing: their APIs reject
 # unknown fields, and Anthropic's thinking is off unless requested.
-NO_THINKING_TEMPLATE_KWARGS = {"enable_thinking": False, "thinking": False}
+#
+# ``top_p`` and ``top_k`` go with the request when set. OpenAI's API has no
+# ``top_k``, so its client sends only ``top_p``.
+def thinking_template_kwargs(thinking: bool) -> dict[str, bool]:
+    return {"enable_thinking": thinking, "thinking": thinking}
 
 
 class BaseModelClient(ABC):
@@ -50,6 +55,8 @@ class BaseModelClient(ABC):
         max_tokens: int = 2048,
         seed: int | None = None,
         thinking: bool | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> ModelResult: ...
 
 
@@ -74,6 +81,8 @@ class OpenAIClient(BaseModelClient):
         max_tokens: int = 2048,
         seed: int | None = None,
         thinking: bool | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> ModelResult:
         payload = {
             "model": self.model,
@@ -83,6 +92,8 @@ class OpenAIClient(BaseModelClient):
         }
         if seed is not None:
             payload["seed"] = seed
+        if top_p is not None:
+            payload["top_p"] = top_p
 
         if tools:
             payload["tools"] = tools
@@ -146,6 +157,8 @@ class AnthropicClient(BaseModelClient):
         max_tokens: int = 2048,
         seed: int | None = None,
         thinking: bool | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> ModelResult:
         system_msg = ""
         filtered_messages = []
@@ -171,6 +184,10 @@ class AnthropicClient(BaseModelClient):
             "max_tokens": max_tokens,
             "system": system_msg,
         }
+        if top_p is not None:
+            payload["top_p"] = top_p
+        if top_k is not None:
+            payload["top_k"] = top_k
 
         if tools:
             payload["tools"] = tools
@@ -235,6 +252,8 @@ class OllamaClient(BaseModelClient):
         max_tokens: int = 2048,
         seed: int | None = None,
         thinking: bool | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> ModelResult:
         ollama_messages = []
         for msg in messages:
@@ -268,6 +287,10 @@ class OllamaClient(BaseModelClient):
         options: dict[str, Any] = {"num_predict": max_tokens, "temperature": temperature}
         if seed is not None:
             options["seed"] = seed
+        if top_p is not None:
+            options["top_p"] = top_p
+        if top_k is not None:
+            options["top_k"] = top_k
         payload = {
             "model": self.model,
             "messages": ollama_messages,
@@ -275,8 +298,8 @@ class OllamaClient(BaseModelClient):
             "options": options,
             "stream": False,
         }
-        if thinking is False:
-            payload["think"] = False
+        if thinking is not None:
+            payload["think"] = thinking
 
         if tools:
             payload["tools"] = tools
@@ -339,6 +362,8 @@ class VLLMClient(BaseModelClient):
         max_tokens: int = 2048,
         seed: int | None = None,
         thinking: bool | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> ModelResult:
         payload = {
             "model": self.model,
@@ -348,8 +373,12 @@ class VLLMClient(BaseModelClient):
         }
         if seed is not None:
             payload["seed"] = seed
-        if thinking is False:
-            payload["chat_template_kwargs"] = dict(NO_THINKING_TEMPLATE_KWARGS)
+        if top_p is not None:
+            payload["top_p"] = top_p
+        if top_k is not None:
+            payload["top_k"] = top_k
+        if thinking is not None:
+            payload["chat_template_kwargs"] = thinking_template_kwargs(thinking)
 
         if tools:
             payload["tools"] = tools
@@ -417,6 +446,8 @@ class LlamaCPPClient(VLLMClient):
         max_tokens: int = 2048,
         seed: int | None = None,
         thinking: bool | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> ModelResult:
         payload = {
             "model": self.model,
@@ -426,8 +457,12 @@ class LlamaCPPClient(VLLMClient):
         }
         if seed is not None:
             payload["seed"] = seed
-        if thinking is False:
-            payload["chat_template_kwargs"] = dict(NO_THINKING_TEMPLATE_KWARGS)
+        if top_p is not None:
+            payload["top_p"] = top_p
+        if top_k is not None:
+            payload["top_k"] = top_k
+        if thinking is not None:
+            payload["chat_template_kwargs"] = thinking_template_kwargs(thinking)
 
         if tools:
             payload["tools"] = tools
