@@ -18,12 +18,12 @@ from typing import Any
 
 import pytest
 
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     AUTHORIZE_CHILD_ENV_ALLOWLIST,
     KeiProxyAuthorizeClient,
     KeiProxyEvaluator,
 )
-from pedro_agentware.middleware import Action, CallerContext, Decision
+from haikeilabs.agentware.middleware import Action, CallerContext, Decision
 
 FIXTURES = Path(__file__).resolve().parents[3] / "fixtures" / "kei"
 TABLE: dict[str, Any] = json.loads((FIXTURES / "authorize-cases.v1.json").read_text())

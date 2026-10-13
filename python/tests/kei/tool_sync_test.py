@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     TOOL_MANIFEST_V2_MEDIA_TYPE,
     ToolManifestSyncConfig,
     ToolManifestSyncError,
@@ -174,7 +174,7 @@ def test_egress_proxy_and_no_proxy() -> None:
 
 
 def test_only_the_egress_contract_decides_the_proxy() -> None:
-    from pedro_agentware.kei import tool_sync
+    from haikeilabs.agentware.kei import tool_sync
 
     with tool_sync._client(config(egress_proxy="http://egress:3128"), None) as client:
         assert client.trust_env is False  # ambient HTTP(S)_PROXY is ignored

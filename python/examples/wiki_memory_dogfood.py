@@ -24,17 +24,17 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from pedro_agentware.memory import (
+from haikeilabs.agentware.memory import (
     LangGraphMemoryTools,
     WikiMemory,
     parse_diagnostics,
 )
-from pedro_agentware.memory.confidence import (
+from haikeilabs.agentware.memory.confidence import (
     build_inference_request,
     claim_node_id,
     merge_confidence,
 )
-from pedro_agentware.memory.infer import infer
+from haikeilabs.agentware.memory.infer import infer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TBOX_PATHS = [

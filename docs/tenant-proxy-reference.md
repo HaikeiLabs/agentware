@@ -9,7 +9,7 @@ to middleware, tool bindings, or the `kei/` integration surface.
 **Source of truth**: captured in the shared Herdr wiki under *"Documentation
 audit: tenant data must stay behind distributed proxy"* and the governed
 connector decisions (`wiki search "tenant data distributed proxy"`). Trust the
-code in `python/src/pedro_agentware/kei/` and this reference over older prose.
+code in `python/src/haikeilabs/agentware/kei/` and this reference over older prose.
 
 ---
 

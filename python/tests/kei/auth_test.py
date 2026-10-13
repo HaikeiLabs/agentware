@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import httpx
 import pytest
 
-from pedro_agentware.kei.auth import (
+from haikeilabs.agentware.kei.auth import (
     BOOTSTRAP_TOKEN_ENV,
     AuthProvider,
     EnvSecretProvider,

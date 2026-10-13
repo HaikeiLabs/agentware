@@ -1,6 +1,6 @@
 
-from pedro_agentware.middleware.guardrails.nudge import NudgeKind
-from pedro_agentware.middleware.guardrails.response_validator import (
+from haikeilabs.agentware.middleware.guardrails.nudge import NudgeKind
+from haikeilabs.agentware.middleware.guardrails.response_validator import (
     ResponseValidator,
     ToolCall,
 )

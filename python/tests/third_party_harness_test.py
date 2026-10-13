@@ -1,7 +1,7 @@
 """Third-party harness viability test.
 
 This test proves that a third party can build a complete harness using ONLY
-pedro_agentware, without importing pedro_service, pedro_tag, or any repo-specific
+haikeilabs.agentware, without importing pedro_service, pedro_tag, or any repo-specific
 layout. It demonstrates the "bring your own agent" product thesis.
 
 Constraints:
@@ -15,11 +15,11 @@ import pytest
 
 
 class TestThirdPartyHarness:
-    """Test that a third-party harness can be built with only pedro_agentware."""
+    """Test that a third-party harness can be built with only haikeilabs.agentware."""
 
     def test_minimal_harness_contract(self):
-        """Build a minimal harness using only pedro_agentware."""
-        from pedro_agentware.kei import (
+        """Build a minimal harness using only haikeilabs.agentware."""
+        from haikeilabs.agentware.kei import (
             EnvSecretProvider,
             HarnessContract,
             OpaqueTokenProvider,
@@ -44,14 +44,14 @@ class TestThirdPartyHarness:
 
     def test_harness_with_policy(self):
         """Build a harness with policy evaluation."""
-        from pedro_agentware.kei import (
+        from haikeilabs.agentware.kei import (
             EnvSecretProvider,
             HarnessContract,
             OpaqueTokenProvider,
             ToolNotFoundError,
             validate_contract,
         )
-        from pedro_agentware.middleware.policy import Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
         class MinimalToolExecutor:
             def execute(self, tool_name: str, args: dict) -> dict:
@@ -77,12 +77,12 @@ class TestThirdPartyHarness:
     @pytest.mark.asyncio
     async def test_contract_client_defaults_to_deny_and_uses_executor(self):
         """The contract wires its executor and fails closed without policy."""
-        from pedro_agentware.kei import (
+        from haikeilabs.agentware.kei import (
             EnvSecretProvider,
             HarnessContract,
             OpaqueTokenProvider,
         )
-        from pedro_agentware.middleware import Action, CallerContext
+        from haikeilabs.agentware.middleware import Action, CallerContext
 
         calls = []
 
@@ -114,13 +114,13 @@ class TestThirdPartyHarness:
     @pytest.mark.asyncio
     async def test_contract_client_wires_explicit_policy_and_auditor(self):
         """Explicit evaluator, auditor, and executor are used by the client."""
-        from pedro_agentware.kei import (
+        from haikeilabs.agentware.kei import (
             EnvSecretProvider,
             HarnessContract,
             OpaqueTokenProvider,
         )
-        from pedro_agentware.middleware import AuditFilter, CallerContext, InMemoryAuditor
-        from pedro_agentware.middleware.policy import Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware import AuditFilter, CallerContext, InMemoryAuditor
+        from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
         class Executor:
             def execute(self, tool_name: str, args: dict) -> dict:
@@ -150,14 +150,14 @@ class TestThirdPartyHarness:
 
     def test_harness_with_auditor(self):
         """Build a harness with audit logging."""
-        from pedro_agentware.kei import (
+        from haikeilabs.agentware.kei import (
             EnvSecretProvider,
             HarnessContract,
             OpaqueTokenProvider,
             ToolNotFoundError,
             validate_contract,
         )
-        from pedro_agentware.middleware.audit import InMemoryAuditor
+        from haikeilabs.agentware.middleware.audit import InMemoryAuditor
 
         class MinimalToolExecutor:
             def execute(self, tool_name: str, args: dict) -> dict:
@@ -180,15 +180,15 @@ class TestThirdPartyHarness:
     @pytest.mark.asyncio
     async def test_harness_audited_tool_client(self):
         """Verify AuditedToolClient works with harness-provided components."""
-        from pedro_agentware.kei import (
+        from haikeilabs.agentware.kei import (
             EnvSecretProvider,
             HarnessContract,
             OpaqueTokenProvider,
             ToolNotFoundError,
             validate_contract,
         )
-        from pedro_agentware.middleware import AuditedToolClient, CallerContext
-        from pedro_agentware.middleware.policy import Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware import AuditedToolClient, CallerContext
+        from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
         tools = {}
 
@@ -250,7 +250,7 @@ class TestThirdPartyHarness:
 
     def test_caller_context_delegation(self):
         """Verify CallerContext delegation preserves invoking_subject."""
-        from pedro_agentware.middleware import CallerContext
+        from haikeilabs.agentware.middleware import CallerContext
 
         caller = CallerContext(
             user_id="agent-1",
@@ -271,7 +271,7 @@ class TestThirdPartyHarness:
 
     def test_fail_closed_unknown_policy(self):
         """Verify fail-closed: unknown policy decision = DENY."""
-        from pedro_agentware.middleware.policy import Action, Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware.policy import Action, Policy, SimplePolicyEvaluator
 
         policy = Policy(
             rules=[],
@@ -279,7 +279,7 @@ class TestThirdPartyHarness:
         )
         evaluator = SimplePolicyEvaluator(policy)
 
-        from pedro_agentware.middleware import CallerContext
+        from haikeilabs.agentware.middleware import CallerContext
 
         caller = CallerContext(
             user_id="test",
@@ -291,12 +291,12 @@ class TestThirdPartyHarness:
         assert decision.action == Action.DENY
 
     def test_no_pedro_service_import(self):
-        """Verify pedro_agentware does not import pedro_service or pedro_tag."""
-        import pedro_agentware.kei
-        import pedro_agentware.middleware
+        """Verify haikeilabs.agentware does not import pedro_service or pedro_tag."""
+        import haikeilabs.agentware.kei
+        import haikeilabs.agentware.middleware
 
-        kei_module = pedro_agentware.kei
-        middleware_module = pedro_agentware.middleware
+        kei_module = haikeilabs.agentware.kei
+        middleware_module = haikeilabs.agentware.middleware
 
         kei_source = open(kei_module.__file__).read() if hasattr(kei_module, "__file__") else ""
         middleware_source = (

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from pedro_agentware.kei.auth import BOOTSTRAP_TOKEN_ENV
-from pedro_agentware.kei.proxy import (
+from haikeilabs.agentware.kei.auth import BOOTSTRAP_TOKEN_ENV
+from haikeilabs.agentware.kei.proxy import (
     LocalProxyProcess,
     ProxyConfig,
     ProxyExecutionError,

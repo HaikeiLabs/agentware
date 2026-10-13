@@ -4,23 +4,23 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from pedro_agentware.llm import Message, Role
-from pedro_agentware.llm.backend import Backend
-from pedro_agentware.llm.request import ToolDefinition
-from pedro_agentware.llm.response import Response
-from pedro_agentware.llm.response import ToolCall as LLMToolCall
-from pedro_agentware.llmcontext.context_window import ContextWindowManager
-from pedro_agentware.middleware.guardrails.error_tracker import ErrorCategory, ErrorTracker
-from pedro_agentware.middleware.guardrails.response_validator import (
+from haikeilabs.agentware.llm import Message, Role
+from haikeilabs.agentware.llm.backend import Backend
+from haikeilabs.agentware.llm.request import ToolDefinition
+from haikeilabs.agentware.llm.response import Response
+from haikeilabs.agentware.llm.response import ToolCall as LLMToolCall
+from haikeilabs.agentware.llmcontext.context_window import ContextWindowManager
+from haikeilabs.agentware.middleware.guardrails.error_tracker import ErrorCategory, ErrorTracker
+from haikeilabs.agentware.middleware.guardrails.response_validator import (
     ResponseValidator,
     ValidationResult,
 )
-from pedro_agentware.middleware.guardrails.response_validator import (
+from haikeilabs.agentware.middleware.guardrails.response_validator import (
     ToolCall as GuardrailsToolCall,
 )
-from pedro_agentware.middleware.guardrails.step_enforcer import StepEnforcer
-from pedro_agentware.middleware.types import MessageMeta, MessageType
-from pedro_agentware.reasoning import ContextTree, ReasoningAdapter, ReasoningError
+from haikeilabs.agentware.middleware.guardrails.step_enforcer import StepEnforcer
+from haikeilabs.agentware.middleware.types import MessageMeta, MessageType
+from haikeilabs.agentware.reasoning import ContextTree, ReasoningAdapter, ReasoningError
 
 
 class RetriesExhaustedError(Exception):
@@ -219,7 +219,7 @@ async def run_inference(
                 for tc in resp.tool_calls:
                     allowed, missing = cfg.step_enforcer.can_execute(session_id, tc.name)
                     if not allowed:
-                        from pedro_agentware.middleware.guardrails.nudge import step_nudge
+                        from haikeilabs.agentware.middleware.guardrails.nudge import step_nudge
 
                         nudge = step_nudge(tc.name, missing, 1)
                         nudge_msg = Message(

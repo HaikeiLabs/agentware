@@ -2,8 +2,8 @@
 
 import pytest
 
-from pedro_agentware.llm.request import Message, Role
-from pedro_agentware.middleware.types import MessageMeta, MessageType
+from haikeilabs.agentware.llm.request import Message, Role
+from haikeilabs.agentware.middleware.types import MessageMeta, MessageType
 
 
 class TestMessageType:

@@ -36,4 +36,4 @@ jobs:
       - name: Run Python tests
         run: |
           cd python
-          pytest tests/ --cov=src/pedro_agentware --cov-report=xml
+          pytest tests/ --cov=src/haikeilabs/agentware --cov-report=xml

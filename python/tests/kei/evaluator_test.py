@@ -8,8 +8,8 @@ affirmative path, and a denial that is both raised and audited.
 
 import pytest
 
-from pedro_agentware.kei import KeiProxyAuthorizeError, KeiProxyEvaluator, resources_touched
-from pedro_agentware.middleware import (
+from haikeilabs.agentware.kei import KeiProxyAuthorizeError, KeiProxyEvaluator, resources_touched
+from haikeilabs.agentware.middleware import (
     Action,
     AuditedToolClient,
     CallerContext,

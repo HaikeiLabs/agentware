@@ -1,6 +1,6 @@
 """Tests for nudge system."""
 
-from pedro_agentware.middleware.guardrails.nudge import (
+from haikeilabs.agentware.middleware.guardrails.nudge import (
     NudgeKind,
     prerequisite_nudge,
     retry_nudge,

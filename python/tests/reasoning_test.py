@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from pedro_agentware.reasoning import (
+from haikeilabs.agentware.reasoning import (
     CONTRACT_VERSION,
     ContextTree,
     Format,

@@ -1,0 +1,5 @@
+# The sdist is a buildable source snapshot: metadata, the package and its tests.
+include README.md CHANGELOG.md LICENSE
+recursive-include tests *.py *.json *.yaml *.yml *.ttl *.md
+prune tests/**/__pycache__
+global-exclude *.py[cod]

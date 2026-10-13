@@ -1,7 +1,7 @@
 import json
 import os
 
-from pedro_agentware.lint_tools import lint_manifest
+from haikeilabs.agentware.lint_tools import lint_manifest
 
 
 def test_shared_v2_fixture_is_valid_and_deterministic():

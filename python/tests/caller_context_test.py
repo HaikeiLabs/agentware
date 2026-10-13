@@ -6,7 +6,7 @@ sys.path.insert(0, "src")
 
 import pytest
 
-from pedro_agentware.middleware import (
+from haikeilabs.agentware.middleware import (
     AuditedToolClient,
     AuditFilter,
     CallerContext,
@@ -99,7 +99,7 @@ async def test_audited_tool_client_records_and_executes():
 async def test_audited_tool_client_denies_and_still_audits():
     class DenyAll:
         def evaluate(self, tool_name, args, caller):
-            from pedro_agentware.middleware import Action, Decision
+            from haikeilabs.agentware.middleware import Action, Decision
 
             return Decision(action=Action.DENY, rule="deny-all", reason="nope")
 
@@ -176,7 +176,7 @@ def test_audit_filter_by_delegation_linkage():
     auditor = InMemoryAuditor()
 
     def record_span(span, subject, depth):
-        from pedro_agentware.middleware import Action, AuditRecord, Decision
+        from haikeilabs.agentware.middleware import Action, AuditRecord, Decision
 
         auditor.record(
             AuditRecord(
@@ -203,7 +203,7 @@ def test_audit_filter_by_delegation_linkage():
 
 
 def test_middleware_impl_links_delegation_fields():
-    from pedro_agentware.middleware import InMemoryAuditor, MiddlewareImpl
+    from haikeilabs.agentware.middleware import InMemoryAuditor, MiddlewareImpl
 
     auditor = InMemoryAuditor()
 
@@ -233,8 +233,8 @@ def test_middleware_impl_links_delegation_fields():
 
 def test_middleware_impl_propagates_caller_to_policy():
     """The caller must reach the policy evaluator unchanged and unmutated."""
-    from pedro_agentware.middleware import Action, Decision, MiddlewareImpl
-    from pedro_agentware.middleware.policy import Policy, SimplePolicyEvaluator
+    from haikeilabs.agentware.middleware import Action, Decision, MiddlewareImpl
+    from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
     captured = {}
 

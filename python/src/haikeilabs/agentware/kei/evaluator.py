@@ -224,7 +224,7 @@ def tool_args_digest(args: dict[str, Any]) -> str:
 
 
 class KeiProxyEvaluator:
-    """A :class:`~pedro_agentware.middleware.policy.PolicyEvaluator` over kei-proxy.
+    """A :class:`~haikeilabs.agentware.middleware.policy.PolicyEvaluator` over kei-proxy.
 
     Translates kei-proxy's decision vocabulary into agentware's ``Action`` and
     fails closed on every path that is not an explicit affirmative:
@@ -245,7 +245,7 @@ class KeiProxyEvaluator:
     Every reason reads ``kei-proxy <class>[: <detail>]`` with a class from
     :data:`REASON_CLASSES`. The enrollment object (which may hold a one-time
     claim link) is carried on the Decision only when it is a JSON object, and
-    is never logged. :class:`~pedro_agentware.kei.KeiProxyAuthorizeClient` is
+    is never logged. :class:`~haikeilabs.agentware.kei.KeiProxyAuthorizeClient` is
     the kei-proxy CLI client (it lives in its own module so this one never
     spawns the proxy); the table in ``fixtures/kei/authorize-cases.v1.json``
     pins the behaviour shared with the TypeScript and Go ports.

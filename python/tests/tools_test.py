@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-from pedro_agentware.tools import BaseTool, Result, ToolRegistry
+from haikeilabs.agentware.tools import BaseTool, Result, ToolRegistry
 
 
 class AddTool(BaseTool):

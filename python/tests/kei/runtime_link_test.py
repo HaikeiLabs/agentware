@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from pedro_agentware.kei import runtime_link as rl
+from haikeilabs.agentware.kei import runtime_link as rl
 
 CONTRACTS = Path(__file__).resolve().parents[3] / "testing" / "contracts" / "runtime-link"
 

@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-from pedro_agentware.middleware import (
+from haikeilabs.agentware.middleware import (
     Action,
     CallerContext,
     InMemoryAuditor,
@@ -13,7 +13,7 @@ from pedro_agentware.middleware import (
     Rule,
     SimplePolicyEvaluator,
 )
-from pedro_agentware.middleware.policy import Condition, Operator
+from haikeilabs.agentware.middleware.policy import Condition, Operator
 
 
 class MockExecutor:

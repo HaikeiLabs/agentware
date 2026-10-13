@@ -4,15 +4,15 @@ from dataclasses import dataclass
 
 import pytest
 
-from pedro_agentware.llm import Message, Role
-from pedro_agentware.llm.request import ToolDefinition
-from pedro_agentware.llm.response import Response, TokenUsage
-from pedro_agentware.llm.response import ToolCall as LLMToolCall
-from pedro_agentware.llmcontext.context_window import ContextWindowManager
-from pedro_agentware.middleware.guardrails.error_tracker import ErrorTracker
-from pedro_agentware.middleware.guardrails.response_validator import ResponseValidator
-from pedro_agentware.middleware.guardrails.step_enforcer import StepEnforcer
-from pedro_agentware.middleware.inference import (
+from haikeilabs.agentware.llm import Message, Role
+from haikeilabs.agentware.llm.request import ToolDefinition
+from haikeilabs.agentware.llm.response import Response, TokenUsage
+from haikeilabs.agentware.llm.response import ToolCall as LLMToolCall
+from haikeilabs.agentware.llmcontext.context_window import ContextWindowManager
+from haikeilabs.agentware.middleware.guardrails.error_tracker import ErrorTracker
+from haikeilabs.agentware.middleware.guardrails.response_validator import ResponseValidator
+from haikeilabs.agentware.middleware.guardrails.step_enforcer import StepEnforcer
+from haikeilabs.agentware.middleware.inference import (
     InferenceConfig,
     RetriesExhaustedError,
     run_inference,

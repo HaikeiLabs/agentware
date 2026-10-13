@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pedro_agentware.memory import (
+from haikeilabs.agentware.memory import (
     LangGraphMemoryTools,
     WikiMemory,
     parse_diagnostics,

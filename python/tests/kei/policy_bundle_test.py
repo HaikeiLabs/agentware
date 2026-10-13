@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     RUNTIME_CONTROL_PLANE_URL_ENV,
     RUNTIME_TOKEN_ENV,
     BundleFetchError,
@@ -19,14 +19,14 @@ from pedro_agentware.kei import (
     PolicyBundleData,
     PolicyBundleLifecycle,
 )
-from pedro_agentware.kei.policy_bundle import (
+from haikeilabs.agentware.kei.policy_bundle import (
     LEGACY_ABAC_URL_ENV,
     LEGACY_KEI_API_URL_ENV,
     _resolve_control_plane_url,
     _resolve_runtime_token,
 )
-from pedro_agentware.middleware import CallerContext
-from pedro_agentware.middleware.types import Action
+from haikeilabs.agentware.middleware import CallerContext
+from haikeilabs.agentware.middleware.types import Action
 
 # ---------------------------------------------------------------------------
 # Helpers

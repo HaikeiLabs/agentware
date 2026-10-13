@@ -122,7 +122,7 @@ class TestContractGating:
 
     def test_jwt_provider_gated(self):
         """JWTTokenProvider requires explicit enablement (fail closed)."""
-        from pedro_agentware.kei.auth import JWTTokenProvider
+        from haikeilabs.agentware.kei.auth import JWTTokenProvider
 
         with FakeKEIServer(bootstrap_token="boot") as server:
             provider = JWTTokenProvider(api_url=server.base_url, initial_token="boot")
@@ -135,7 +135,7 @@ class TestContractGating:
 
     def test_jwt_exchange_not_implemented_until_server_exists(self):
         """Even when enabled, exchange is a contract, not yet implemented."""
-        from pedro_agentware.kei.auth import JWTTokenProvider
+        from haikeilabs.agentware.kei.auth import JWTTokenProvider
 
         with FakeKEIServer(bootstrap_token="boot") as server:
             provider = JWTTokenProvider(api_url=server.base_url, initial_token="boot")

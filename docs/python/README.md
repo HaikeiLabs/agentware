@@ -1,28 +1,30 @@
 # Python Middleware Usage Examples
 
 This document provides examples of how to use the Python middleware
-(`pedro_agentware`) for policy enforcement and audit logging. It mirrors the Go
+(`haikeilabs.agentware`) for policy enforcement and audit logging. It mirrors the Go
 reference implementation in `go/middleware/`.
 
 ## Installation
 
 ```bash
-pip install -e ./python
-# or, from the python/ directory:
+pip install haikeilabs-agentware   # the distribution; the import is haikeilabs.agentware
+# or, from a checkout:
 cd python && pip install -e ".[dev]"
 ```
 
-The package is not published to PyPI yet. See
+The distribution is published to PyPI as `haikeilabs-agentware` (like the npm
+package `@haikeilabs/agentware`); the import package is `haikeilabs.agentware`
+(`from haikeilabs.agentware import ...`). The old `pedro_agentware` name is a
+deprecated alias that resolves to the same modules. See
 [PyPI distribution strategy](pypi-distribution-strategy.md) for the artifact
-contract, release process, and the packaging work required before the first
-publish.
+contract and the release process.
 
 ## Basic Usage
 
 ### Creating a Policy
 
 ```python
-from pedro_agentware.middleware import Action, Condition, Operator, Policy, Rule
+from haikeilabs.agentware.middleware import Action, Condition, Operator, Policy, Rule
 
 policy = Policy(
     default_deny=False,
@@ -47,7 +49,7 @@ policy = Policy(
 ### Creating Middleware
 
 ```python
-from pedro_agentware.middleware import CallerContext, MiddlewareImpl
+from haikeilabs.agentware.middleware import CallerContext, MiddlewareImpl
 
 class MyToolExecutor:
     def execute(self, tool_name: str, args: dict) -> tuple:
@@ -64,7 +66,7 @@ result, success, error = mw.execute("read_file", {"path": "/tmp/test.txt"}, Call
 ### Using Caller Context and Delegation
 
 ```python
-from pedro_agentware.middleware import CallerContext
+from haikeilabs.agentware.middleware import CallerContext
 
 # At a human entry point the user IS the invoking subject. Trusted defaults to
 # False (fail-closed); it must be set explicitly to be true.
@@ -89,7 +91,7 @@ assert subagent.parent_span == "subagent-1"
 ### Audited Tool Client
 
 ```python
-from pedro_agentware.middleware import AuditedToolClient
+from haikeilabs.agentware.middleware import AuditedToolClient
 
 async def echo(**kwargs):
     return {"echo": kwargs.get("value", "")}
@@ -110,7 +112,7 @@ result = await client.Execute(
 ### Using Audit
 
 ```python
-from pedro_agentware.middleware import AuditFilter, InMemoryAuditor
+from haikeilabs.agentware.middleware import AuditFilter, InMemoryAuditor
 
 auditor = InMemoryAuditor()
 client = AuditedToolClient(source="my-agent", auditor=auditor)
@@ -148,7 +150,7 @@ Conditions can reference:
 
 ## Harness Contract
 
-Third-party agent harnesses build against `pedro_agentware` through the
+Third-party agent harnesses build against `haikeilabs.agentware` through the
 `kei/` module — see `docs/harness-contract.md` and
 `python/tests/third_party_harness_test.py` for a complete example that imports
 nothing outside this library.
@@ -166,8 +168,8 @@ an `O_NOFOLLOW` descriptor before every spawn, and any drift denies with
 `kei-proxy pin_mismatch`.
 
 ```python
-from pedro_agentware.kei import KeiProxyAuthorizeClient, KeiProxyEvaluator
-from pedro_agentware.middleware import AuditedToolClient
+from haikeilabs.agentware.kei import KeiProxyAuthorizeClient, KeiProxyEvaluator
+from haikeilabs.agentware.middleware import AuditedToolClient
 
 evaluator = KeiProxyEvaluator(KeiProxyAuthorizeClient(executable="kei-proxy", timeout=10.0))
 client = AuditedToolClient(evaluator=evaluator)
@@ -194,7 +196,7 @@ answer or a body that is not the expected JSON raises `KeiProxySocketError`,
 a refusal. A `session_not_found` session is reopened once.
 
 ```python
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     KeiProxyEvaluator,
     KeiProxySocketAuthorizeClient,
     KeiProxySocketIdentity,
@@ -220,7 +222,7 @@ send an empty manifest. It honours `KEI_PROXY_EGRESS_PROXY` and
 `KEI_PROXY_NO_PROXY`.
 
 ```python
-from pedro_agentware.kei import ToolManifestSyncConfig, sync_tool_manifest
+from haikeilabs.agentware.kei import ToolManifestSyncConfig, sync_tool_manifest
 
 sync_tool_manifest(manifest, ToolManifestSyncConfig.from_env(), expect_tools=bool(packs))
 ```

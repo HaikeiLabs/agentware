@@ -1,6 +1,6 @@
 import pytest
 
-from pedro_agentware.middleware.guardrails.step_enforcer import (
+from haikeilabs.agentware.middleware.guardrails.step_enforcer import (
     StepEnforcer,
     StepNotAllowedError,
 )

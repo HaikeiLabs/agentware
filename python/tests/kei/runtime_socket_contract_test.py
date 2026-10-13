@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from pedro_agentware.kei import (
+from haikeilabs.agentware.kei import (
     KeiProxyEvaluator,
     KeiProxySocketAuthorizationClient,
     KeiProxySocketAuthorizeClient,
@@ -27,7 +27,7 @@ from pedro_agentware.kei import (
     KeiProxySocketIdentity,
     select_authorization_client,
 )
-from pedro_agentware.middleware.types import Action, CallerContext
+from haikeilabs.agentware.middleware.types import Action, CallerContext
 
 TOKEN = "kei_rt_contract-secret-token-0123456789"
 AUTHORIZE_FIELDS = {
