@@ -163,6 +163,54 @@ and `workspace_id` are read from `caller.Metadata`. The behaviour matches the
 Python and TypeScript ports case for case; see
 `docs/kei-proxy-evaluator-parity.md`.
 
+### Over the kei-proxy daemon socket
+
+When `kei-proxy serve` runs beside the harness, talk to it over its Unix
+socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)
+instead of spawning a process per call. `runtimesocket.Client` (zero value
+usable) opens a `kei.session/v2` session per `(source, external_id)`, and
+authorizes, lists models and runs chat completions inside it. The request never
+names the user; the daemon decides for the session's subject. An unreachable
+daemon, a non-2xx answer or a body that is not the expected JSON is a
+`*runtimesocket.Error`, a refusal that unwraps to `*evaluator.AuthorizeError`.
+A `session_not_found` session is reopened once. Unix only: on Windows every
+call is a `proxy_unavailable` refusal wrapping `ErrUnsupportedPlatform`.
+
+```go
+import (
+    "github.com/soypete/pedro-agentware/go/kei/evaluator"
+    "github.com/soypete/pedro-agentware/go/kei/runtimesocket"
+)
+
+runtime := &runtimesocket.Client{}
+session, err := runtime.OpenSession(ctx, runtimesocket.Identity{Source: "openwebui", ExternalID: userID})
+answer, err := runtime.Authorize(ctx, session, evaluator.AuthorizeRequest{Tool: "github.get_issue", Action: "execute"})
+reply, err := runtime.ChatCompletion(ctx, session, map[string]any{"model": "gpt-4.1", "messages": messages})
+err = runtime.StreamChatCompletion(ctx, session, body, func(line string) error { // SSE "data:" lines
+    return nil
+})
+err = runtime.CloseSession(ctx, session)
+
+// The evaluator uses the socket when one is configured, else `kei-proxy authorize`.
+client, err := runtimesocket.SelectAuthorizationClient("openwebui", runtimesocket.SelectOptions{})
+eval := evaluator.NewKeiProxyEvaluator(client)
+```
+
+Register the harness's tools before serving with `toolsync.SyncDocument` (or
+`toolsync.Sync` for JSON text): it `PUT`s the tool manifest v2 to
+`$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools` with `KEI_RUNTIME_TOKEN`,
+replacing the installation's tools, so it refuses to send an empty manifest.
+It honours `KEI_PROXY_EGRESS_PROXY` and `KEI_PROXY_NO_PROXY`, and every failure
+wraps `toolsync.ErrSyncFailed`: the harness should not serve.
+
+```go
+cfg, err := toolsync.ConfigFromEnv(nil)
+result, err := toolsync.SyncDocument(ctx, manifest, cfg, len(packs) > 0)
+```
+
+The Python, TypeScript and Go clients are compared in
+`docs/kei-runtime-socket-parity.md`.
+
 ## Condition Operators
 
 | Operator | Description |

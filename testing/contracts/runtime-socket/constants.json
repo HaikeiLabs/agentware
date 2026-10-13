@@ -1,0 +1,48 @@
+{
+  "contract_version": 1,
+  "note": "Names and values every SDK's socket runtime client and tool sync must use verbatim.",
+  "socket": {
+    "default_path": "/run/kei-proxy/runtime.sock",
+    "path_env": "KEI_RUNTIME_SOCKET_PATH",
+    "token_env": "KEI_RUNTIME_TOKEN",
+    "session_header": "X-Kei-Session",
+    "session_not_found": "session_not_found",
+    "default_timeout_ms": 10000,
+    "default_model_timeout_ms": 120000
+  },
+  "schemas": {
+    "session": "kei.session/v2",
+    "authorize_request": "kei.authorize-request/v1",
+    "authorize_response": "kei.authorize-response/v1",
+    "policy_bundle_status": "kei.policy-bundle-status/v1"
+  },
+  "routes": {
+    "open_session": ["PUT", "/v1/session"],
+    "close_session": ["DELETE", "/v1/session"],
+    "authorize": ["POST", "/v1/authorize"],
+    "list_models": ["GET", "/v1/models"],
+    "chat_completion": ["POST", "/v1/chat/completions"],
+    "policy_bundle_status": ["GET", "/v1/policy-bundle/status"]
+  },
+  "authorize_optional_fields": [
+    "action", "resource", "span_id", "parent_span", "delegation_depth",
+    "agent_id", "framework", "tool_args_digest"
+  ],
+  "socket_error_reason_classes": [
+    "proxy_unavailable", "proxy_timeout", "proxy_error", "malformed_response", "missing_token"
+  ],
+  "tool_sync": {
+    "path": "/api/v1/runtime/tools",
+    "media_type": "application/vnd.kei.tool-manifest.v2+json",
+    "control_plane_url_env": "KEI_RUNTIME_CONTROL_PLANE_URL",
+    "token_env": "KEI_RUNTIME_TOKEN",
+    "egress_proxy_env": "KEI_PROXY_EGRESS_PROXY",
+    "no_proxy_env": "KEI_PROXY_NO_PROXY",
+    "default_attempts": 5,
+    "default_backoff_ms": 1000,
+    "max_backoff_ms": 16000,
+    "default_timeout_ms": 30000,
+    "error_body_limit": 300,
+    "redaction": "[redacted]"
+  }
+}
