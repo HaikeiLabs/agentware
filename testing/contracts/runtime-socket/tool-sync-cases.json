@@ -1,0 +1,451 @@
+{
+  "contract_version": 1,
+  "token": "kei_rt_contract-canary-0123456789abcdef",
+  "control_plane_url": "http://control-plane.test",
+  "note": "Tool-manifest sync cases. See README.md for the runner rules.",
+  "expected_request": {
+    "method": "PUT",
+    "path": "/api/v1/runtime/tools",
+    "headers": {
+      "Authorization": "Bearer kei_rt_contract-canary-0123456789abcdef",
+      "Content-Type": "application/vnd.kei.tool-manifest.v2+json",
+      "Accept": "application/vnd.kei.tool-manifest.v2+json"
+    }
+  },
+  "sync_cases": [
+    {
+      "name": "registers_the_manifest_in_replace_mode",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2",
+        "tools": [
+          {
+            "name": "github.get_issue",
+            "connector": "github"
+          },
+          {
+            "name": "github.list_issues",
+            "connector": "github"
+          }
+        ]
+      },
+      "expect_tools": true,
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "created": 1,
+            "updated": 1,
+            "deleted": 0
+          }
+        }
+      ],
+      "expect": {
+        "sent": true,
+        "tool_count": 2,
+        "counts": {
+          "created": 1,
+          "updated": 1,
+          "deleted": 0
+        }
+      },
+      "expect_requests": 1,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "accepts_the_manifest_as_json_text",
+      "manifest_text": "{\"schema\": \"kei.tool-manifest/v2\", \"tools\": [{\"name\": \"github.get_issue\", \"connector\": \"github\"}, {\"name\": \"github.list_issues\", \"connector\": \"github\"}]}",
+      "expect_tools": true,
+      "responses": [
+        {
+          "status": 204
+        }
+      ],
+      "expect": {
+        "sent": true,
+        "tool_count": 2,
+        "counts": {}
+      },
+      "expect_requests": 1,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "refuses_an_empty_manifest_when_tools_are_expected",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2",
+        "tools": []
+      },
+      "expect_tools": true,
+      "responses": [],
+      "expect": {
+        "error_contains": "empty manifest"
+      },
+      "expect_requests": 0,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "refuses_a_manifest_without_tools_when_tools_are_expected",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2"
+      },
+      "expect_tools": true,
+      "responses": [],
+      "expect": {
+        "error_contains": "empty manifest"
+      },
+      "expect_requests": 0,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "skips_an_empty_manifest_when_no_tools_are_expected",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2",
+        "tools": []
+      },
+      "expect_tools": false,
+      "responses": [],
+      "expect": {
+        "sent": false,
+        "tool_count": 0,
+        "counts": {}
+      },
+      "expect_requests": 0,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "rejects_a_manifest_that_is_not_json",
+      "manifest_text": "{not json",
+      "expect_tools": true,
+      "responses": [],
+      "expect": {
+        "error_contains": "not JSON"
+      },
+      "expect_requests": 0,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "rejects_a_manifest_that_is_not_an_object",
+      "manifest_text": "[1, 2]",
+      "expect_tools": true,
+      "responses": [],
+      "expect": {
+        "error_contains": "not a JSON object"
+      },
+      "expect_requests": 0,
+      "expect_sleeps_ms": []
+    },
+    {
+      "name": "retries_with_exponential_backoff_then_succeeds",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2",
+        "tools": [
+          {
+            "name": "github.get_issue",
+            "connector": "github"
+          },
+          {
+            "name": "github.list_issues",
+            "connector": "github"
+          }
+        ]
+      },
+      "expect_tools": true,
+      "attempts": 5,
+      "backoff_ms": 1000,
+      "responses": [
+        {
+          "status": 503,
+          "raw": "busy"
+        },
+        {
+          "network_error": true
+        },
+        {
+          "status": 200,
+          "body": {
+            "updated": 2
+          }
+        }
+      ],
+      "expect": {
+        "sent": true,
+        "tool_count": 2,
+        "counts": {
+          "updated": 2
+        }
+      },
+      "expect_requests": 3,
+      "expect_sleeps_ms": [
+        1000,
+        2000
+      ]
+    },
+    {
+      "name": "backoff_is_capped",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2",
+        "tools": [
+          {
+            "name": "github.get_issue",
+            "connector": "github"
+          },
+          {
+            "name": "github.list_issues",
+            "connector": "github"
+          }
+        ]
+      },
+      "expect_tools": true,
+      "attempts": 4,
+      "backoff_ms": 10000,
+      "responses": [
+        {
+          "status": 500
+        },
+        {
+          "status": 500
+        },
+        {
+          "status": 500
+        },
+        {
+          "status": 200
+        }
+      ],
+      "expect": {
+        "sent": true,
+        "tool_count": 2,
+        "counts": {}
+      },
+      "expect_requests": 4,
+      "expect_sleeps_ms": [
+        10000,
+        16000,
+        16000
+      ]
+    },
+    {
+      "name": "fails_after_the_last_attempt_and_redacts_the_token",
+      "manifest": {
+        "schema": "kei.tool-manifest/v2",
+        "tools": [
+          {
+            "name": "github.get_issue",
+            "connector": "github"
+          },
+          {
+            "name": "github.list_issues",
+            "connector": "github"
+          }
+        ]
+      },
+      "expect_tools": true,
+      "attempts": 3,
+      "backoff_ms": 1000,
+      "responses": [
+        {
+          "status": 401,
+          "raw": "bad token kei_rt_contract-canary-0123456789abcdef"
+        },
+        {
+          "status": 401,
+          "raw": "bad token kei_rt_contract-canary-0123456789abcdef"
+        },
+        {
+          "status": 401,
+          "raw": "bad token kei_rt_contract-canary-0123456789abcdef"
+        }
+      ],
+      "expect": {
+        "error_contains": "failed after 3 attempt(s)",
+        "error_contains_also": "[redacted]"
+      },
+      "expect_requests": 3,
+      "expect_sleeps_ms": [
+        1000,
+        2000
+      ]
+    }
+  ],
+  "config_cases": [
+    {
+      "name": "reads_the_kei_proxy_variables",
+      "env": {
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://kei.example.test/",
+        "KEI_RUNTIME_TOKEN": "kei_rt_contract-canary-0123456789abcdef",
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "internal.test"
+      },
+      "expect": {
+        "tools_url": "https://kei.example.test/api/v1/runtime/tools",
+        "egress_proxy": "http://egress.test:3128",
+        "no_proxy": "internal.test"
+      }
+    },
+    {
+      "name": "missing_url",
+      "env": {
+        "KEI_RUNTIME_TOKEN": "kei_rt_contract-canary-0123456789abcdef"
+      },
+      "expect": {
+        "error_contains": "KEI_RUNTIME_CONTROL_PLANE_URL is not set"
+      }
+    },
+    {
+      "name": "missing_token",
+      "env": {
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "https://kei.example.test"
+      },
+      "expect": {
+        "error_contains": "KEI_RUNTIME_TOKEN is not set"
+      }
+    },
+    {
+      "name": "not_http",
+      "env": {
+        "KEI_RUNTIME_CONTROL_PLANE_URL": "ftp://kei.example.test",
+        "KEI_RUNTIME_TOKEN": "kei_rt_contract-canary-0123456789abcdef"
+      },
+      "expect": {
+        "error_contains": "KEI_RUNTIME_CONTROL_PLANE_URL is not an http(s) URL"
+      }
+    }
+  ],
+  "proxy_cases": [
+    {
+      "name": "egress_proxy_is_used",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128"
+      },
+      "expect_proxy": "http://egress.test:3128"
+    },
+    {
+      "name": "egress_no_proxy_exact_host_bypasses",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "other.test, kei.example.test"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "egress_no_proxy_domain_suffix_bypasses",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": ".example.test"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "egress_no_proxy_bare_domain_bypasses_subdomains",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "example.test"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "egress_no_proxy_is_case_insensitive",
+      "layer": "egress",
+      "url": "https://KEI.Example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "kei.EXAMPLE.test"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "egress_no_proxy_wildcard_bypasses",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "*"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "egress_no_proxy_partial_label_does_not_bypass",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "ample.test"
+      },
+      "expect_proxy": "http://egress.test:3128"
+    },
+    {
+      "name": "egress_ignores_ambient_variables",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "HTTPS_PROXY": "http://ambient.test:8080",
+        "NO_PROXY": "kei.example.test"
+      },
+      "expect_proxy": "http://egress.test:3128"
+    },
+    {
+      "name": "egress_bypass_does_not_fall_back_to_ambient",
+      "layer": "egress",
+      "url": "https://kei.example.test",
+      "env": {
+        "KEI_PROXY_EGRESS_PROXY": "http://egress.test:3128",
+        "KEI_PROXY_NO_PROXY": "kei.example.test",
+        "HTTPS_PROXY": "http://ambient.test:8080"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "ambient_https_proxy_without_egress",
+      "layer": "ambient",
+      "url": "https://kei.example.test",
+      "env": {
+        "HTTPS_PROXY": "http://ambient.test:8080"
+      },
+      "expect_proxy": "http://ambient.test:8080"
+    },
+    {
+      "name": "ambient_lowercase_https_proxy",
+      "layer": "ambient",
+      "url": "https://kei.example.test",
+      "env": {
+        "https_proxy": "http://ambient.test:8080"
+      },
+      "expect_proxy": "http://ambient.test:8080"
+    },
+    {
+      "name": "ambient_http_proxy_for_an_http_control_plane",
+      "layer": "ambient",
+      "url": "http://kei.example.test",
+      "env": {
+        "HTTP_PROXY": "http://ambient.test:8080",
+        "HTTPS_PROXY": "http://wrong.test:1"
+      },
+      "expect_proxy": "http://ambient.test:8080"
+    },
+    {
+      "name": "ambient_no_proxy_bypasses",
+      "layer": "ambient",
+      "url": "https://kei.example.test",
+      "env": {
+        "HTTPS_PROXY": "http://ambient.test:8080",
+        "NO_PROXY": "example.test"
+      },
+      "expect_proxy": null
+    },
+    {
+      "name": "no_proxy_configured_goes_direct",
+      "layer": "ambient",
+      "url": "https://kei.example.test",
+      "env": {},
+      "expect_proxy": null
+    }
+  ]
+}

@@ -1,0 +1,1892 @@
+{
+  "contract_version": 1,
+  "token": "kei_rt_contract-canary-0123456789abcdef",
+  "note": "Replay cases for the socket runtime client. See README.md for the runner rules.",
+  "cases": [
+    {
+      "name": "open_session_sends_v2_identity_and_caches_per_identity",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "open_session_rejects_an_empty_identity_without_calling",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "",
+            "external_id": "ada"
+          },
+          "expect": {
+            "invalid_argument": true
+          }
+        },
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "  "
+          },
+          "expect": {
+            "invalid_argument": true
+          }
+        }
+      ],
+      "exchanges": []
+    },
+    {
+      "name": "open_session_without_session_id_is_malformed",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "open_session_with_wrong_schema_is_malformed",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v1",
+              "session_id": "sess-1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "open_session_401_is_a_proxy_error_with_the_code_and_no_daemon_text",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "invalid_runtime_token"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 401,
+            "body": {
+              "error": {
+                "code": "invalid_runtime_token",
+                "message": "bad token kei_rt_contract-canary-0123456789abcdef",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_sends_every_set_field_and_returns_the_permit",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue",
+              "action": "execute",
+              "resource": "github:issue:1",
+              "span_id": "s-1",
+              "parent_span": "p-0",
+              "delegation_depth": 1,
+              "agent_id": "agent-1",
+              "framework": "openwebui",
+              "tool_args_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue",
+              "action": "execute",
+              "resource": "github:issue:1",
+              "span_id": "s-1",
+              "parent_span": "p-0",
+              "delegation_depth": 1,
+              "agent_id": "agent-1",
+              "framework": "openwebui",
+              "tool_args_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_omits_empty_optional_fields",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue",
+              "action": "",
+              "resource": "",
+              "delegation_depth": 0
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_returns_a_deny_with_its_enrollment",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "subject_unlinked",
+              "enrollment": {
+                "claim_url": "https://kei.example.test/claim/1"
+              }
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "subject_unlinked",
+              "enrollment": {
+                "claim_url": "https://kei.example.test/claim/1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_reopens_once_on_a_session_not_found_deny",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "session_not_found"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-2",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_reopens_once_on_a_session_not_found_404",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 404,
+            "body": {
+              "error": {
+                "code": "session_not_found",
+                "message": "session_not_found",
+                "type": "runtime_error"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-2",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "permit",
+              "policy_id": "p-allow",
+              "bundle_state": "fresh"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_a_second_session_not_found_404_fails_closed",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "session_not_found"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 404,
+            "body": {
+              "error": {
+                "code": "session_not_found",
+                "message": "session_not_found",
+                "type": "runtime_error"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-2",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 404,
+            "body": {
+              "error": {
+                "code": "session_not_found",
+                "message": "session_not_found",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_a_second_session_not_found_deny_is_returned_as_a_deny",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "session_not_found"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "session_not_found"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-2",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "session_not_found"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_non_json_is_malformed",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "raw": "not-json",
+            "content_type": "application/json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_a_json_array_is_malformed",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "raw": "[\"permit\"]",
+            "content_type": "application/json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_wrong_response_schema_is_malformed",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v0",
+              "decision": "permit"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_missing_decision_is_malformed",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_500_is_a_proxy_error",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "internal"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 500,
+            "body": {
+              "error": {
+                "code": "internal",
+                "message": "leaked kei_rt_contract-canary-0123456789abcdef",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "authorize_a_2xx_with_an_empty_body_is_malformed",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 204
+          }
+        }
+      ]
+    },
+    {
+      "name": "close_session_deletes_with_the_session_header",
+      "steps": [
+        {
+          "op": "close_session",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            }
+          },
+          "expect": {
+            "result": null
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "DELETE",
+            "path": "/v1/session",
+            "session": "sess-1",
+            "body": null
+          },
+          "response": {
+            "status": 204
+          }
+        }
+      ]
+    },
+    {
+      "name": "close_session_already_ended_is_not_an_error",
+      "steps": [
+        {
+          "op": "close_session",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            }
+          },
+          "expect": {
+            "result": null
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "DELETE",
+            "path": "/v1/session",
+            "session": "sess-1",
+            "body": null
+          },
+          "response": {
+            "status": 404,
+            "body": {
+              "error": {
+                "code": "session_not_found",
+                "message": "session_not_found",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "close_session_500_is_a_proxy_error",
+      "steps": [
+        {
+          "op": "close_session",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "internal"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "DELETE",
+            "path": "/v1/session",
+            "session": "sess-1",
+            "body": null
+          },
+          "response": {
+            "status": 500,
+            "body": {
+              "error": {
+                "code": "internal",
+                "message": "internal",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "close_session_forgets_the_cached_session",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "close_session",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            }
+          },
+          "expect": {
+            "result": null
+          }
+        },
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-2"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "DELETE",
+            "path": "/v1/session",
+            "session": "sess-1",
+            "body": null
+          },
+          "response": {
+            "status": 204
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "forget_session_drops_the_cache_without_calling",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "forget_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": null
+          }
+        },
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-2"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "list_models_keeps_entries_with_a_string_id",
+      "steps": [
+        {
+          "op": "list_models",
+          "args": {},
+          "expect": {
+            "result": [
+              {
+                "id": "gpt-4.1",
+                "object": "model"
+              }
+            ]
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/models",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "object": "list",
+              "data": [
+                {
+                  "id": "gpt-4.1",
+                  "object": "model"
+                },
+                {
+                  "id": ""
+                },
+                {
+                  "object": "model"
+                },
+                "qwen",
+                {
+                  "id": 7
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "list_models_without_data_is_malformed",
+      "steps": [
+        {
+          "op": "list_models",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/models",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "object": "list"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "chat_completion_forces_stream_false_and_returns_the_body",
+      "steps": [
+        {
+          "op": "chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "gpt-4.1",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "hi"
+                }
+              ],
+              "stream": true
+            }
+          },
+          "expect": {
+            "result": {
+              "id": "chatcmpl-1",
+              "model": "gpt-4.1"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-1",
+            "body": {
+              "model": "gpt-4.1",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "hi"
+                }
+              ],
+              "stream": false
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "chatcmpl-1",
+              "model": "gpt-4.1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "chat_completion_reopens_once_on_session_not_found",
+      "steps": [
+        {
+          "op": "chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "gpt-4.1"
+            }
+          },
+          "expect": {
+            "result": {
+              "id": "chatcmpl-2"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-1",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": false
+            }
+          },
+          "response": {
+            "status": 404,
+            "body": {
+              "error": {
+                "code": "session_not_found",
+                "message": "session_not_found",
+                "type": "runtime_error"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-2",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": false
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "chatcmpl-2"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "chat_completion_403_is_a_proxy_error_with_the_code",
+      "steps": [
+        {
+          "op": "chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "gpt-4.1"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "model_not_allowed"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-1",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": false
+            }
+          },
+          "response": {
+            "status": 403,
+            "body": {
+              "error": {
+                "code": "model_not_allowed",
+                "message": "model_not_allowed",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stream_chat_completion_yields_only_data_lines",
+      "steps": [
+        {
+          "op": "stream_chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "gpt-4.1"
+            }
+          },
+          "expect": {
+            "result": [
+              "data: {\"choices\": []}",
+              "data: [DONE]"
+            ]
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-1",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": true
+            }
+          },
+          "response": {
+            "status": 200,
+            "raw": ": keep-alive\n\ndata: {\"choices\": []}\n\nevent: x\ndata: [DONE]\n\n",
+            "content_type": "text/event-stream"
+          }
+        }
+      ]
+    },
+    {
+      "name": "stream_chat_completion_reopens_once_on_session_not_found",
+      "steps": [
+        {
+          "op": "stream_chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "gpt-4.1"
+            }
+          },
+          "expect": {
+            "result": [
+              "data: [DONE]"
+            ]
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-1",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": true
+            }
+          },
+          "response": {
+            "status": 404,
+            "body": {
+              "error": {
+                "code": "session_not_found",
+                "message": "session_not_found",
+                "type": "runtime_error"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "openwebui",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-2",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-2",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": true
+            }
+          },
+          "response": {
+            "status": 200,
+            "raw": "data: [DONE]\n\n",
+            "content_type": "text/event-stream"
+          }
+        }
+      ]
+    },
+    {
+      "name": "stream_chat_completion_500_is_a_proxy_error",
+      "steps": [
+        {
+          "op": "stream_chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "gpt-4.1"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "upstream_error"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "session": "sess-1",
+            "body": {
+              "model": "gpt-4.1",
+              "stream": true
+            }
+          },
+          "response": {
+            "status": 502,
+            "body": {
+              "error": {
+                "code": "upstream_error",
+                "message": "upstream_error",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "policy_bundle_status_returns_the_status",
+      "steps": [
+        {
+          "op": "policy_bundle_status",
+          "args": {},
+          "expect": {
+            "result": {
+              "schema": "kei.policy-bundle-status/v1",
+              "bundle_schema": "kei.policy-bundle/v2"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/policy-bundle/status",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.policy-bundle-status/v1",
+              "bundle_schema": "kei.policy-bundle/v2"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "policy_bundle_status_wrong_schema_is_malformed",
+      "steps": [
+        {
+          "op": "policy_bundle_status",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/policy-bundle/status",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "bundle_schema": "x"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a_missing_token_fails_before_any_call",
+      "env": {},
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "error": {
+              "reason_class": "missing_token",
+              "code": ""
+            }
+          }
+        },
+        {
+          "op": "list_models",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "missing_token",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": []
+    },
+    {
+      "name": "no_daemon_on_the_socket_is_unavailable",
+      "daemon": "absent",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "openwebui",
+            "external_id": "ada"
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_unavailable",
+              "code": ""
+            }
+          }
+        },
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "t"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_unavailable",
+              "code": ""
+            }
+          }
+        },
+        {
+          "op": "stream_chat_completion",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "payload": {
+              "model": "m"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_unavailable",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": []
+    },
+    {
+      "name": "a_daemon_that_does_not_answer_times_out",
+      "timeout_ms": 200,
+      "steps": [
+        {
+          "op": "policy_bundle_status",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "proxy_timeout",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/policy-bundle/status",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "stall": true
+          }
+        }
+      ]
+    }
+  ]
+}

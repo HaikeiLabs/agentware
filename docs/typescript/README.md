@@ -136,3 +136,50 @@ Conditions can reference:
 - A policy denial is an audited outcome, not a transport error.
 - `KEI_PROXY_DISABLED` denies every governed call; it is never an allow switch.
   See `docs/fail-closed-design.md`.
+
+## Over the kei-proxy daemon socket
+
+When `kei-proxy serve` runs beside the harness, talk to it over its Unix
+socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)
+instead of spawning a process per call. `KeiProxySocketAuthorizeClient` opens a
+`kei.session/v2` session per `(source, externalId)` and authorizes, lists
+models and runs chat completions inside it. The request never names the user;
+the daemon decides for the session's subject. An unreachable daemon, a non-2xx
+answer or a body that is not the expected JSON rejects with
+`KeiProxySocketError` (a `KeiProxyAuthorizeError` with a `reasonClass` and the
+daemon's error `code`). A `session_not_found` session is reopened once.
+
+```typescript
+import {
+  KeiProxyEvaluator,
+  KeiProxySocketAuthorizeClient,
+  selectAuthorizationClient,
+} from "@haikeilabs/agentware";
+
+const runtime = new KeiProxySocketAuthorizeClient();
+const session = await runtime.openSession({ source: "teams", externalId: aadObjectId });
+const answer = await runtime.authorize(session, { tool: "github.get_issue", action: "execute" });
+const reply = await runtime.chatCompletion(session, { model: "gpt-4.1", messages });
+for await (const line of runtime.streamChatCompletion(session, body)) {
+  // SSE "data:" lines, "data: [DONE]" included
+}
+await runtime.closeSession(session);
+
+// The evaluator uses the socket when one is configured, else `kei-proxy authorize`.
+const evaluator = new KeiProxyEvaluator(selectAuthorizationClient("teams"));
+```
+
+Register the harness's tools before serving with `syncToolManifest`: it `PUT`s
+the tool manifest v2 to `$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools`
+with `KEI_RUNTIME_TOKEN`, replacing the installation's tools, so it refuses to
+send an empty manifest. It honours `KEI_PROXY_EGRESS_PROXY` and
+`KEI_PROXY_NO_PROXY`, and otherwise `HTTPS_PROXY` / `NO_PROXY`.
+
+```typescript
+import { ToolManifestSyncConfig, syncToolManifest } from "@haikeilabs/agentware";
+
+await syncToolManifest(manifest, ToolManifestSyncConfig.fromEnv(), { expectTools: packs.length > 0 });
+```
+
+The Python, TypeScript and Go clients are compared in
+`docs/kei-runtime-socket-parity.md`.
