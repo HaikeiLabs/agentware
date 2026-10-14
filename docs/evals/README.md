@@ -50,7 +50,7 @@ PYTHONPATH=src python3 -m evals.main \
 | `--max-turns` | Tool-loop turns per case | `10` |
 | `--timeout` | Per-request model timeout, seconds | `600` |
 | `--max-tokens` | Completion budget per turn; a reply cut off here fails as truncated | `1024` |
-| `--repeats` | Runs per case, overriding each suite's `repeats` (the CI gate passes 3) | the suite's |
+| `--repeats` | Runs per case, overriding each suite's `repeats` (the CI gate passes 1 on a pull request, 3 nightly) | the suite's |
 | `--case` | Run only this case id (repeatable), e.g. to re-run failures | all |
 | `--transcripts` | JSONL of tool calls + final text per run (diagnostics, scrubbed) | off |
 
@@ -216,6 +216,15 @@ with the mean case time, plus the failing cases with
 their reasons. Reasons are scrubbed of URLs, IPv4 addresses and `*.ts.net`
 hostnames. Don't commit local runs: the agent-evals CI gate and its sticky
 pull request comment are the record; local runs are for tuning.
+
+**The CI gate** (`.github/workflows/agent-evals.yaml`, a copy of the
+HaikeiLabs/kei template; runbook: kei `docs/agent-evals-gate.md`) runs the
+suites a pull request changes once per case, at most 30 minutes per eval job
+(a timeout fails the check), and cancels the run when the pull request closes
+or merges. The nightly sweep of `main` (09:00 UTC, or by hand) runs every suite
+3 times per case; a failing sweep opens or updates the "Nightly agent evals
+below 95%" issue. While a pull request has the `evals:tuning` label nothing
+runs and the gate fails until the label is removed.
 
 ## Legacy CLI Options
 
