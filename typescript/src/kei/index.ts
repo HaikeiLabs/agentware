@@ -4,3 +4,4 @@ export * from "./evaluator.js";
 export * from "./authorizeClient.js";
 export * from "./socketAuthorizeClient.js";
 export * from "./toolSync.js";
+export * from "./mcproute.js";
