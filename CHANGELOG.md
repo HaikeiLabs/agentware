@@ -13,6 +13,12 @@ coordinated separately; entries collect under **Unreleased** until then.
   `github.com/soypete/pedro-agentware/go` with
   `github.com/haikeilabs/agentware/go` in your imports and `go.mod`
   (HAI-684). Package names and APIs are unchanged.
+- **Release:** npm, PyPI and the Go module share one version from the root
+  `VERSION` file. One `agentware-v<VERSION>` tag publishes npm, pushes
+  `go/v<VERSION>`, and runs the PyPI workflow; a `Version check` CI job fails
+  when any file drifts (HAI-684). The Python package and the SDK version each
+  runtime link reports (`KEI_AGENTWARE_SDK_VERSION`) move to the shared version
+  (Python was 0.1.0 and TypeScript reported 0.2.1).
 
 ## [0.9.0] - 2026-10-09
 

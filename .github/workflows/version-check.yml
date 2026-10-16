@@ -1,0 +1,32 @@
+# Dry run of the shared release version: npm, PyPI and the Go module must
+# carry the VERSION file's version, and the release tags it derives are
+# printed. Publishes nothing and creates no tag.
+name: Version check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  versions:
+    name: Versions agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Test the version tool
+        run: make version-test
+
+      - name: Check every registry's version matches VERSION
+        run: make version-check
+
+      - name: Show the tags a release would create
+        run: python3 scripts/release/version.py tags

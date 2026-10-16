@@ -188,3 +188,21 @@ Before opening a PR, confirm for every language you touched:
       `fixtures/reasoning/` where applicable).
 - [ ] `docs/model-format-reference.md` updated.
 - [ ] Build, focused tests, lint, and typecheck pass in that language.
+
+## Releasing
+
+npm (`@haikeilabs/agentware`), PyPI (`haikeilabs-agentware`) and the Go module
+(`github.com/haikeilabs/agentware/go`) ship together at one version. The
+`VERSION` file at the repository root holds it; `scripts/release/version.py`
+lists every file that also carries it (package manifests, the lockfile, and
+each SDK's reported runtime-link version).
+
+1. Bump everything at once: `make version-set VERSION=X.Y.Z` (pre-releases are
+   `X.Y.Z-rc.N`; Python gets the PEP 440 spelling `X.Y.ZrcN`). Add the
+   CHANGELOG entry and merge the bump PR. `make version-check` (and the
+   `Version check` workflow on every PR) fails if any file disagrees.
+2. A maintainer pushes the release tag `agentware-vX.Y.Z`, or runs the
+   `Release Agentware` workflow (`publish.yml`) with the version. The workflow
+   refuses to publish unless the tag and every file match `VERSION`, then
+   publishes npm, pushes `go/vX.Y.Z` on the same commit, and runs
+   `publish-python.yml` for PyPI (which tags `agentware-py-v<PEP 440>`).

@@ -5,10 +5,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "haikeilabs-agentware"
-# The single version source: the wheel's metadata, and so
-# haikeilabs.agentware.__version__, come from here. Versioned independently of
-# the TypeScript SDK; a release tag is agentware-py-v<version>.
-version = "0.1.0"
+# The wheel's metadata, and so haikeilabs.agentware.__version__, come from
+# here. The value is the PEP 440 spelling of the repository VERSION, shared with
+# the npm package and the Go module; change it with
+# `python3 scripts/release/version.py set X.Y.Z`, never by hand. A release tags
+# agentware-py-v<version>.
+version = "0.9.0"
 description = "Policy enforcement and audit middleware for LLM agent tool calls"
 readme = "README.md"
 license = "Apache-2.0"
