@@ -38,6 +38,36 @@ export interface CallerContext {
   parent_span?: string;
   /** 0 for a direct call; incremented at each delegation hop. */
   delegation_depth?: number;
+  /** Available on contexts created by createCallerContext and delegate(). */
+  delegate?: (parentSpan?: string) => DelegableCallerContext;
+}
+
+export type DelegableCallerContext = CallerContext & {
+  delegate(parentSpan?: string): DelegableCallerContext;
+};
+
+/** Create a CallerContext with the delegate() method available. */
+export function createCallerContext(caller: CallerContext): DelegableCallerContext {
+  return attachDelegation({
+    ...caller,
+    metadata: caller.metadata ? { ...caller.metadata } : undefined,
+  });
+}
+
+/** Return a child caller context one delegation hop below caller. */
+export function delegateCallerContext(caller: CallerContext, parentSpan = ""): DelegableCallerContext {
+  return attachDelegation({
+    ...caller,
+    metadata: caller.metadata ? { ...caller.metadata } : undefined,
+    parent_span: parentSpan || caller.parent_span || "",
+    delegation_depth: (caller.delegation_depth ?? 0) + 1,
+  });
+}
+
+function attachDelegation(caller: CallerContext): DelegableCallerContext {
+  const result = { ...caller } as DelegableCallerContext;
+  result.delegate = (parentSpan = "") => delegateCallerContext(result, parentSpan);
+  return result;
 }
 
 export interface Decision {

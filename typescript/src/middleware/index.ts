@@ -1,5 +1,9 @@
 export { MiddlewareImpl, Middleware, ToolExecutor } from "./middleware.js";
 export { Action, CallerContext, Decision, MessageType, MessageMeta } from "./types.js";
+export { createCallerContext, delegateCallerContext } from "./types.js";
+export type { DelegableCallerContext } from "./types.js";
+export { AuditedToolClient } from "./tool_client.js";
+export type { LocalPolicyEvaluator, AsyncToolExecutor, ToolExecution } from "./tool_client.js";
 export { PolicyEvaluator, Policy, Rule, Condition, Operator, SimplePolicyEvaluator } from "./policy.js";
 export { Auditor, AuditRecord, InMemoryAuditor, AuditFilter } from "./audit.js";
 export {

@@ -63,6 +63,9 @@ const RUNTIME_EXPORTS = [
   "KeiProxySocketAuthorizeClient",
   "ToolManifestSyncConfig",
   "syncToolManifest",
+  "AuditedToolClient",
+  "delegateCallerContext",
+  "createCallerContext",
 ];
 
 function run(cmd, args, cwd) {

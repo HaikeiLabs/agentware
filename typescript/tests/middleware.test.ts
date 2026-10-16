@@ -7,6 +7,7 @@ import { SimplePolicyEvaluator, Policy, Operator } from "../src/middleware/polic
 import { Action } from "../src/middleware/types.js";
 import { InMemoryAuditor, AuditRecord } from "../src/middleware/audit.js";
 import type { CallerContext } from "../src/middleware/types.js";
+import { createCallerContext } from "../src/middleware/types.js";
 
 const createMockExecutor = (): ToolExecutor & { callCount: number; lastCall: { tool: string; args: Record<string, unknown> } | null } => {
   let count = 0;
@@ -29,6 +30,23 @@ const createCaller = (overrides: Partial<CallerContext> = {}): CallerContext => 
   source: "api",
   trusted: false,
   ...overrides,
+});
+
+describe("CallerContext delegation", () => {
+  it("preserves the invoking subject, increments depth, and does not mutate the parent", () => {
+    const parent = createCallerContext(createCaller({ invoking_subject: "U_HUMAN" }));
+    const child = parent.delegate("span-parent");
+    const grandchild = child.delegate("span-child");
+
+    expect([child.invoking_subject, grandchild.invoking_subject]).toEqual(["U_HUMAN", "U_HUMAN"]);
+    expect([parent.delegation_depth, child.delegation_depth, grandchild.delegation_depth]).toEqual([undefined, 1, 2]);
+    expect([child.parent_span, grandchild.parent_span]).toEqual(["span-parent", "span-child"]);
+    expect(parent.parent_span).toBeUndefined();
+  });
+
+  it("inherits its own parent span when no new span is supplied", () => {
+    expect(createCallerContext(createCaller({ parent_span: "outer" })).delegate("").parent_span).toBe("outer");
+  });
 });
 
 describe("MiddlewareImpl", () => {
