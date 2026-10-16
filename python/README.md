@@ -61,7 +61,8 @@ so the audit trail always leads back to the human who authorized the request.
   rate limits, auditors, `AuditedToolClient`, and agent-loop guardrails.
 - `haikeilabs.agentware.kei`: Kei integration. `KeiProxyEvaluator` is a policy
   evaluator backed by `kei-proxy` that fails closed on everything except an
-  explicit allow. The harness contract and manifest loading also live here.
+  explicit allow. The Python-only `HarnessContract` helper and manifest
+  loading also live here; that helper is not a cross-language SDK contract.
 - `haikeilabs.agentware.toolformat`: tool-call formatting and parsing for open
   models without native tool-call APIs (Llama, Mistral, Qwen, Nemotron and
   others).
@@ -83,6 +84,24 @@ your imports; the alias will be removed in a future release.
 - [Python usage guide](https://github.com/HaikeiLabs/agentware/tree/main/docs/python)
 - [Harness contract](https://github.com/HaikeiLabs/agentware/blob/main/docs/harness-contract.md)
 - [Changelog](https://github.com/HaikeiLabs/agentware/blob/main/python/CHANGELOG.md)
+
+## MCP route client
+
+Use `haikeilabs.agentware.kei.mcproute.Client` to call a connector through the
+local `kei-proxy` MCP route. It supports `tools/list` and `tools/call` over the
+configured Unix socket or loopback TCP listener:
+
+```python
+from haikeilabs.agentware.kei.mcproute import Client
+
+client = Client("github-connector")
+tools = client.list_tools()
+result = client.call_tool("get_issue", {"id": "42"})
+```
+
+`KEI_MCP_ROUTE_KEY` is read from the environment per request and is never
+cached or logged. Non-loopback hosts are rejected; provider traffic stays in
+the tenant runtime.
 
 ## License
 

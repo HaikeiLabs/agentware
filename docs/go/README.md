@@ -211,6 +211,22 @@ result, err := toolsync.SyncDocument(ctx, manifest, cfg, len(packs) > 0)
 The Python, TypeScript and Go clients are compared in
 `docs/kei-runtime-socket-parity.md`.
 
+## MCP route client
+
+Use `mcproute.NewClient` to call a connector's MCP route through the local
+`kei-proxy` runtime. The client discovers the configured Unix socket or local
+loopback listener, reads `KEI_MCP_ROUTE_KEY` for each request, and exposes
+`tools/list` and `tools/call`:
+
+```go
+client := mcproute.NewClient("github-connector")
+tools, err := client.ListTools(ctx)
+result, err := client.CallTool(ctx, "get_issue", map[string]any{"id": "42"})
+```
+
+The route key stays in the tenant runtime. The client rejects non-loopback
+hosts; provider payloads and results do not pass through Kei's control plane.
+
 ## Condition Operators
 
 | Operator | Description |

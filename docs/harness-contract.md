@@ -1,16 +1,22 @@
-# Harness Contract
+# Python Harness Helper
 
-This document defines the contract between a third-party harness and the `pedro-agentware` library. A "harness" is a wrapper that connects an LLM agent to tool execution while enforcing security policies.
+`HarnessContract`, `HarnessManifest`, and `validate_contract` are Python-only
+helpers. This document describes that Python implementation; it does not
+define a cross-language harness contract, and Go and TypeScript do not promise
+these types or validation APIs. Each language exposes its own middleware and
+Kei integration surfaces.
 
-**Product thesis**: "Bring your own agent." This contract enables any third party to build a harness against this library alone, without reverse-engineering existing implementations.
+Third-party harnesses can build on the language-specific SDK APIs without
+depending on an agent framework.
 
 > **Boundary:** agentware models bindings, opaque auth references, local policy, and delegation — it never grants permission from bindings, resolves connector secrets, executes providers, or depends on Kei/ABAC to run a governed local loop. See [`action-tool-boundary.md`](action-tool-boundary.md).
 
 ---
 
-## What a Harness Must Implement
+## Python Helper Components
 
-A harness must provide three **required** components:
+The Python helper can assemble the following three components. They are not
+requirements imposed on harnesses in Go or TypeScript:
 
 ### 1. AuthProvider
 
@@ -71,7 +77,7 @@ class MySecretProvider(Protocol):
 
 ---
 
-## Smallest Working Example
+## Smallest Python Example
 
 ```python
 from haikeilabs.agentware.kei import (
@@ -105,7 +111,7 @@ if errors:
 
 ---
 
-## What Agentware Provides
+## What the Python SDK Provides
 
 ### Policy Enforcement
 
@@ -206,9 +212,9 @@ changing this contract.
 
 ---
 
-## CallerContext Delegation Rule
+## Python CallerContext Delegation Rule
 
-**The `invoking_subject` is the HUMAN and is carried UNCHANGED across every delegation hop.**
+**The `invoking_subject` is the HUMAN and is carried UNCHANGED across every delegation hop.** This section describes Python's `CallerContext.delegate()` method. Go provides `CallerContext.Delegate`; TypeScript contexts created with `createCallerContext()` provide `caller.delegate()`.
 
 - `parent_span` and `delegation_depth` record position in the chain
 - A subagent running as a service account still resolves to the person who initiated the request
@@ -230,7 +236,7 @@ These have library defaults:
 
 ---
 
-## File Structure
+## Python File Structure
 
 The contract reuses existing types:
 
@@ -247,4 +253,6 @@ The contract reuses existing types:
 
 ## Testing
 
-A third-party harness should be testable without importing `pedro-tag` or `pedro_service`. The test in `python/tests/third_party_harness_test.py` demonstrates this by building a complete harness using only `haikeilabs.agentware`.
+The Python helper is testable without importing `pedro-tag` or `pedro_service`.
+The test in `python/tests/third_party_harness_test.py` demonstrates building a
+Python harness using only `haikeilabs.agentware`.
