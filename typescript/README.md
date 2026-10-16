@@ -61,7 +61,12 @@ every spawn it is opened with `O_NOFOLLOW` and re-hashed, and any drift denies
 with `kei-proxy pin_mismatch`.
 
 ```typescript
-import { Action, KeiProxyAuthorizeClient, KeiProxyEvaluator } from "@haikeilabs/agentware";
+import {
+  AuditedToolClient,
+  createCallerContext,
+  KeiProxyAuthorizeClient,
+  KeiProxyEvaluator,
+} from "@haikeilabs/agentware";
 
 const evaluator = new KeiProxyEvaluator(
   new KeiProxyAuthorizeClient({
@@ -71,22 +76,51 @@ const evaluator = new KeiProxyEvaluator(
   }),
 );
 
-const decision = await evaluator.evaluate(
+const caller = createCallerContext({
+  user_id: "user-123",
+  invoking_subject: "user-123",
+  trusted: false,
+});
+const client = new AuditedToolClient("my-harness", async (toolName, args) => {
+  const output = await runTool(toolName, args);
+  return [output, true, ""];
+}).withPolicy(evaluator);
+
+const [output, allowed, error] = await client.execute(
   "github.get_issue",
   { owner: "acme", repo: "pipe" },
   caller,
 );
-if (decision.enrollment) {
-  // deny + enrollment claim link: reply to the user privately; never log it.
-}
-if (decision.action !== Action.ALLOW) return;
+if (!allowed) throw new Error(error);
+
+const child = caller.delegate("subagent-1");
+// child.invoking_subject remains "user-123" and child.delegation_depth is 1.
 ```
 
 Reasons read `kei-proxy <class>[: <detail>]` with a class from
 `KEI_PROXY_REASON_CLASSES`. Because `evaluate` returns a `Promise`, the
-evaluator is not a synchronous `PolicyEvaluator` and cannot be passed to
-`MiddlewareImpl.withPolicy`. The behaviour matches the Python and Go ports
-case for case; see `docs/kei-proxy-evaluator-parity.md`.
+evaluator cannot be passed to `MiddlewareImpl.withPolicy`. Use
+`AuditedToolClient.withPolicy(evaluator)` to await it, gate execution, and
+record the decision in one audited call. The behavior matches the Python and
+Go ports case for case; see `docs/kei-proxy-evaluator-parity.md`.
+
+## MCP route client
+
+Use `Client` from `@haikeilabs/agentware` to call a connector through the local
+`kei-proxy` MCP route. The client supports `tools/list` and `tools/call` over
+the configured Unix socket or loopback TCP listener:
+
+```typescript
+import { Client } from "@haikeilabs/agentware";
+
+const client = new Client("github-connector");
+const tools = await client.listTools();
+const result = await client.callTool("get_issue", { id: "42" });
+```
+
+`KEI_MCP_ROUTE_KEY` is read from the environment for each request and is never
+cached or logged. The client rejects non-loopback hosts; provider traffic stays
+in the tenant runtime.
 
 ## Maintainer releases
 
