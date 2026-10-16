@@ -7,6 +7,10 @@ export interface AuditRecord {
   args: Record<string, unknown>;
   decision: Decision;
   timestamp: Date;
+  invoking_subject?: string;
+  parent_span?: string;
+  delegation_depth?: number;
+  framework?: string;
 }
 
 export interface AuditFilter {

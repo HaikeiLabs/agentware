@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   Action,
+  AuditedToolClient,
   AUTHORIZE_CHILD_ENV_ALLOWLIST,
   KEI_PROXY_REASON_CLASSES,
   KeiProxyAuthorizeClient,
@@ -138,8 +139,20 @@ async function runCase(c: Json, extraEnv?: Record<string, string>): Promise<Run>
   const evaluator = new KeiProxyEvaluator(client, {
     logger: (level, message) => logs.push(`${level} ${message}`),
   });
-  const decision = await evaluator.evaluate(c.input.tool, c.input.args, buildCaller(c));
+  let executions = 0;
+  const toolClient = new AuditedToolClient("agentware", async () => {
+    executions++;
+    return [null, true, ""];
+  }).withPolicy(evaluator);
+  const [, success] = await toolClient.execute(c.input.tool, c.input.args, buildCaller(c));
+  const decision = toolClient.records({})[0].decision;
+  expect(success).toBe(expectedAction(c) === Action.ALLOW);
+  expect(executions).toBe(success ? 1 : 0);
   return { decision, dir, logs };
+}
+
+function expectedAction(c: Json): Action {
+  return c.expected.action as Action;
 }
 
 function readChildEnv(dir: string): Record<string, string> {
