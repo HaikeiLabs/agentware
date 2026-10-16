@@ -1,0 +1,11 @@
+{
+  "name": "agentware-typescript-minimal-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node cli.ts",
+    "typecheck": "../../../typescript/node_modules/.bin/tsc --noEmit -p tsconfig.json"
+  },
+  "engines": { "node": ">=22.18.0" },
+  "dependencies": { "@haikeilabs/agentware": "file:../../../typescript" }
+}

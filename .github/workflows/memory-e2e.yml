@@ -71,6 +71,11 @@ jobs:
           cd python
           .venv/bin/python examples/wiki_memory_dogfood.py
 
+      - name: Install minimal harness example dependency
+        run: |
+          cd examples/typescript/minimal-harness
+          npm ci
+
       - name: TypeScript SDK tests (incl. cross-SDK isolation)
         run: |
           cd typescript
