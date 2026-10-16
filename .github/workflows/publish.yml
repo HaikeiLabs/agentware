@@ -1,4 +1,18 @@
-name: Stage Agentware npm package
+# Release agentware at one shared version: npm, PyPI and the Go module.
+#
+# VERSION at the repository root is the version source; every file that
+# carries it literally is checked by scripts/release/version.py. One release
+# tag, agentware-v<VERSION>, drives the whole release:
+#   1. prepare  - the tag (or dispatch input) must equal VERSION and every
+#                 synced file must agree, or nothing is published.
+#   2. stage    - build, test and publish @haikeilabs/agentware to npm.
+#   3. go-tag   - push go/v<VERSION> on the release commit, so
+#                 go get github.com/haikeilabs/agentware/go@v<VERSION> resolves.
+#   4. pypi     - dispatch publish-python.yml at the release tag. PyPI's trusted
+#                 publisher is bound to that workflow, so it keeps doing the
+#                 build, smoke test, agentware-py-v<PEP 440> tag and publish.
+# The file keeps its name because npm trusted publishing is bound to it.
+name: Release Agentware (npm, PyPI, Go)
 
 on:
   push:
@@ -7,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (must match typescript/package.json)"
+        description: "Version to release (must match VERSION)"
         required: true
         type: string
 
@@ -25,6 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_ref: ${{ steps.release.outputs.release_ref }}
+      version: ${{ steps.tags.outputs.version }}
+      pep440: ${{ steps.tags.outputs.pep440 }}
+      go_tag: ${{ steps.tags.outputs.go_tag }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -60,6 +77,9 @@ jobs:
 
           release_tag="agentware-v$expected_version"
 
+          # Every registry's version must equal VERSION before anything is tagged.
+          python3 ../scripts/release/version.py check --tag "$release_tag"
+
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             if git ls-remote --exit-code --tags origin "refs/tags/$release_tag"; then
               echo "Release tag already exists: $release_tag — verifying tag commit" >&2
@@ -76,7 +96,13 @@ jobs:
           actual_version="$(npm pkg get version | tr -d '\"')"
           test "$actual_version" = "$expected_version"
 
+          python3 ../scripts/release/version.py check --tag "$release_tag"
+
           echo "release_ref=refs/tags/$release_tag" >> "$GITHUB_OUTPUT"
+
+      - id: tags
+        name: Derive the registry tags
+        run: python3 scripts/release/version.py tags --format github-output >> "$GITHUB_OUTPUT"
 
   stage:
     needs: prepare
@@ -106,3 +132,75 @@ jobs:
       - run: npm test -- --runInBand
       - run: npm run check:package
       - run: env -u NODE_AUTH_TOKEN npm publish --provenance
+
+  go-tag:
+    needs: [prepare, stage]
+    name: Tag the Go module
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.release_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+
+      - name: Check the module builds for an external consumer
+        working-directory: go
+        run: |
+          go vet ./...
+          go test ./internal/modulecheck/
+
+      - name: Push the Go tag on the release commit
+        env:
+          GO_TAG: ${{ needs.prepare.outputs.go_tag }}
+        run: |
+          release_sha="$(git rev-parse "HEAD^{commit}")"
+          if git ls-remote --exit-code --tags origin "refs/tags/$GO_TAG"; then
+            git fetch origin "refs/tags/$GO_TAG:refs/tags/$GO_TAG"
+            tagged_sha="$(git rev-parse "$GO_TAG^{commit}")"
+            if [ "$tagged_sha" != "$release_sha" ]; then
+              echo "$GO_TAG already points at $tagged_sha, not $release_sha" >&2
+              exit 1
+            fi
+            echo "$GO_TAG already on the release commit"
+          else
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git tag -a "$GO_TAG" -m "Agentware Go ${GO_TAG#go/}" "$release_sha"
+            git push origin "$GO_TAG"
+          fi
+
+      - name: Ask the Go module proxy for the new version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod go list -m "github.com/haikeilabs/agentware/go@v$VERSION"; then
+              exit 0
+            fi
+            sleep $((attempt * 15))
+          done
+          echo "proxy.golang.org has not served v$VERSION yet; it will on first request" >&2
+
+  pypi:
+    needs: [prepare, stage]
+    name: Dispatch the PyPI release
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Run publish-python.yml at the release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REF: ${{ needs.prepare.outputs.release_ref }}
+          PEP440: ${{ needs.prepare.outputs.pep440 }}
+        run: |
+          gh workflow run publish-python.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "${RELEASE_REF#refs/tags/}" \
+            -f version="$PEP440"
