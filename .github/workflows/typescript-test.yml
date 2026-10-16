@@ -8,6 +8,7 @@ on:
       - '.github/workflows/typescript-test.yml'
       - 'testing/contracts/runtime-link/**'
       - 'fixtures/kei/**'
+      - 'examples/typescript/minimal-harness/**'
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/typescript-test.yml'
       - 'testing/contracts/runtime-link/**'
       - 'fixtures/kei/**'
+      - 'examples/typescript/minimal-harness/**'
 
 jobs:
   typescript-test:
@@ -26,7 +28,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.18'
       - name: Install dependencies
         run: |
           cd typescript
@@ -39,6 +41,14 @@ jobs:
         run: |
           cd typescript
           npm run build
+      - name: Install minimal harness example dependency
+        run: |
+          cd examples/typescript/minimal-harness
+          npm ci
+      - name: Typecheck TypeScript minimal harness
+        run: |
+          cd examples/typescript/minimal-harness
+          npm run typecheck
       - name: Run TypeScript tests
         run: |
           cd typescript
@@ -47,3 +57,7 @@ jobs:
         run: |
           cd typescript
           npm run check:package
+      - name: Run TypeScript minimal harness offline
+        run: |
+          cd examples/typescript/minimal-harness
+          npm start -- --fake

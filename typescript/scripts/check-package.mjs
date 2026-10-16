@@ -60,6 +60,9 @@ const RUNTIME_EXPORTS = [
   "linkEventFromWire",
   "linkEventToWire",
   "newRuntimeLink",
+  "KeiProxySocketAuthorizeClient",
+  "ToolManifestSyncConfig",
+  "syncToolManifest",
 ];
 
 function run(cmd, args, cwd) {
@@ -138,12 +141,12 @@ console.log("runtime import OK, contract v" + aw.RUNTIME_LINK_CONTRACT_VERSION);
 
   writeFileSync(
     join(consumer, "types.ts"),
-    `import { newRuntimeLink, parseChildLine, runtimeLinkConfigFromEnv } from ${JSON.stringify(pkg.name)};
+    `import { newRuntimeLink, parseChildLine, runtimeLinkConfigFromEnv, KeiProxySocketAuthorizeClient, ToolManifestSyncConfig, syncToolManifest } from ${JSON.stringify(pkg.name)};
 import type { ChildEvent, LinkEvent, LinkStatus, RuntimeLink, RuntimeLinkConfig, RuntimeChildFactory } from ${JSON.stringify(pkg.name)};
 const cfg: RuntimeLinkConfig = runtimeLinkConfigFromEnv({});
 const ev: ChildEvent = parseChildLine("{}");
 declare const factory: RuntimeChildFactory;
-export type Surface = [typeof cfg, typeof ev, LinkEvent, LinkStatus, RuntimeLink, typeof newRuntimeLink, typeof factory];
+export type Surface = [typeof cfg, typeof ev, LinkEvent, LinkStatus, RuntimeLink, typeof newRuntimeLink, typeof factory, typeof KeiProxySocketAuthorizeClient, typeof ToolManifestSyncConfig, typeof syncToolManifest];
 `,
   );
   run(
