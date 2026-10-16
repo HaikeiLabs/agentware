@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/toolformat"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/toolformat"
 )
 
 // Entry represents a single entry in the context history.

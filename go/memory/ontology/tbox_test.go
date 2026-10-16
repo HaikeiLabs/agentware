@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/memory/page"
+	"github.com/haikeilabs/agentware/go/memory/page"
 )
 
 const (

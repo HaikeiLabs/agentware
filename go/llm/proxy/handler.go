@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/middleware/guardrails"
-	"github.com/soypete/pedro-agentware/go/middleware/inference"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/middleware/guardrails"
+	"github.com/haikeilabs/agentware/go/middleware/inference"
 )
 
 type Handler struct {

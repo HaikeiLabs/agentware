@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 //go:embed policy.yaml

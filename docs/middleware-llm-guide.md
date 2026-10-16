@@ -17,7 +17,7 @@ Every tool call is intercepted and evaluated against policies before execution.
 ## Quick Start
 
 ```go
-import "github.com/soypete/pedro-agentware/go/middleware"
+import "github.com/haikeilabs/agentware/go/middleware"
 
 // 1. Create your tool executor (implements middleware.ToolExecutor)
 type MyTools struct{}
@@ -402,8 +402,8 @@ import (
     "net/http"
     "time"
 
-    "github.com/soypete/pedro-agentware/go/middleware"
-    "github.com/soypete/pedro-agentware/go/tools"
+    "github.com/haikeilabs/agentware/go/middleware"
+    "github.com/haikeilabs/agentware/go/tools"
 )
 
 type ToolExecutor struct{}

@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/soypete/pedro-agentware/go/llm/proxy"
+	"github.com/haikeilabs/agentware/go/llm/proxy"
 )
 
 func main() {

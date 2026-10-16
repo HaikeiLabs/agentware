@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	evals "github.com/soypete/pedro-agentware/go/evals"
+	evals "github.com/haikeilabs/agentware/go/evals"
 )
 
 var filepathGlob = filepath.Glob

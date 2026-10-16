@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/middleware"
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 type ToolDefinition struct {

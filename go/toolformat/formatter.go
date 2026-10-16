@@ -1,6 +1,6 @@
 package toolformat
 
-import "github.com/soypete/pedro-agentware/go/tools"
+import "github.com/haikeilabs/agentware/go/tools"
 
 type ToolFormatter interface {
 	FormatToolDefinitions(tools []tools.Tool) string

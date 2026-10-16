@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/middleware/guardrails"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/middleware/guardrails"
 )
 
 type mockBackend struct {

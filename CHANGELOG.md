@@ -3,6 +3,17 @@
 Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
 coordinated separately; entries collect under **Unreleased** until then.
 
+## Unreleased
+
+### Changed
+
+- **Go (breaking import path):** the module is now
+  `github.com/haikeilabs/agentware/go`, so
+  `go get github.com/haikeilabs/agentware/go` resolves. Replace
+  `github.com/soypete/pedro-agentware/go` with
+  `github.com/haikeilabs/agentware/go` in your imports and `go.mod`
+  (HAI-684). Package names and APIs are unchanged.
+
 ## [0.9.0] - 2026-10-09
 
 ### Added

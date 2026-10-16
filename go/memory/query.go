@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/soypete/pedro-agentware/go/memory/page"
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/memory/page"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // Structured query kinds accepted by memory_query (args.kind). Free-text

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
 )
 
 type clientCases struct {

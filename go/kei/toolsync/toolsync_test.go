@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
 )
 
 const testToken = "kei_rt_unit-canary-0123456789abcdef"

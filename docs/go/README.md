@@ -14,7 +14,7 @@ package main
 import (
     "time"
 
-    "github.com/soypete/pedro-agentware/go/middleware"
+    "github.com/haikeilabs/agentware/go/middleware"
 )
 
 func main() {
@@ -53,8 +53,8 @@ func main() {
 import (
     "context"
 
-    "github.com/soypete/pedro-agentware/go/middleware"
-    "github.com/soypete/pedro-agentware/go/tools"
+    "github.com/haikeilabs/agentware/go/middleware"
+    "github.com/haikeilabs/agentware/go/tools"
 )
 
 // A ToolExecutor runs a named tool with the given args.
@@ -141,8 +141,8 @@ pin_mismatch`.
 import (
     "time"
 
-    "github.com/soypete/pedro-agentware/go/kei/evaluator"
-    "github.com/soypete/pedro-agentware/go/middleware"
+    "github.com/haikeilabs/agentware/go/kei/evaluator"
+    "github.com/haikeilabs/agentware/go/middleware"
 )
 
 eval := evaluator.NewKeiProxyEvaluator(&evaluator.CLIClient{
@@ -178,8 +178,8 @@ call is a `proxy_unavailable` refusal wrapping `ErrUnsupportedPlatform`.
 
 ```go
 import (
-    "github.com/soypete/pedro-agentware/go/kei/evaluator"
-    "github.com/soypete/pedro-agentware/go/kei/runtimesocket"
+    "github.com/haikeilabs/agentware/go/kei/evaluator"
+    "github.com/haikeilabs/agentware/go/kei/runtimesocket"
 )
 
 runtime := &runtimesocket.Client{}

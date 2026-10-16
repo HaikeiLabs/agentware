@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/soypete/pedro-agentware/go/middleware"
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // Server serves a tool registry over MCP. Every tools/call runs with the

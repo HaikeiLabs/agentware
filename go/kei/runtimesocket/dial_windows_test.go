@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
 )
 
 func TestWindowsRefusesWithUnsupportedPlatform(t *testing.T) {

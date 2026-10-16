@@ -1,7 +1,7 @@
 # pedro-agentware: Engineering Design Document
 
 **Status**: Living Document — v0.1 Draft  
-**Repo**: github.com/Soypete/pedro-agentware  
+**Repo**: github.com/HaikeiLabs/agentware  
 **Author**: SoypeteTech  
 **Last Updated**: September 2026
 
@@ -169,7 +169,7 @@ llmcontext
 ## 4. Package Organization
 
 ```text
-github.com/Soypete/pedro-agentware/
+github.com/haikeilabs/agentware/go/
 ├── go.mod
 │
 ├── tools/
@@ -300,7 +300,7 @@ func (r *ToolRegistry) Schemas() map[string]map[string]any
 // toolformat/formatter.go
 package toolformat
 
-import "github.com/Soypete/pedro-agentware/tools"
+import "github.com/haikeilabs/agentware/go/tools"
 
 type ToolFormatter interface {
     FormatToolDefinitions(tools []tools.Tool) string
@@ -325,7 +325,7 @@ package llm
 
 import (
     "context"
-    "github.com/Soypete/pedro-agentware/tools"
+    "github.com/haikeilabs/agentware/go/tools"
 )
 
 type Backend interface {
@@ -500,7 +500,7 @@ package middleware
 
 import (
     "context"
-    "github.com/Soypete/pedro-agentware/tools"
+    "github.com/haikeilabs/agentware/go/tools"
 )
 
 type ToolExecutor interface {
@@ -520,7 +520,7 @@ type Middleware interface {
 // prompts/generator.go
 package prompts
 
-import "github.com/Soypete/pedro-agentware/tools"
+import "github.com/haikeilabs/agentware/go/tools"
 
 type PromptGenerator interface {
     GenerateToolSection(registry *tools.ToolRegistry) string
@@ -536,10 +536,10 @@ package executor
 
 import (
     "context"
-    "github.com/Soypete/pedro-agentware/llm"
-    "github.com/Soypete/pedro-agentware/middleware"
-    "github.com/Soypete/pedro-agentware/toolformat"
-    "github.com/Soypete/pedro-agentware/tools"
+    "github.com/haikeilabs/agentware/go/llm"
+    "github.com/haikeilabs/agentware/go/middleware"
+    "github.com/haikeilabs/agentware/go/toolformat"
+    "github.com/haikeilabs/agentware/go/tools"
 )
 
 type Executor interface {
@@ -638,8 +638,8 @@ type JobManager interface {
 package llmcontext
 
 import (
-    "github.com/Soypete/pedro-agentware/llm"
-    "github.com/Soypete/pedro-agentware/toolformat"
+    "github.com/haikeilabs/agentware/go/llm"
+    "github.com/haikeilabs/agentware/go/toolformat"
 )
 
 type ContextManager interface {

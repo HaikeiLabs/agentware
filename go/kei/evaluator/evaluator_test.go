@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 // fixtureDir holds the cross-language KeiProxyEvaluator fixtures. They live

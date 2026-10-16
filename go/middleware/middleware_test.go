@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 type mockExecutor struct {

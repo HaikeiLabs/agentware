@@ -3,8 +3,8 @@ package executor
 import (
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 func TestTerminationReasonConstants(t *testing.T) {

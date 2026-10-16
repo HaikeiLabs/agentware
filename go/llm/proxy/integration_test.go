@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/middleware/guardrails"
+	"github.com/haikeilabs/agentware/go/middleware/guardrails"
 )
 
 func TestIntegration_HealthEndpoint(t *testing.T) {

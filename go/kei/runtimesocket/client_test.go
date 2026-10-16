@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 func tokenEnv(path string) map[string]string {

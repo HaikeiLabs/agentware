@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 type mockToolForFormat struct {

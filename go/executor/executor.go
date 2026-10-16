@@ -3,10 +3,10 @@ package executor
 import (
 	"context"
 
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/middleware"
-	"github.com/soypete/pedro-agentware/go/toolformat"
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/toolformat"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // Executor runs the agentic inference loop:

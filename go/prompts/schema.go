@@ -1,6 +1,6 @@
 package prompts
 
-import "github.com/soypete/pedro-agentware/go/tools"
+import "github.com/haikeilabs/agentware/go/tools"
 
 // GenerateToolSchemas returns the JSON schema block for all tools in the registry.
 func GenerateToolSchemas(registry *tools.ToolRegistry) []map[string]any {

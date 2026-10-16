@@ -8,7 +8,7 @@ import (
 	"github.com/soypete/ontology-go/types"
 	"github.com/soypete/ontology-go/validate"
 
-	"github.com/soypete/pedro-agentware/go/memory/page"
+	"github.com/haikeilabs/agentware/go/memory/page"
 )
 
 // Constraint identifiers carried in Violation.Constraint. Stable strings:
