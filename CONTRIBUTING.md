@@ -199,8 +199,11 @@ each SDK's reported runtime-link version).
 
 1. Bump everything at once: `make version-set VERSION=X.Y.Z` (pre-releases are
    `X.Y.Z-rc.N`; Python gets the PEP 440 spelling `X.Y.ZrcN`). Add the
-   CHANGELOG entry and merge the bump PR. `make version-check` (and the
-   `Version check` workflow on every PR) fails if any file disagrees.
+   CHANGELOG entry and a row for X.Y.Z to the README compatibility table
+   (its kei-proxy entry must equal `KEI_PROXY_VERSION`; bump the pin when
+   the release needs a newer kei-proxy), and merge the bump PR. `make version-check compat-check` (and the
+   `Version check` workflow on every PR) fails if any file or the table
+   disagrees.
 2. A maintainer pushes the release tag `agentware-vX.Y.Z`, or runs the
    `Release Agentware` workflow (`publish.yml`) with the version. The workflow
    refuses to publish unless the tag and every file match `VERSION`, then

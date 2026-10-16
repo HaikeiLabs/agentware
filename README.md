@@ -63,15 +63,41 @@ governed external operations go through the proxy boundary. See
 
 ## Install
 
-```bash
-# Python (src-layout package haikeilabs.agentware)
-pip install -e ./python
+Each SDK is published to its language's public registry under the same
+version:
 
-# Go
+```bash
+# Python 3.10+ (import haikeilabs.agentware)
+pip install haikeilabs-agentware
+
+# TypeScript / Node 18+
+npm i @haikeilabs/agentware
+
+# Go 1.26+ (module path is lowercase)
 go get github.com/haikeilabs/agentware/go
 ```
 
-TypeScript lives in `typescript/`.
+To work on the SDKs themselves, see [Development](#development).
+
+## Compatibility
+
+Governed tool calls go through `kei-proxy`, the runtime the harness calls, which
+an org admin installs with the `kei` platform admin CLI (kei-cli). The
+kei-cli installer bundles the pinned kei-proxy. Use at least these versions
+with each SDK release:
+
+<!-- compat:begin -->
+| agentware SDK | kei-proxy (minimum) | kei-cli (minimum) |
+| --- | --- | --- |
+| 0.9.0 | v0.2.11 | 0.1.32 |
+<!-- compat:end -->
+
+`KEI_PROXY_VERSION` pins the kei-proxy entry for the current release, and CI
+(`make compat-check`) fails if the table disagrees with it or has no row for
+the version in `VERSION`. Earlier feature floors still apply to older proxies:
+runtime agent identity needs kei-proxy 0.1.11 or later, and the runtime-link
+heartbeat flags need 0.1.12 or later. kei-proxy releases older than the
+minimum above are not tested against this SDK release.
 
 ## Quick start (Python)
 
@@ -181,6 +207,12 @@ cd go && go build ./... && go test ./...
 
 # Python
 cd python && pip install -e ".[dev]" && pytest && ruff check . && mypy src/
+
+# TypeScript
+cd typescript && npm ci && npm run build && npm test
+
+# Shared version and compatibility table
+make version-test version-check compat-check
 
 # Docs (markdown lint; rules in .markdownlint.json; build-history is archived)
 npx markdownlint-cli2 "docs/**/*.md" README.md "!docs/build-history/**"

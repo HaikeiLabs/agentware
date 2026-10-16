@@ -19,6 +19,12 @@ coordinated separately; entries collect under **Unreleased** until then.
   when any file drifts (HAI-684). The Python package and the SDK version each
   runtime link reports (`KEI_AGENTWARE_SDK_VERSION`) move to the shared version
   (Python was 0.1.0 and TypeScript reported 0.2.1).
+- **Docs:** README install lines use the published packages
+  (`pip install haikeilabs-agentware`, `npm i @haikeilabs/agentware`,
+  `go get github.com/haikeilabs/agentware/go`), and a compatibility table lists
+  the minimum kei-proxy and kei-cli per SDK release. `KEI_PROXY_VERSION` pins
+  the current kei-proxy (v0.2.11, bundled by kei-cli 0.1.32); CI fails when the
+  table disagrees with the pin or lacks a row for `VERSION` (HAI-684).
 
 ## [0.9.0] - 2026-10-09
 
