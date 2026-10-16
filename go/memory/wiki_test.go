@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/memory/ontology"
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/memory/ontology"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 func enableTestMemory(t *testing.T) *WikiMemory {

@@ -42,7 +42,7 @@ through the `wiki` command.
 
 ## Commands
 
-**Go** (run from `go/`; module `github.com/soypete/pedro-agentware/go`):
+**Go** (run from `go/`; module `github.com/haikeilabs/agentware/go`):
 
 ```bash
 go test ./...                       # all tests

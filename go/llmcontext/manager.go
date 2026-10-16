@@ -1,8 +1,8 @@
 package llmcontext
 
 import (
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/toolformat"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/toolformat"
 )
 
 // ContextManager manages the durable conversation history for an agent run.

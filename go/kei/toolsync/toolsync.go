@@ -41,7 +41,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
 )
 
 // Names and values shared with the Python and TypeScript ports.

@@ -3,7 +3,7 @@ package prompts
 import (
 	"fmt"
 
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 func GenerateToolSection(registry *tools.ToolRegistry) string {

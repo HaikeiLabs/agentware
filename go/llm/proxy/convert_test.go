@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/llm"
 )
 
 func TestToInternalMessages_Basic(t *testing.T) {

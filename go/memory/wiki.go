@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/soypete/pedro-agentware/go/memory/ontology"
-	"github.com/soypete/pedro-agentware/go/middleware"
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/memory/ontology"
+	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // Config configures the composable wiki-memory component.

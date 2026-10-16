@@ -68,7 +68,7 @@ governed external operations go through the proxy boundary. See
 pip install -e ./python
 
 # Go
-go get github.com/soypete/pedro-agentware/go
+go get github.com/haikeilabs/agentware/go
 ```
 
 TypeScript lives in `typescript/`.

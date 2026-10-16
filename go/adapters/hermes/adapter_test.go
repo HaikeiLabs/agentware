@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 type mockAgentHandle struct {

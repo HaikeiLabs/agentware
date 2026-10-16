@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 func main() {

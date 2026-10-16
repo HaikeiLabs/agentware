@@ -1,6 +1,6 @@
 package prompts
 
-import "github.com/soypete/pedro-agentware/go/tools"
+import "github.com/haikeilabs/agentware/go/tools"
 
 // PromptGenerator generates the tool-use section of a system prompt
 // from the registered tools in a ToolRegistry.

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/soypete/pedro-agentware/go/llm"
-	"github.com/soypete/pedro-agentware/go/middleware/guardrails"
-	"github.com/soypete/pedro-agentware/go/reasoning"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/middleware/guardrails"
+	"github.com/haikeilabs/agentware/go/reasoning"
 )
 
 var ErrRetriesExhausted = errors.New("retries exhausted")

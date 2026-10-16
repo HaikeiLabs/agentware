@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
 )
 
 // AuthorizationClient is the socket client as an evaluator.Client.

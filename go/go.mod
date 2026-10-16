@@ -1,4 +1,4 @@
-module github.com/soypete/pedro-agentware/go
+module github.com/haikeilabs/agentware/go
 
 go 1.26
 

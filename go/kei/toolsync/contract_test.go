@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/kei/evaluator"
+	"github.com/haikeilabs/agentware/go/kei/evaluator"
 )
 
 // fixtureDir holds the cross-language fixtures. They live at the repository

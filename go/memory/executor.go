@@ -13,10 +13,10 @@ import (
 
 	"github.com/soypete/ontology-go/types"
 
-	"github.com/soypete/pedro-agentware/go/memory/ontology"
-	"github.com/soypete/pedro-agentware/go/memory/page"
-	"github.com/soypete/pedro-agentware/go/middleware"
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/memory/ontology"
+	"github.com/haikeilabs/agentware/go/memory/page"
+	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // ErrNoCaller reports a memory tool call with no caller in the context.

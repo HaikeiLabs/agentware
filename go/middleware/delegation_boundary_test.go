@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // The delegation envelope carried across the middleware/delegation boundary

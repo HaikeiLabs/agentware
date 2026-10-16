@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 
-	"github.com/soypete/pedro-agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // ExecutorFunc adapts a plain function to the ToolExecutor interface so

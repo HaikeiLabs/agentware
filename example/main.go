@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/soypete/pedro-agentware/executor"
-	"github.com/soypete/pedro-agentware/llm"
-	"github.com/soypete/pedro-agentware/middleware"
-	"github.com/soypete/pedro-agentware/tools"
+	"github.com/haikeilabs/agentware/go/executor"
+	"github.com/haikeilabs/agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // ExampleTool is a simple tool that echoes its input.

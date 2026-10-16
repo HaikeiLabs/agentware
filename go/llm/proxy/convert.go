@@ -3,7 +3,7 @@ package proxy
 import (
 	"encoding/json"
 
-	"github.com/soypete/pedro-agentware/go/llm"
+	"github.com/haikeilabs/agentware/go/llm"
 )
 
 type ToolList []map[string]any

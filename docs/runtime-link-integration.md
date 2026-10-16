@@ -37,7 +37,7 @@ await link.stop()         # on shutdown signal
 ```
 
 ```go
-import "github.com/soypete/pedro-agentware/go/kei/runtimelink"
+import "github.com/haikeilabs/agentware/go/kei/runtimelink"
 
 cfg, err := runtimelink.ConfigFromEnv(nil, runtimelink.HarnessEnvelope{
     Kind:    runtimelink.HarnessChatDiscord,

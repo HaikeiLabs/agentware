@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soypete/pedro-agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/middleware"
 )
 
 // ReasonClass classifies every Decision the evaluator returns. A reason reads
