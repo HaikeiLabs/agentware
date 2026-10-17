@@ -29,6 +29,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Install dependencies
         run: |
           cd typescript
@@ -59,5 +62,27 @@ jobs:
           npm run check:package
       - name: Run TypeScript minimal harness offline
         run: |
+          set -euo pipefail
+          socket_path="$RUNNER_TEMP/kei-runtime.sock"
+          audit_file="$RUNNER_TEMP/minimal-harness-audit.jsonl"
+          python fixtures/kei/fake-kei-proxy-socket.py "$socket_path" --audit "$audit_file" >/dev/null 2>&1 &
+          fake_pid=$!
+          cleanup() {
+            kill "$fake_pid" 2>/dev/null || true
+            wait "$fake_pid" 2>/dev/null || true
+            rm -f "$socket_path" "$audit_file"
+          }
+          trap cleanup EXIT
+          for attempt in {1..50}; do
+            if [[ -S "$socket_path" ]]; then
+              break
+            fi
+            sleep 0.1
+          done
+          test -S "$socket_path"
           cd examples/typescript/minimal-harness
-          npm start -- --fake
+          output="$(KEI_RUNTIME_SOCKET_PATH="$socket_path" KEI_RUNTIME_TOKEN=offline-example-token npm start)"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -Fq '"tool":"echo","decision":"allow"'
+          printf '%s\n' "$output" | grep -Fq '"tool":"delete_everything","decision":"deny","reason":"kei-proxy deny: no policy permits this tool","reason_code":"no_matching_policy","hint":"Add a policy for this tool: kei policies create"'
+          python -c 'import json, sys; rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]; assert len(rows) == 2, rows; assert [(row["tool"], row["decision"], row["reason_code"], row["session"]) for row in rows] == [("echo", "permit", "", "fake-session"), ("delete_everything", "deny", "no_matching_policy", "fake-session")], rows' "$audit_file"
