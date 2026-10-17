@@ -8,6 +8,14 @@ whether the call proceeds, and an audit record is emitted whether it does or not
 The record shape does not change when you swap agent frameworks or models — which
 is the point.
 
+## Agentware and Kei
+
+Agentware is a library — middleware, audit, guardrails, LLM tooling, and the
+Kei policy SDK. The Kei policy SDK connects a harness to Kei governance:
+`KeiProxyEvaluator` → `kei-proxy authorize`, fail closed, plus audit. A
+harness built on Agentware that uses this path is the **SDK (Agentware)**
+type in Kei's six-type harness taxonomy ([docs/harness-contract.md](docs/harness-contract.md)).
+
 ## Why
 
 Attribution dies at the first delegation hop. An agent spawns a subagent, the

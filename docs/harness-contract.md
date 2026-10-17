@@ -11,6 +11,23 @@ depending on an agent framework.
 
 > **Boundary:** agentware models bindings, opaque auth references, local policy, and delegation — it never grants permission from bindings, resolves connector secrets, executes providers, or depends on Kei/ABAC to run a governed local loop. See [`action-tool-boundary.md`](action-tool-boundary.md).
 
+**Kei's harness taxonomy.** The six user-facing harness types are:
+
+- **SDK (Agentware)** — a harness built on Agentware that uses
+  `KeiProxyEvaluator` → `kei-proxy authorize`, fail closed. Covers
+  pydantic-ai, Gemini SDK, AWS AgentCore, and bespoke loops. API kind
+  `custom`.
+- **Claude Code** — native permission files + hook.
+- **Codex** — native permission files + hook.
+- **OpenCode** — native permission files + hook.
+- **Pi** — own package + local-socket adapter.
+- **Open WebUI** — own Python library (`openwebui-kei`), not the SDK path.
+
+If you are building a custom agent loop that calls `kei-proxy authorize` for
+every governed tool invocation, you are on the SDK (Agentware) path and this
+contract is for you. For the other types, Kei provides the integration
+directly.
+
 ---
 
 ## Python Helper Components
