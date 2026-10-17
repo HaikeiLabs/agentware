@@ -49,18 +49,20 @@ const CANARIES: Record<string, string> = TABLE.canaries;
 function buildCaller(c: Json): CallerContext {
   const subject = POLICY.users[c.input.user].id as string;
   const overrides = c.input.caller ?? {};
+  const metadata: Record<string, string> = {
+    span_id: TABLE.caller_defaults.span_id,
+    agent_version: POLICY.agent.version,
+    framework: POLICY.agent.framework,
+    workspace_id: POLICY.workspace.id,
+  };
+  if (overrides.omit_workspace) delete metadata.workspace_id;
   return {
-    user_id: overrides.user_id ?? subject,
-    invoking_subject: subject,
+    user_id: overrides.omit_user ? "" : (overrides.user_id ?? subject),
+    invoking_subject: overrides.omit_user ? "" : (overrides.invoking_subject ?? subject),
     parent_span: overrides.parent_span ?? "",
     delegation_depth: overrides.delegation_depth ?? 0,
     trusted: false,
-    metadata: {
-      span_id: TABLE.caller_defaults.span_id,
-      agent_version: POLICY.agent.version,
-      framework: POLICY.agent.framework,
-      workspace_id: POLICY.workspace.id,
-    },
+    metadata,
   };
 }
 
@@ -181,6 +183,13 @@ posix("KeiProxyEvaluator authorize-cases.v1", () => {
   test.each(CASES.map((c) => [c.id, c] as const))("%s", async (_id, c) => {
     const expected = c.expected;
     const { decision, dir, logs } = await runCase(c);
+    const caller = buildCaller(c);
+    if (expected.caller_user_id !== undefined)
+      expect(caller.user_id).toBe(expected.caller_user_id);
+    if (expected.workspace_absent)
+      expect(caller.metadata?.workspace_id).toBeUndefined();
+    for (const key of expected.context_absent ?? [])
+      expect(caller.metadata?.[key]).toBeUndefined();
 
     expect(decision.action).toBe(expected.action as Action);
     const klass = `kei-proxy ${expected.reason_class}`;

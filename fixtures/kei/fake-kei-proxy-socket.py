@@ -28,6 +28,7 @@ from typing import Any
 SESSION_ID = "fake-session"
 AUTHORIZE_SCHEMA = "kei.authorize-response/v1"
 _AUDIT_LOCK = threading.Lock()
+_SESSIONS: dict[str, tuple[str, str]] = {}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -61,21 +62,22 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _error(self, status: int, code: str) -> None:
-        self._send(
-            status, {"error": {"code": code, "message": code, "type": "runtime_error"}}
-        )
+        self._send(status, {"error": {"code": code, "message": code, "type": "runtime_error"}})
 
     def _authed(self) -> bool:
         auth = self.headers.get("Authorization", "")
         return auth.startswith("Bearer ") and auth[len("Bearer ") :].strip() != ""
 
     def _audit(self, tool: str, decision: str, reason_code: str, session: str) -> None:
+        harness, invoking_user = _SESSIONS.get(session, ("", ""))
         line = json.dumps(
             {
                 "tool": tool,
                 "decision": decision,
                 "reason_code": reason_code,
                 "session": session,
+                "harness": harness,
+                "invoking_user": invoking_user,
             }
         )
         with _AUDIT_LOCK, open(self.audit_path, "a", encoding="utf-8") as handle:
@@ -87,6 +89,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         route = (self.command, self.path)
         if route == ("PUT", "/v1/session"):
+            _SESSIONS[SESSION_ID] = (str(body.get("source", "")), str(body.get("external_id", "")))
             external_id = str(body.get("external_id", ""))
             return self._send(
                 201,

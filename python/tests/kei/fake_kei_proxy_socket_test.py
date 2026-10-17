@@ -95,17 +95,28 @@ async def test_echo_is_permitted_and_delete_is_denied_with_a_hint(
 
     lines = [json.loads(line) for line in Path(audit_path).read_text().splitlines() if line.strip()]
     assert lines == [
-        {"tool": "echo", "decision": "permit", "reason_code": "", "session": "fake-session"},
+        {
+            "tool": "echo",
+            "decision": "permit",
+            "reason_code": "",
+            "session": "fake-session",
+            "harness": "openwebui",
+            "invoking_user": "ada",
+        },
         {
             "tool": "delete_everything",
             "decision": "deny",
             "reason_code": "no_matching_policy",
             "session": "fake-session",
+            "harness": "openwebui",
+            "invoking_user": "ada",
         },
         {
             "tool": "unregistered_tool",
             "decision": "deny",
             "reason_code": "tool_not_registered",
             "session": "fake-session",
+            "harness": "openwebui",
+            "invoking_user": "ada",
         },
     ]

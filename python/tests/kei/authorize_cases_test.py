@@ -40,15 +40,25 @@ def build_caller(case: dict[str, Any]) -> CallerContext:
     """Build the caller the table describes from policy.v1.json."""
     subject = POLICY["users"][case["input"]["user"]]["id"]
     overrides = case["input"].get("caller", {})
+    omit_user = overrides.get("omit_user", False)
+    metadata = {
+        "span_id": TABLE["caller_defaults"]["span_id"],
+        "agent_version": POLICY["agent"]["version"],
+        "framework": POLICY["agent"]["framework"],
+        "workspace_id": POLICY["workspace"]["id"],
+    }
+    if overrides.get("omit_workspace"):
+        metadata.pop("workspace_id")
     return CallerContext(
-        user_id=overrides.get("user_id", subject),
-        invoking_subject=subject,
+        user_id="" if omit_user else overrides.get("user_id", subject),
+        invoking_subject="" if omit_user else overrides.get("invoking_subject", subject),
         parent_span=overrides.get("parent_span", ""),
         delegation_depth=overrides.get("delegation_depth", 0),
-        span_id=TABLE["caller_defaults"]["span_id"],
-        agent_version=POLICY["agent"]["version"],
-        framework=POLICY["agent"]["framework"],
-        workspace_id=POLICY["workspace"]["id"],
+        span_id=metadata["span_id"],
+        agent_version=metadata["agent_version"],
+        framework=metadata["framework"],
+        workspace_id=metadata.get("workspace_id", ""),
+        metadata=metadata,
     )
 
 
@@ -127,6 +137,14 @@ def test_authorize_case(
     expected = case["expected"]
 
     decision = run_case(case, tmp_path)
+
+    caller = build_caller(case)
+    if "caller_user_id" in expected:
+        assert caller.user_id == expected["caller_user_id"]
+    if expected.get("workspace_absent"):
+        assert "workspace_id" not in caller.metadata
+    for key in expected.get("context_absent", []):
+        assert key not in caller.metadata
 
     assert decision.action == Action(expected["action"])
     klass = f"kei-proxy {expected['reason_class']}"
