@@ -62,7 +62,6 @@ type stepArgs struct {
 		SpanID          string `json:"span_id"`
 		ParentSpan      string `json:"parent_span"`
 		DelegationDepth int    `json:"delegation_depth"`
-		AgentID         string `json:"agent_id"`
 		Framework       string `json:"framework"`
 		ToolArgsDigest  string `json:"tool_args_digest"`
 	} `json:"request"`
@@ -90,7 +89,7 @@ func runStep(ctx context.Context, c *Client, op string, a stepArgs) (any, error)
 		r := a.Request
 		return c.Authorize(ctx, a.session(), evaluator.AuthorizeRequest{
 			Tool: r.Tool, Action: r.Action, Resource: r.Resource, SpanID: r.SpanID,
-			ParentSpan: r.ParentSpan, DelegationDepth: r.DelegationDepth, AgentID: r.AgentID,
+			ParentSpan: r.ParentSpan, DelegationDepth: r.DelegationDepth,
 			Framework: r.Framework, ToolArgsDigest: r.ToolArgsDigest,
 		})
 	case "list_models":

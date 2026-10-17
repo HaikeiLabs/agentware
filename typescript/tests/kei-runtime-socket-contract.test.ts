@@ -178,7 +178,6 @@ async function runStep(
         spanId: r.span_id,
         parentSpan: r.parent_span,
         delegationDepth: r.delegation_depth,
-        agentId: r.agent_id,
         framework: r.framework,
         toolArgsDigest: r.tool_args_digest,
       });

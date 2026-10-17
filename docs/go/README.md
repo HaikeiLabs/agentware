@@ -178,8 +178,9 @@ if decision.Enrollment != nil {
 ```
 
 Reasons read `kei-proxy <class>[: <detail>]` with a class from
-`evaluator.ReasonClasses`. `span_id`, `agent_id`, `agent_version`, `framework`
-and `workspace_id` are read from `caller.Metadata`. The behaviour matches the
+`evaluator.ReasonClasses`. `span_id`, `agent_version`, `framework` and
+`workspace_id` are read from `caller.Metadata`; `agent_id` is not part of the
+authorize request. The behaviour matches the
 Python and TypeScript ports case for case; see
 `docs/kei-proxy-evaluator-parity.md`.
 When present, the proxy's `reason_code` and `hint` are available unchanged as
@@ -193,8 +194,10 @@ socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)
 instead of spawning a process per call. `runtimesocket.Client` (zero value
 usable) opens a `kei.session/v2` session per `(source, external_id)`, and
 authorizes, lists models and runs chat completions inside it. The request never
-names the user; the daemon decides for the session's subject. An unreachable
-daemon, a non-2xx answer or a body that is not the expected JSON is a
+names the user or agent; the daemon decides identity from the authenticated
+runtime session. Caller agent identity is not accepted in authorize requests.
+An unreachable daemon, a non-2xx answer or a body that is not
+the expected JSON is a
 `*runtimesocket.Error`, a refusal that unwraps to `*evaluator.AuthorizeError`.
 A `session_not_found` session is reopened once. Unix only: on Windows every
 call is a `proxy_unavailable` refusal wrapping `ErrUnsupportedPlatform`.

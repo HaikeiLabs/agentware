@@ -31,7 +31,7 @@ from haikeilabs.agentware.middleware.types import Action, CallerContext
 
 TOKEN = "kei_rt_contract-secret-token-0123456789"
 AUTHORIZE_FIELDS = {
-    "schema", "tool", "action", "resource", "agent_id", "connector", "span_id",
+    "schema", "tool", "action", "resource", "connector", "span_id",
     "parent_span", "delegation_depth", "framework", "tool_args_digest", "shell_command",
 }  # fmt: skip
 SESSION_FIELDS = {"schema", "user_id", "email", "status", "enrollment", "source", "external_id"}
@@ -197,7 +197,6 @@ async def test_session_authorize_and_close(daemon: tuple[Daemon, str]) -> None:
         span_id="s-1",
         parent_span="p-0",
         delegation_depth=1,
-        agent_id="agent-1",
         framework="openwebui",
         tool_args_digest="a" * 64,
     )

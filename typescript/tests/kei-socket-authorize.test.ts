@@ -7,9 +7,12 @@ import type { KeiProxyAuthorizeRequest } from "../src/index.js";
 
 const request: KeiProxyAuthorizeRequest = {
   userId: "ignored-not-session-identity", tool: "github.read", action: "read", resource: "repo:x/y",
-  spanId: "", invokingSubject: "", parentSpan: "", delegationDepth: 0, agentId: "", agentVersion: "",
+  spanId: "", invokingSubject: "", parentSpan: "", delegationDepth: 0, agentVersion: "",
   framework: "", toolArgsDigest: "", resources: [], workspaceId: "",
 };
+// @ts-expect-error caller agent identity is no longer part of authorize requests
+const requestWithAgentId: KeiProxyAuthorizeRequest = { ...request, agentId: "caller-agent" };
+void requestWithAgentId;
 const token = "socket-test-token";
 
 describe("KeiProxySocketAuthorizeClient", () => {

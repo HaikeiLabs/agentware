@@ -57,7 +57,6 @@ function buildCaller(c: Json): CallerContext {
     trusted: false,
     metadata: {
       span_id: TABLE.caller_defaults.span_id,
-      agent_id: POLICY.agent.id,
       agent_version: POLICY.agent.version,
       framework: POLICY.agent.framework,
       workspace_id: POLICY.workspace.id,
@@ -377,7 +376,6 @@ describe("KeiProxyAuthorizeClient construction", () => {
       invokingSubject: "u",
       parentSpan: "",
       delegationDepth: 0,
-      agentId: "",
       agentVersion: "",
       framework: "",
       toolArgsDigest: "",

@@ -220,7 +220,6 @@ class KeiProxySocketAuthorizeClient:
         span_id: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
-        agent_id: str = "",
         framework: str = "",
         tool_args_digest: str = "",
     ) -> dict[str, Any]:
@@ -229,8 +228,8 @@ class KeiProxySocketAuthorizeClient:
         Returns the ``kei.authorize-response/v1`` object (``decision`` plus
         ``reason_code``, ``reason``, ``policy_id``, ``enrollment`` ...). Only
         ``permit``/``allow`` is an allow; a ``deny`` is returned, not raised.
-        The request names no user: the daemon decides for the session's
-        subject.
+        The request names no user or agent: the daemon decides identity from
+        the authenticated session.
         """
         if not session.source or not session.external_id or not session.session_id:
             raise ValueError("socket authorize needs an explicit named session")
@@ -241,7 +240,6 @@ class KeiProxySocketAuthorizeClient:
             "span_id": span_id,
             "parent_span": parent_span,
             "delegation_depth": delegation_depth,
-            "agent_id": agent_id,
             "framework": framework,
             "tool_args_digest": tool_args_digest,
         }
@@ -459,7 +457,6 @@ class KeiProxySocketAuthorizationClient:
         invoking_subject: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
-        agent_id: str = "",
         agent_version: str = "",
         framework: str = "",
         tool_args_digest: str = "",
@@ -481,7 +478,6 @@ class KeiProxySocketAuthorizationClient:
                 span_id=span_id,
                 parent_span=parent_span,
                 delegation_depth=delegation_depth,
-                agent_id=agent_id,
                 framework=framework,
                 tool_args_digest=tool_args_digest,
             )

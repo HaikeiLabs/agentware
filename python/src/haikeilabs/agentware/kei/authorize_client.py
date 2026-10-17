@@ -148,19 +148,13 @@ class KeiProxyAuthorizeClient:
         invoking_subject: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
-        agent_id: str = "",
         agent_version: str = "",
         framework: str = "",
         tool_args_digest: str = "",
         resources: list[str] | None = None,
         workspace_id: str = "",
     ) -> dict[str, Any]:
-        """Authorize one call.
-
-        ``agent_id`` and ``workspace_id`` are accepted and not sent: kei-proxy
-        (>= 0.1.11) resolves the agent from the runtime installation, and
-        derives workspace scope from the runtime token.
-        """
+        """Authorize one call. kei-proxy derives identity and scope from its runtime token."""
         env = self.child_env()
         if not env.get(BOOTSTRAP_TOKEN_ENV):
             raise KeiProxyAuthorizeError("missing_token", f"{BOOTSTRAP_TOKEN_ENV} is not set")

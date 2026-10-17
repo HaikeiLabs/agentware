@@ -81,7 +81,6 @@ type AuthorizeRequest struct {
 	InvokingSubject string
 	ParentSpan      string
 	DelegationDepth int
-	AgentID         string
 	AgentVersion    string
 	Framework       string
 	ToolArgsDigest  string
@@ -131,7 +130,7 @@ func NewKeiProxyEvaluator(client Client, opts ...Option) *KeiProxyEvaluator {
 
 // Evaluate authorizes toolName via kei-proxy and translates the answer.
 //
-// span_id, agent_id, agent_version, framework and workspace_id are read from
+// span_id, agent_version, framework and workspace_id are read from
 // caller.Metadata; framework falls back to caller.Source.
 func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, caller middleware.CallerContext) middleware.Decision {
 	resources := ResourcesTouched(toolName, args)
@@ -160,7 +159,6 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 		InvokingSubject: userID,
 		ParentSpan:      caller.ParentSpan,
 		DelegationDepth: caller.DelegationDepth,
-		AgentID:         caller.Metadata["agent_id"],
 		AgentVersion:    caller.Metadata["agent_version"],
 		Framework:       framework,
 		ToolArgsDigest:  ToolArgsDigest(args),

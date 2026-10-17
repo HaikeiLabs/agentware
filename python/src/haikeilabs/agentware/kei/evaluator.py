@@ -167,7 +167,6 @@ class AuthorizationClient(Protocol):
         invoking_subject: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
-        agent_id: str = "",
         agent_version: str = "",
         framework: str = "",
         tool_args_digest: str = "",
@@ -372,9 +371,9 @@ class KeiProxyEvaluator:
         resources: list[str],
         args: dict[str, Any],
     ) -> Any:
-        """Call a modern client, with a narrow path for legacy clients.
+        """Call a client, with a narrow path for minimal-signature clients.
 
-        Signature binding selects compatibility before making the call. This
+        Signature binding selects the supported call shape before making it. This
         avoids retrying an authorization request after a client has already
         run it and raised a ``TypeError`` internally.
         """
@@ -384,7 +383,6 @@ class KeiProxyEvaluator:
             "invoking_subject": user_id,
             "parent_span": caller.parent_span,
             "delegation_depth": caller.delegation_depth,
-            "agent_id": caller.agent_id or caller.metadata.get("agent_id", ""),
             "agent_version": caller.agent_version or caller.metadata.get("agent_version", ""),
             "framework": caller.framework or caller.source,
             "tool_args_digest": tool_args_digest(args),

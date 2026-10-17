@@ -27,7 +27,7 @@ var (
 )
 
 func TestEvaluatorOverTheSocket(t *testing.T) {
-	caller := middleware.CallerContext{UserID: "ada"}
+	caller := middleware.CallerContext{UserID: "ada", Metadata: map[string]string{"agent_id": "agent-1"}}
 
 	t.Run("permit allows and the session is reused", func(t *testing.T) {
 		d := startDaemon(t, sessionAnswer, permitAnswer, permitAnswer)
@@ -46,7 +46,7 @@ func TestEvaluatorOverTheSocket(t *testing.T) {
 			t.Errorf("requests %+v", reqs)
 		}
 		body, _ := reqs[1].Body.(map[string]any)
-		for _, k := range []string{"user_id", "invoking_subject", "workspace_id", "resources", "agent_version"} {
+		for _, k := range []string{"user_id", "invoking_subject", "workspace_id", "resources", "agent_version", "agent_id"} {
 			if _, ok := body[k]; ok {
 				t.Errorf("authorize body names %q: %v", k, body)
 			}

@@ -9,6 +9,11 @@ tagged `agentware-py-v<version>`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** removed caller-provided `agent_id` from Kei authorize client
+  APIs. Authorization identity is derived from the runtime token (HAI-557).
+
 ## [0.1.0]
 
 The first release on PyPI. Earlier versions were installed from the Git

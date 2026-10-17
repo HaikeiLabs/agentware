@@ -1,8 +1,10 @@
 """Unit tests for the kei-proxy daemon socket client (in-memory transport)."""
 
 import asyncio
+import inspect
 import json
 from collections.abc import Callable
+from dataclasses import fields
 from typing import Any
 
 import httpx
@@ -23,6 +25,21 @@ from haikeilabs.agentware.middleware.types import Action, CallerContext
 TOKEN = "kei_rt_unit-secret-token-0123456789"
 ENV = {"KEI_RUNTIME_TOKEN": TOKEN}
 ADA = KeiProxySocketIdentity("openwebui", "ada")
+
+
+def test_authorize_clients_do_not_accept_agent_id():
+    for client in (
+        KeiProxyAuthorizeClient,
+        KeiProxySocketAuthorizeClient,
+        KeiProxySocketAuthorizationClient,
+    ):
+        assert "agent_id" not in inspect.signature(client.authorize).parameters
+
+
+def test_caller_context_has_no_authorize_agent_id_input():
+    assert "agent_id" not in {item.name for item in fields(CallerContext)}
+
+
 PERMIT = {"schema": "kei.authorize-response/v1", "decision": "permit", "bundle_state": "fresh"}
 
 
@@ -472,9 +489,10 @@ def test_the_evaluator_allows_over_the_socket() -> None:
     [body] = daemon.bodies("/v1/authorize")
     assert body["tool"] == "github.get_issue"
     assert body["resource"] == "github:repo:o/r"
+    assert "agent_id" not in body
     assert set(body) <= {
         "schema", "tool", "action", "resource", "span_id", "parent_span",
-        "delegation_depth", "agent_id", "framework", "tool_args_digest",
+        "delegation_depth", "framework", "tool_args_digest",
     }  # fmt: skip
 
 

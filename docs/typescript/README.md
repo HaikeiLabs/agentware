@@ -151,9 +151,11 @@ When `kei-proxy serve` runs beside the harness, talk to it over its Unix
 socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)
 instead of spawning a process per call. `KeiProxySocketAuthorizeClient` opens a
 `kei.session/v2` session per `(source, externalId)` and authorizes, lists
-models and runs chat completions inside it. The request never names the user;
-the daemon decides for the session's subject. An unreachable daemon, a non-2xx
-answer or a body that is not the expected JSON rejects with
+models and runs chat completions inside it. The request never names the user or
+agent; the daemon decides identity from the authenticated runtime session.
+Caller agent identity is not accepted in authorize requests. An unreachable
+daemon, a non-2xx answer or a body that is not the expected JSON
+rejects with
 `KeiProxySocketError` (a `KeiProxyAuthorizeError` with a `reasonClass` and the
 daemon's error `code`). A `session_not_found` session is reopened once.
 

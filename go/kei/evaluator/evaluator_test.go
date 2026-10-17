@@ -140,7 +140,6 @@ func buildCaller(table casesTable, policy seededPolicy, c authorizeCase) middlew
 		InvokingSubject: subject,
 		Metadata: map[string]string{
 			"span_id":       table.CallerDefaults.SpanID,
-			"agent_id":      policy.Agent.ID,
 			"agent_version": policy.Agent.Version,
 			"framework":     policy.Agent.Framework,
 			"workspace_id":  policy.Workspace.ID,
@@ -570,5 +569,11 @@ func TestToolArgsDigestMatchesPython(t *testing.T) {
 	got := ToolArgsDigest(map[string]any{"z": []any{" ", 1, true, nil}, "e": "\U0001F600"})
 	if want := "303e9fb3a4f9a08e4b959e3558a1705fe29840918a9605df263ef27eaabfa25f"; got != want {
 		t.Errorf("ToolArgsDigest = %s, want %s", got, want)
+	}
+}
+
+func TestAuthorizeRequestHasNoCallerAgentID(t *testing.T) {
+	if _, ok := reflect.TypeOf(AuthorizeRequest{}).FieldByName("AgentID"); ok {
+		t.Fatal("AuthorizeRequest still exposes caller AgentID")
 	}
 }

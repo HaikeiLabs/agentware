@@ -214,10 +214,10 @@ func validSession(s Session) error {
 //
 // It returns the kei.authorize-response/v1 object (decision plus reason_code,
 // reason, policy_id, enrollment ...). Only permit/allow is an allow; a deny is
-// returned, not an error. The request names no user: UserID,
-// InvokingSubject, AgentVersion, Resources and WorkspaceID are not sent,
-// because the daemon takes the subject from the session, derives workspace
-// scope from the token, and rejects unknown fields.
+// returned, not an error. The request names no user or agent: UserID,
+// InvokingSubject, AgentVersion, Resources and WorkspaceID are not
+// sent because the daemon takes identity from the authenticated session,
+// derives workspace scope from the token, and rejects unknown fields.
 func (c *Client) Authorize(ctx context.Context, session Session, req evaluator.AuthorizeRequest) (map[string]any, error) {
 	if err := validSession(session); err != nil {
 		return nil, fmt.Errorf("authorize: %w", err)
@@ -228,7 +228,6 @@ func (c *Client) Authorize(ctx context.Context, session Session, req evaluator.A
 		"resource":         req.Resource,
 		"span_id":          req.SpanID,
 		"parent_span":      req.ParentSpan,
-		"agent_id":         req.AgentID,
 		"framework":        req.Framework,
 		"tool_args_digest": req.ToolArgsDigest,
 	} {
