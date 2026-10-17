@@ -1,7 +1,7 @@
 .PHONY: help evals evals-file-search evals-general evals-beta-tools evals-suite evals-suite-all-profiles evals-clean
 .PHONY: python-lint python-typecheck python-test python-format
 .PHONY: go-build go-test go-lint go-fmt go-vet
-.PHONY: version-check version-test version-set
+.PHONY: version-check version-test version-set compat-check
 
 help:
 	@echo "Available targets:"
@@ -17,6 +17,7 @@ help:
 	@echo "  version-check      - Check npm, PyPI and Go carry the VERSION file's version"
 	@echo "  version-test       - Run the release version tool's tests"
 	@echo "  version-set        - Set the shared version everywhere (VERSION=X.Y.Z)"
+	@echo "  compat-check       - Check the README compatibility table against KEI_PROXY_VERSION"
 	@echo ""
 	@echo "  evals              - Run all evals (file search + general) sequentially against models"
 	@echo "  evals-file-search  - Run only file search tool call evals"
@@ -110,8 +111,11 @@ version-check:
 	python3 scripts/release/version.py check
 
 version-test:
-	cd scripts/release && python3 -m unittest -v version_test
+	cd scripts/release && python3 -m unittest -v version_test compat_test
 
 version-set:
 	@test -n "$(VERSION)" || (echo "usage: make version-set VERSION=X.Y.Z" >&2; exit 1)
 	python3 scripts/release/version.py set $(VERSION)
+
+compat-check:
+	python3 scripts/release/compat.py check

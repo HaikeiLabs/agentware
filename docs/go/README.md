@@ -4,6 +4,16 @@ This document provides examples of how to use the Go middleware for policy
 enforcement and audit logging. It is the reference implementation; the Python
 and TypeScript ports mirror it.
 
+## Installation
+
+```bash
+go get github.com/haikeilabs/agentware/go
+```
+
+The module path is lowercase; `github.com/HaikeiLabs/agentware/go` does not
+resolve. Releases are tagged `go/vX.Y.Z` at the same version as the npm and
+PyPI packages (`go get github.com/haikeilabs/agentware/go@vX.Y.Z`).
+
 ## Basic Usage
 
 ### Creating a Policy

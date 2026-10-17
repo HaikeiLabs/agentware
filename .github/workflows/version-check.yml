@@ -1,5 +1,6 @@
 # Dry run of the shared release version: npm, PyPI and the Go module must
-# carry the VERSION file's version, and the release tags it derives are
+# carry the VERSION file's version, the README compatibility table must list
+# the pinned KEI_PROXY_VERSION for it, and the release tags it derives are
 # printed. Publishes nothing and creates no tag.
 name: Version check
 
@@ -27,6 +28,9 @@ jobs:
 
       - name: Check every registry's version matches VERSION
         run: make version-check
+
+      - name: Check the README compatibility table against KEI_PROXY_VERSION
+        run: make compat-check
 
       - name: Show the tags a release would create
         run: python3 scripts/release/version.py tags
