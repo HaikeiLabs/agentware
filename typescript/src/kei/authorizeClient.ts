@@ -371,8 +371,8 @@ async function digestOfHandle(handle: FileHandle): Promise<Buffer> {
 }
 
 /**
- * The argv (after the executable) for one authorize call. `agentId` and
- * `workspaceId` are not sent: kei-proxy (>= 0.1.11) resolves the agent from
+ * The argv (after the executable) for one authorize call. `workspaceId` is
+ * not sent: kei-proxy resolves the agent from
  * the runtime installation and workspace scope from the runtime token.
  */
 export function keiProxyAuthorizeArgv(

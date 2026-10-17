@@ -7,6 +7,8 @@ coordinated separately; entries collect under **Unreleased** until then.
 
 ### Changed
 
+- **Breaking (Go, Python, TypeScript):** removed caller-provided `agent_id` / `AgentID` / `agentId` from Kei authorize request types and client APIs (HAI-557). The runtime token supplies authorization identity. Agent identity remains available in runtime identity, caller/audit metadata, delegation context, and connector binding metadata.
+
 - **Go (breaking import path):** the module is now
   `github.com/haikeilabs/agentware/go`, so
   `go get github.com/haikeilabs/agentware/go` resolves. Replace

@@ -90,8 +90,8 @@ Invariants every port asserts on every case:
   is pinned by the table.
 - **No `--agent-id`.** kei-proxy (0.1.11 and later) resolves the agent from the
   runtime installation, so no client sends `--agent-id` (`argv_forbidden`)
-  even when the caller carries an agent id. Injected clients still receive
-  it on the request.
+  even when the caller carries an agent id. Socket request serializers also
+  omit `agent_id`; the authorize APIs do not accept caller-provided agent IDs.
 
 ## Ports
 
@@ -101,11 +101,13 @@ Invariants every port asserts on every case:
 | TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`; async `evaluate`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; async `spawn`, `detached`, `expectedSha256`) | `typescript/tests/kei-evaluator.test.ts` |
 | Go | `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) | `evaluator.CLIClient` (`exec.CommandContext`, `Setpgid`, stderr discarded, `ExpectedSHA256`) | `go/kei/evaluator/evaluator_test.go` |
 
-Python-only tests (the injected-client seam: legacy four-argument clients,
+Python-only tests (the injected-client seam: four-argument clients,
 object-shaped results, arbitrary exceptions) stay in
-`python/tests/kei/evaluator_test.py`. TypeScript reads `span_id`, `agent_id`, `agent_version`, `framework` and
-`workspace_id` from `CallerContext.metadata` (its `CallerContext` has no such
-fields). It also gained the optional `invoking_subject`, `parent_span` and
+`python/tests/kei/evaluator_test.py`. TypeScript reads `span_id`,
+`agent_version`, `framework` and `workspace_id` from `CallerContext.metadata`
+(its `CallerContext` has no such fields). Caller-provided agent ID is not part
+of the evaluator request in any port. TypeScript also gained the optional
+`invoking_subject`, `parent_span` and
 `delegation_depth` fields and `Decision.enrollment`. The digest matches
 Python byte for byte for strings, integers, booleans, null, arrays and
 objects. Floats may serialise differently (`1.0` is `1` in JS).

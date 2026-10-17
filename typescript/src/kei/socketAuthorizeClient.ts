@@ -79,9 +79,9 @@ export interface KeiProxySocketSession extends KeiProxySocketIdentity {
 /**
  * The fields a socket authorize sends. Only `tool` is required; empty values
  * are left out. A full `KeiProxyAuthorizeRequest` is accepted: its user,
- * invoking subject, agent version, resources and workspace are not sent,
- * because the daemon takes the subject from the session and the workspace
- * from the runtime token.
+ * invoking subject, agent version, resources and workspace are not
+ * sent, because the daemon takes identity from the authenticated session and
+ * the workspace from the runtime token.
  */
 export type KeiProxySocketAuthorizeRequest = Pick<
   KeiProxyAuthorizeRequest,
@@ -95,7 +95,6 @@ export type KeiProxySocketAuthorizeRequest = Pick<
       | "spanId"
       | "parentSpan"
       | "delegationDepth"
-      | "agentId"
       | "framework"
       | "toolArgsDigest"
     >
@@ -228,7 +227,6 @@ export class KeiProxySocketAuthorizeClient {
       span_id: input.spanId,
       parent_span: input.parentSpan,
       delegation_depth: input.delegationDepth,
-      agent_id: input.agentId,
       framework: input.framework,
       tool_args_digest: input.toolArgsDigest,
     };

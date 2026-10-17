@@ -64,7 +64,6 @@ class CallerContext:
     parent_span: str = ""
     delegation_depth: int = 0
     span_id: str = ""
-    agent_id: str = ""
     agent_version: str = ""
     framework: str = ""
     workspace_id: str = ""

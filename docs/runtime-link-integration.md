@@ -89,6 +89,11 @@ assigned" and fail closed rather than falling back to an env var. When
 `agent_id` is absent but an entry has `is_default`, the SDK fills the default
 from that entry.
 
+The identity event is informational for harness integrations. Socket
+authorization derives the agent from the runtime token; the SDK does not send
+`agent_id` in authorize requests; caller-provided agent identity is not part
+of the authorize API.
+
 ```typescript
 const identity = link.identity();
 const agentId = identity?.defaultAgentId;

@@ -46,7 +46,6 @@ def build_caller(case: dict[str, Any]) -> CallerContext:
         parent_span=overrides.get("parent_span", ""),
         delegation_depth=overrides.get("delegation_depth", 0),
         span_id=TABLE["caller_defaults"]["span_id"],
-        agent_id=POLICY["agent"]["id"],
         agent_version=POLICY["agent"]["version"],
         framework=POLICY["agent"]["framework"],
         workspace_id=POLICY["workspace"]["id"],

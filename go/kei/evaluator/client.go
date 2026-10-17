@@ -256,8 +256,8 @@ func proveExecutable(path, pin string) error {
 }
 
 // AuthorizeArgv returns the argv (after the executable) for one call.
-// AgentID and WorkspaceID are not sent: kei-proxy (>= 0.1.11) resolves the
-// agent from the runtime installation and workspace scope from the token.
+// WorkspaceID is not sent: kei-proxy resolves identity and scope from the
+// runtime token.
 func AuthorizeArgv(req AuthorizeRequest) []string {
 	argv := []string{
 		"authorize",

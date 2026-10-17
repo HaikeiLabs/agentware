@@ -72,7 +72,6 @@ export interface KeiProxyAuthorizeRequest {
   invokingSubject: string;
   parentSpan: string;
   delegationDepth: number;
-  agentId: string;
   agentVersion: string;
   framework: string;
   toolArgsDigest: string;
@@ -201,7 +200,6 @@ export class KeiProxyEvaluator {
       invokingSubject: userId,
       parentSpan: caller.parent_span ?? "",
       delegationDepth: caller.delegation_depth ?? 0,
-      agentId: meta.agent_id ?? "",
       agentVersion: meta.agent_version ?? "",
       framework: meta.framework || caller.source || "",
       toolArgsDigest: keiProxyToolArgsDigest(args),

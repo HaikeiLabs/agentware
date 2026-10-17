@@ -168,7 +168,6 @@ def test_full_audit_context_is_sent_to_the_proxy():
         parent_span="parent-1",
         delegation_depth=2,
         span_id="span-1",
-        agent_id="agent-1",
         agent_version="1.2.3",
         framework="agentware",
         workspace_id="workspace-1",
@@ -181,7 +180,7 @@ def test_full_audit_context_is_sent_to_the_proxy():
     assert call["invoking_subject"] == "U_HUMAN"
     assert call["parent_span"] == "parent-1"
     assert call["delegation_depth"] == 2
-    assert call["agent_id"] == "agent-1"
+    assert "agent_id" not in call
     assert call["framework"] == "agentware"
     assert call["workspace_id"] == "workspace-1"
     assert call["resources"] == ["github:repo:acme/sales-pipeline"]

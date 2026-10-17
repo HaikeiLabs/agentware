@@ -201,7 +201,7 @@
       ]
     },
     {
-      "name": "authorize_sends_every_set_field_and_returns_the_permit",
+      "name": "authorize_sends_supported_set_fields_and_returns_the_permit",
       "steps": [
         {
           "op": "authorize",
@@ -218,7 +218,6 @@
               "span_id": "s-1",
               "parent_span": "p-0",
               "delegation_depth": 1,
-              "agent_id": "agent-1",
               "framework": "openwebui",
               "tool_args_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             }
@@ -247,7 +246,6 @@
               "span_id": "s-1",
               "parent_span": "p-0",
               "delegation_depth": 1,
-              "agent_id": "agent-1",
               "framework": "openwebui",
               "tool_args_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             }
