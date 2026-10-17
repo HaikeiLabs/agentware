@@ -81,6 +81,31 @@ so the audit trail always leads back to the human who authorized the request.
 - `haikeilabs.agentware.tools`, `executor`, `jobs`, `prompts`: the tool registry,
   dispatch, background jobs and system-prompt generation.
 
+The Guardrails facade follows the Forge guardrails API design. Forge is MIT
+licensed; attribution and the license text are in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+```python
+from haikeilabs.agentware.middleware.guardrails import Guardrails
+
+guardrails = Guardrails.from_config(config_document)
+result = guardrails.check(response)
+if result["outcome"] in {"retry", "step_blocked"}:
+    messages.append({"role": "user", "content": result.get("nudge_text", "Try again")})
+elif result["outcome"] == "fatal":
+    raise RuntimeError("guardrail retry limit reached")
+else:
+    for call in result["tool_calls"]:
+        policy.require_allowed(call["tool"], call["args"])
+        tool_result = execute(call)
+        if tool_result.is_error:
+            recorded = guardrails.record({"tool": call["tool"], "category": "unknown"})
+            if "nudge_text" in recorded:
+                messages.append({"role": "user", "content": recorded["nudge_text"]})
+        else:
+            guardrails.record({"tool": call["tool"], "args": call["args"]})
+```
+
 ## Migrating from `pedro_agentware`
 
 The import package used to be `pedro_agentware`. It still works as a
