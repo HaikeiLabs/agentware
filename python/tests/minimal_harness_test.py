@@ -45,9 +45,8 @@ def test_minimal_harness_fake_round_trip() -> None:
         assert "hint=Add a policy for this tool: kei policies create" in deny[0]
 
         lines = [
-            json.loads(line)
-            for line in Path(audit_path).read_text().splitlines()
-            if line.strip()
+            json.loads(line) for line in Path(audit_path).read_text().splitlines() if line.strip()
         ]
         assert [line["tool"] for line in lines] == ["echo", "delete_everything"]
         assert [line["decision"] for line in lines] == ["permit", "deny"]
+        assert [line["harness"] for line in lines] == ["my-harness", "my-harness"]

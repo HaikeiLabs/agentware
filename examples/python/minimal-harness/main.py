@@ -23,7 +23,7 @@ from haikeilabs.agentware.kei import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FAKE_DAEMON = REPO_ROOT / "fixtures" / "kei" / "fake-kei-proxy-socket.py"
-IDENTITY = KeiProxySocketIdentity("openwebui", "local")
+IDENTITY = KeiProxySocketIdentity("my-harness", "local")
 
 
 def _start_fake(audit_path: str) -> tuple[subprocess.Popen[bytes], str]:
@@ -82,7 +82,8 @@ def main() -> int:
     socket_dir = ""
     if args.fake:
         audit_path = args.audit or str(
-            Path(tempfile.mkdtemp(prefix="fakekei-audit-", dir=REPO_ROOT)) / "audit.jsonl"
+            Path(tempfile.mkdtemp(prefix="fakekei-audit-", dir=REPO_ROOT))
+            / "audit.jsonl"
         )
         daemon, socket_path = _start_fake(audit_path)
         socket_dir = str(Path(socket_path).parent)
