@@ -89,7 +89,7 @@ with each SDK release:
 <!-- compat:begin -->
 | agentware SDK | kei-proxy (minimum) | kei-cli (minimum) |
 | --- | --- | --- |
-| 0.9.0 | v0.2.11 | 0.1.32 |
+| 0.9.0 | v0.2.13 | 0.1.33 |
 <!-- compat:end -->
 
 `KEI_PROXY_VERSION` pins the kei-proxy entry for the current release, and CI
