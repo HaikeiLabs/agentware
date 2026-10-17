@@ -173,6 +173,20 @@ resource-level lineage is what makes the question tractable.
 | `docs/runtime-link-integration.md` | RuntimeLink public API and usage boundaries for harness authors |
 | `docs/build-history/` | Archived build-loop working files |
 
+## Examples
+
+- [Go minimal harness](examples/go/minimal-harness/README.md)
+- [Python minimal harness](examples/python/minimal-harness/README.md)
+- [TypeScript minimal harness](examples/typescript/minimal-harness/README.md)
+
+Set up and run a governed harness in this order:
+
+1. `kei bot init`
+2. `kei harness add --kind custom`
+3. Register tools with `kei harness sync --harness custom --manifest tools.json`
+4. Start the runtime with `kei-proxy serve`
+5. Call the harness.
+
 ## Development
 
 ```bash

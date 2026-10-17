@@ -8,6 +8,8 @@ on:
       - '.github/workflows/python-test.yml'
       - 'testing/contracts/runtime-link/**'
       - 'fixtures/kei/**'
+      - 'examples/python/minimal-harness/**'
+      - 'README.md'
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +17,8 @@ on:
       - '.github/workflows/python-test.yml'
       - 'testing/contracts/runtime-link/**'
       - 'fixtures/kei/**'
+      - 'examples/python/minimal-harness/**'
+      - 'README.md'
 
 jobs:
   python-test:
@@ -37,3 +41,11 @@ jobs:
         run: |
           cd python
           pytest tests/ --cov=src/haikeilabs/agentware --cov-report=xml
+      - name: Run Python minimal harness offline
+        run: |
+          audit_file="$RUNNER_TEMP/minimal-harness-audit.jsonl"
+          output="$(python examples/python/minimal-harness/main.py --fake --audit "$audit_file")"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -Fq 'ALLOW tool=echo policy_id=fake-allow-echo'
+          printf '%s\n' "$output" | grep -Fq 'DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create'
+          python -c 'import json, sys; rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]; assert len(rows) == 2, rows; assert [(row["tool"], row["decision"]) for row in rows] == [("echo", "permit"), ("delete_everything", "deny")], rows' "$audit_file"
