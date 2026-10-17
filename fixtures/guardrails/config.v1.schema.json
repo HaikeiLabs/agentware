@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haikeilabs.github.io/agentware/fixtures/guardrails/config.v1.schema.json",
+  "title": "Agentware Guardrails config v1",
+  "description": "Quality guidance for generated agent responses and step progress. This schema does not define authorization decisions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "tool_names"],
+  "properties": {
+    "version": { "const": 1 },
+    "tool_names": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "required_steps": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "terminal_tool": { "type": "string", "minLength": 1 },
+    "prerequisites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tool", "requires"],
+        "properties": {
+          "tool": { "type": "string", "minLength": 1 },
+          "requires": { "type": "string", "minLength": 1 },
+          "match_arg": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "max_prereq_violations": { "type": "integer", "minimum": 1, "default": 2 },
+    "step_nudge_tier": { "type": "integer", "minimum": 1, "maximum": 3, "default": 1 },
+    "nudges": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retry": { "type": "string" },
+        "step_blocked": { "type": "string" },
+        "prerequisite": { "type": "string" },
+        "fatal": { "type": "string" }
+      }
+    }
+  }
+}

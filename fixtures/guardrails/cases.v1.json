@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "description": "Shared Guardrails facade behavior cases. Outcomes describe agent quality and progress only; they never grant or deny authorization.",
+  "cases": [
+    {
+      "name": "valid_known_tool_executes",
+      "config": { "version": 1, "tool_names": ["search", "answer"] },
+      "input": { "response": { "tool_calls": [{ "tool": "search", "args": { "query": "weather" } }] }, "state": {} },
+      "expected": { "outcome": "execute", "tool_calls": [{ "tool": "search", "args": { "query": "weather" } }] }
+    },
+    {
+      "name": "unknown_tool_requests_retry",
+      "config": { "version": 1, "tool_names": ["search"] },
+      "input": { "response": { "tool_calls": [{ "tool": "delete_all", "args": {} }] }, "state": {} },
+      "expected": { "outcome": "retry", "nudge_kind": "unknown_tool" }
+    },
+    {
+      "name": "incomplete_required_steps_block_terminal_tool",
+      "config": { "version": 1, "tool_names": ["inspect", "finish"], "required_steps": ["inspect"], "terminal_tool": "finish" },
+      "input": { "response": { "tool_calls": [{ "tool": "finish", "args": {} }] }, "state": { "completed_steps": [] } },
+      "expected": { "outcome": "step_blocked", "missing_steps": ["inspect"], "nudge_kind": "step" }
+    },
+    {
+      "name": "prerequisite_violation_nudges_until_limit",
+      "config": { "version": 1, "tool_names": ["lookup", "summarize"], "prerequisites": [{ "tool": "summarize", "requires": "lookup" }], "max_prereq_violations": 2 },
+      "input": { "response": { "tool_calls": [{ "tool": "summarize", "args": {} }] }, "state": { "completed_steps": [], "prereq_violations": 1 } },
+      "expected": { "outcome": "retry", "missing_prerequisites": ["lookup"], "nudge_kind": "prerequisite", "prereq_violations": 2 }
+    },
+    {
+      "name": "prerequisite_violation_becomes_fatal_at_limit",
+      "config": { "version": 1, "tool_names": ["lookup", "summarize"], "prerequisites": [{ "tool": "summarize", "requires": "lookup" }], "max_prereq_violations": 2 },
+      "input": { "response": { "tool_calls": [{ "tool": "summarize", "args": {} }] }, "state": { "completed_steps": [], "prereq_violations": 2 } },
+      "expected": { "outcome": "fatal", "missing_prerequisites": ["lookup"], "nudge_kind": "prerequisite", "prereq_violations": 3 }
+    },
+    {
+      "name": "matching_prerequisite_allows_dependent_tool",
+      "config": { "version": 1, "tool_names": ["read", "summarize"], "prerequisites": [{ "tool": "summarize", "requires": "read", "match_arg": "document_id" }] },
+      "input": { "response": { "tool_calls": [{ "tool": "summarize", "args": { "document_id": "doc-7" } }] }, "state": { "completed_steps": [{ "tool": "read", "args": { "document_id": "doc-7" } }] } },
+      "expected": { "outcome": "execute", "tool_calls": [{ "tool": "summarize", "args": { "document_id": "doc-7" } }] }
+    },
+    {
+      "name": "recorded_tool_error_is_quality_state_only",
+      "config": { "version": 1, "tool_names": ["search"] },
+      "input": { "record": { "tool": "search", "error": "temporary failure", "category": "timeout" }, "state": { "tool_errors": [] } },
+      "expected": { "outcome": "recorded", "tool_errors": [{ "tool": "search", "category": "timeout" }] }
+    }
+  ]
+}
