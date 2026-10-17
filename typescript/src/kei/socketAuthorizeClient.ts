@@ -44,6 +44,8 @@ export const DEFAULT_SOCKET_TIMEOUT_MS = 10_000;
 export const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 
 const RUNTIME_TOKEN_ENV = "KEI_RUNTIME_TOKEN";
+const PROXY_INSTALL_COMMAND =
+  'curl -fsSL https://haikeilabs.com/install.sh | sh -s -- --proxy-only -d "$HOME/.local/bin"';
 /** Upper bound on a buffered (non-streaming) daemon answer. */
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
@@ -344,7 +346,7 @@ export class KeiProxySocketAuthorizeClient {
           if (line.startsWith("data:")) yield line;
         }
       } catch (error) {
-        throw transportError(error);
+        throw transportError(error, this.socketPath);
       } finally {
         lines.close();
         response.destroy();
@@ -382,7 +384,7 @@ export class KeiProxySocketAuthorizeClient {
         body: await readBody(response, MAX_BODY_BYTES),
       };
     } catch (error) {
-      throw transportError(error);
+      throw transportError(error, this.socketPath);
     }
   }
 
@@ -419,7 +421,9 @@ export class KeiProxySocketAuthorizeClient {
       req.setTimeout(options.timeoutMs ?? this.timeoutMs, () =>
         req.destroy(new SocketTimeout()),
       );
-      req.on("error", (error) => reject(transportError(error)));
+      req.on("error", (error) =>
+        reject(transportError(error, this.socketPath)),
+      );
       req.end(payload);
     });
   }
@@ -548,17 +552,21 @@ function readBody(
     response.on("error", reject);
     // A connection that drops mid-body, without an error event, still fails closed.
     response.on("close", () => {
-      if (!response.complete) reject(Object.assign(new Error("aborted"), { code: "ECONNRESET" }));
+      if (!response.complete)
+        reject(Object.assign(new Error("aborted"), { code: "ECONNRESET" }));
     });
   });
 }
 
-function transportError(error: unknown): KeiProxySocketError {
+function transportError(
+  error: unknown,
+  socketPath: string,
+): KeiProxySocketError {
   if (error instanceof KeiProxySocketError) return error;
   if (error instanceof SocketTimeout) {
     return new KeiProxySocketError(
       "proxy_timeout",
-      "the kei-proxy daemon did not answer in time",
+      `the kei-proxy daemon did not answer in time at socket ${socketPath}`,
     );
   }
   if (error instanceof BodyTooLarge) {
@@ -576,7 +584,7 @@ function transportError(error: unknown): KeiProxySocketError {
         : "unknown";
   return new KeiProxySocketError(
     "proxy_unavailable",
-    `the kei-proxy daemon is unreachable (${kind})`,
+    `the kei-proxy daemon is unreachable at socket ${socketPath} (${kind}); install with: ${PROXY_INSTALL_COMMAND}`,
   );
 }
 

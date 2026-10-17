@@ -2,7 +2,12 @@
  * Shared contract: testing/contracts/runtime-socket, replayed against the
  * TypeScript socket client and tool sync. Python and Go replay the same files.
  */
-import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
@@ -38,9 +43,16 @@ import {
 } from "../src/index.js";
 
 // Jest runs from typescript/, so the shared fixtures are one level up.
-const CONTRACTS = resolve(process.cwd(), "..", "testing", "contracts", "runtime-socket");
+const CONTRACTS = resolve(
+  process.cwd(),
+  "..",
+  "testing",
+  "contracts",
+  "runtime-socket",
+);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const load = (name: string): any => JSON.parse(readFileSync(resolve(CONTRACTS, name), "utf8"));
+const load = (name: string): any =>
+  JSON.parse(readFileSync(resolve(CONTRACTS, name), "utf8"));
 
 const CONSTANTS = load("constants.json");
 const CLIENT = load("client-cases.json");
@@ -63,8 +75,12 @@ describe("runtime socket constants", () => {
     expect(DEFAULT_MODEL_TIMEOUT_MS).toBe(s.default_model_timeout_ms);
     expect(SESSION_SCHEMA).toBe(CONSTANTS.schemas.session);
     expect(AUTHORIZE_REQUEST_SCHEMA).toBe(CONSTANTS.schemas.authorize_request);
-    expect(AUTHORIZE_RESPONSE_SCHEMA).toBe(CONSTANTS.schemas.authorize_response);
-    expect(POLICY_BUNDLE_STATUS_SCHEMA).toBe(CONSTANTS.schemas.policy_bundle_status);
+    expect(AUTHORIZE_RESPONSE_SCHEMA).toBe(
+      CONSTANTS.schemas.authorize_response,
+    );
+    expect(POLICY_BUNDLE_STATUS_SCHEMA).toBe(
+      CONSTANTS.schemas.policy_bundle_status,
+    );
     const t = CONSTANTS.tool_sync;
     expect(TOOLS_PATH).toBe(t.path);
     expect(TOOL_MANIFEST_V2_MEDIA_TYPE).toBe(t.media_type);
@@ -87,7 +103,10 @@ interface Seen {
 }
 
 /** A fake daemon that answers scripted exchanges in order and records each request. */
-async function replayDaemon(socketPath: string, exchanges: Json[]): Promise<{ server: Server; seen: Seen[] }> {
+async function replayDaemon(
+  socketPath: string,
+  exchanges: Json[],
+): Promise<{ server: Server; seen: Seen[] }> {
   const queue = [...exchanges];
   const seen: Seen[] = [];
   const server = createHttpServer((req, res) => {
@@ -126,11 +145,22 @@ function closeServer(server: Server): Promise<void> {
   return new Promise((r) => server.close(() => r()));
 }
 
-async function runStep(c: KeiProxySocketAuthorizeClient, op: string, args: Json): Promise<unknown> {
-  const sess = (s: Json) => ({ source: s.source, externalId: s.external_id, sessionId: s.session_id });
+async function runStep(
+  c: KeiProxySocketAuthorizeClient,
+  op: string,
+  args: Json,
+): Promise<unknown> {
+  const sess = (s: Json) => ({
+    source: s.source,
+    externalId: s.external_id,
+    sessionId: s.session_id,
+  });
   switch (op) {
     case "open_session": {
-      const s = await c.openSession({ source: args.source, externalId: args.external_id });
+      const s = await c.openSession({
+        source: args.source,
+        externalId: args.external_id,
+      });
       return { session_id: s.sessionId };
     }
     case "close_session":
@@ -159,7 +189,11 @@ async function runStep(c: KeiProxySocketAuthorizeClient, op: string, args: Json)
       return c.chatCompletion(sess(args.session), args.payload);
     case "stream_chat_completion": {
       const lines: string[] = [];
-      for await (const line of c.streamChatCompletion(sess(args.session), args.payload)) lines.push(line);
+      for await (const line of c.streamChatCompletion(
+        sess(args.session),
+        args.payload,
+      ))
+        lines.push(line);
       return lines;
     }
     case "policy_bundle_status":
@@ -179,7 +213,10 @@ describe("runtime socket client contract", () => {
 
   it.each(named(CLIENT.cases))("%s", async (_name: string, kase: Json) => {
     const socketPath = join(dir, "runtime.sock");
-    const daemon = kase.daemon === "absent" ? undefined : await replayDaemon(socketPath, kase.exchanges);
+    const daemon =
+      kase.daemon === "absent"
+        ? undefined
+        : await replayDaemon(socketPath, kase.exchanges);
     const client = new KeiProxySocketAuthorizeClient({
       socketPath,
       env: kase.env ?? { KEI_RUNTIME_TOKEN: TOKEN },
@@ -193,12 +230,18 @@ describe("runtime socket client contract", () => {
         );
         if (step.expect.invalid_argument) {
           expect(outcome).toHaveProperty("error");
-          expect((outcome as { error: unknown }).error).not.toBeInstanceOf(KeiProxySocketError);
+          expect((outcome as { error: unknown }).error).not.toBeInstanceOf(
+            KeiProxySocketError,
+          );
         } else if (step.expect.error) {
           const error = (outcome as { error?: unknown }).error;
           expect(error).toBeInstanceOf(KeiProxySocketError);
           const e = error as KeiProxySocketError;
-          expect({ step: step.op, reasonClass: e.reasonClass, code: e.code }).toEqual({
+          expect({
+            step: step.op,
+            reasonClass: e.reasonClass,
+            code: e.code,
+          }).toEqual({
             step: step.op,
             reasonClass: step.expect.error.reason_class,
             code: step.expect.error.code,
@@ -227,26 +270,54 @@ describe("KeiProxyEvaluator over the socket", () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   const caller = { user_id: "ada", invoking_subject: "ada", trusted: false };
-  const permit = { schema: AUTHORIZE_RESPONSE_SCHEMA, decision: "permit", policy_id: "p-allow" };
-  const opened = { status: 201, body: { schema: SESSION_SCHEMA, session_id: "sess-1" } };
+  const permit = {
+    schema: AUTHORIZE_RESPONSE_SCHEMA,
+    decision: "permit",
+    policy_id: "p-allow",
+  };
+  const opened = {
+    status: 201,
+    body: { schema: SESSION_SCHEMA, session_id: "sess-1" },
+  };
 
   it("selects the socket client, allows a permit and denies a deny in one session", async () => {
     const socketPath = join(dir, "runtime.sock");
     const daemon = await replayDaemon(socketPath, [
       { response: opened },
       { response: { status: 200, body: permit } },
-      { response: { status: 200, body: { schema: AUTHORIZE_RESPONSE_SCHEMA, decision: "deny", reason_code: "policy_deny" } } },
+      {
+        response: {
+          status: 200,
+          body: {
+            schema: AUTHORIZE_RESPONSE_SCHEMA,
+            decision: "deny",
+            reason_code: "policy_deny",
+            hint: "Add the matching policy.",
+          },
+        },
+      },
     ]);
     try {
-      const env = { [RUNTIME_SOCKET_PATH_ENV]: socketPath, KEI_RUNTIME_TOKEN: TOKEN };
+      const env = {
+        [RUNTIME_SOCKET_PATH_ENV]: socketPath,
+        KEI_RUNTIME_TOKEN: TOKEN,
+      };
       const authorization = selectAuthorizationClient("openwebui", { env });
       expect(authorization).toBeInstanceOf(KeiProxySocketAuthorizationClient);
-      const evaluator = new KeiProxyEvaluator(authorization, { logger: () => undefined });
-      const allow = await evaluator.evaluate("github.get_issue", { owner: "o", repo: "r" }, caller);
+      const evaluator = new KeiProxyEvaluator(authorization, {
+        logger: () => undefined,
+      });
+      const allow = await evaluator.evaluate(
+        "github.get_issue",
+        { owner: "o", repo: "r" },
+        caller,
+      );
       expect(allow.action).toBe(Action.ALLOW);
       expect(allow.rule).toBe("p-allow");
       const deny = await evaluator.evaluate("github.delete_repo", {}, caller);
       expect(deny.action).toBe(Action.DENY);
+      expect(deny.reason_code).toBe("policy_deny");
+      expect(deny.hint).toBe("Add the matching policy.");
     } finally {
       await closeServer(daemon.server);
     }
@@ -255,7 +326,11 @@ describe("KeiProxyEvaluator over the socket", () => {
       ["POST", "/v1/authorize"],
       ["POST", "/v1/authorize"],
     ]);
-    expect(daemon.seen[0].body).toEqual({ schema: SESSION_SCHEMA, source: "openwebui", external_id: "ada" });
+    expect(daemon.seen[0].body).toEqual({
+      schema: SESSION_SCHEMA,
+      source: "openwebui",
+      external_id: "ada",
+    });
     for (const s of daemon.seen.slice(1)) {
       expect(s.body.user_id).toBeUndefined();
       expect(s.session).toBe("sess-1");
@@ -263,13 +338,23 @@ describe("KeiProxyEvaluator over the socket", () => {
   });
 
   it("denies with proxy_unavailable when the configured daemon is down", async () => {
-    const env = { [RUNTIME_SOCKET_PATH_ENV]: join(dir, "missing.sock"), KEI_RUNTIME_TOKEN: TOKEN };
-    const evaluator = new KeiProxyEvaluator(selectAuthorizationClient("openwebui", { env }), {
-      logger: () => undefined,
-    });
+    const env = {
+      [RUNTIME_SOCKET_PATH_ENV]: join(dir, "missing.sock"),
+      KEI_RUNTIME_TOKEN: TOKEN,
+    };
+    const evaluator = new KeiProxyEvaluator(
+      selectAuthorizationClient("openwebui", { env }),
+      {
+        logger: () => undefined,
+      },
+    );
     const decision = await evaluator.evaluate("t", {}, caller);
     expect(decision.action).toBe(Action.DENY);
-    expect(decision.reason.startsWith("kei-proxy proxy_unavailable")).toBe(true);
+    expect(decision.reason.startsWith("kei-proxy proxy_unavailable")).toBe(
+      true,
+    );
+    expect(decision.reason).toContain(join(dir, "missing.sock"));
+    expect(decision.reason).toContain("--proxy-only");
     expect(decision.reason).not.toContain(TOKEN);
   });
 });
@@ -277,7 +362,12 @@ describe("KeiProxyEvaluator over the socket", () => {
 describe("tool sync contract", () => {
   let server: Server;
   let answers: Json[];
-  let seen: { method: string; path: string; headers: IncomingMessage["headers"]; body: Json }[];
+  let seen: {
+    method: string;
+    path: string;
+    headers: IncomingMessage["headers"];
+    body: Json;
+  }[];
   let url: string;
 
   beforeEach(async () => {
@@ -298,8 +388,17 @@ describe("tool sync contract", () => {
           req.socket.destroy();
           return;
         }
-        const data = "raw" in answer ? answer.raw : "body" in answer ? JSON.stringify(answer.body) : "";
-        res.writeHead(answer.status, { "Content-Length": String(Buffer.byteLength(data)) }).end(data);
+        const data =
+          "raw" in answer
+            ? answer.raw
+            : "body" in answer
+              ? JSON.stringify(answer.body)
+              : "";
+        res
+          .writeHead(answer.status, {
+            "Content-Length": String(Buffer.byteLength(data)),
+          })
+          .end(data);
       });
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -317,7 +416,8 @@ describe("tool sync contract", () => {
       backoffMs: kase.backoff_ms,
       env: {},
     });
-    const manifest = "manifest_text" in kase ? kase.manifest_text : kase.manifest;
+    const manifest =
+      "manifest_text" in kase ? kase.manifest_text : kase.manifest;
     const run = syncToolManifest(manifest, config, {
       expectTools: kase.expect_tools,
       sleep: async (ms) => {
@@ -342,26 +442,35 @@ describe("tool sync contract", () => {
     expect(sleeps).toEqual(kase.expect_sleeps_ms);
     const want = SYNC.expected_request;
     for (const s of seen) {
-      const body = "manifest_text" in kase ? JSON.parse(kase.manifest_text) : kase.manifest;
+      const body =
+        "manifest_text" in kase
+          ? JSON.parse(kase.manifest_text)
+          : kase.manifest;
       expect([s.method, s.path]).toEqual([want.method, want.path]);
-      for (const [k, v] of Object.entries(want.headers)) expect(s.headers[k.toLowerCase()]).toBe(v);
+      for (const [k, v] of Object.entries(want.headers))
+        expect(s.headers[k.toLowerCase()]).toBe(v);
       expect(s.body).toEqual(body);
     }
   });
 
-  it.each(named(SYNC.config_cases))("config: %s", (_name: string, kase: Json) => {
-    if ("error_contains" in kase.expect) {
-      expect(() => ToolManifestSyncConfig.fromEnv(kase.env)).toThrow(kase.expect.error_contains);
-      return;
-    }
-    const config = ToolManifestSyncConfig.fromEnv(kase.env);
-    expect([config.toolsUrl, config.egressProxy, config.noProxy]).toEqual([
-      kase.expect.tools_url,
-      kase.expect.egress_proxy,
-      kase.expect.no_proxy,
-    ]);
-    expect(JSON.stringify(config)).not.toContain(SYNC.token);
-  });
+  it.each(named(SYNC.config_cases))(
+    "config: %s",
+    (_name: string, kase: Json) => {
+      if ("error_contains" in kase.expect) {
+        expect(() => ToolManifestSyncConfig.fromEnv(kase.env)).toThrow(
+          kase.expect.error_contains,
+        );
+        return;
+      }
+      const config = ToolManifestSyncConfig.fromEnv(kase.env);
+      expect([config.toolsUrl, config.egressProxy, config.noProxy]).toEqual([
+        kase.expect.tools_url,
+        kase.expect.egress_proxy,
+        kase.expect.no_proxy,
+      ]);
+      expect(JSON.stringify(config)).not.toContain(SYNC.token);
+    },
+  );
 
   it.each(named(SYNC.proxy_cases))("proxy: %s", (_name: string, kase: Json) => {
     const env = kase.env;

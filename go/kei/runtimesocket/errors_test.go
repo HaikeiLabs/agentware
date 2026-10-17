@@ -47,7 +47,7 @@ func TestEvaluatorDeniesASocketErrorWithItsClass(t *testing.T) {
 }
 
 func TestUnsupportedPlatformIsAnUnavailableRefusal(t *testing.T) {
-	err := transportError(context.Background(), fmt.Errorf("dial: %w", ErrUnsupportedPlatform), false)
+	err := transportError(context.Background(), fmt.Errorf("dial: %w", ErrUnsupportedPlatform), false, "/run/kei-proxy.sock")
 	if err.Class != evaluator.ReasonProxyUnavailable || !errors.Is(err, ErrUnsupportedPlatform) {
 		t.Errorf("got %v (class %s)", err, err.Class)
 	}
@@ -60,7 +60,7 @@ func TestUnsupportedPlatformIsAnUnavailableRefusal(t *testing.T) {
 func TestCallerCancellationWrapsTheContextError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := transportError(ctx, context.Canceled, false)
+	err := transportError(ctx, context.Canceled, false, "/run/kei-proxy.sock")
 	if err.Class != evaluator.ReasonProxyUnavailable || !errors.Is(err, context.Canceled) {
 		t.Errorf("got %v", err)
 	}

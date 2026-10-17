@@ -102,6 +102,8 @@ class Decision:
     enrollment: dict[str, Any] | None = None
     connect: dict[str, Any] | None = None
     timestamp: datetime = field(default_factory=datetime.now)
+    reason_code: str | None = None
+    hint: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -111,6 +113,10 @@ class Decision:
             "redacted_args": self.redacted_args,
             "timestamp": self.timestamp.isoformat(),
         }
+        if self.reason_code is not None:
+            d["reason_code"] = self.reason_code
+        if self.hint is not None:
+            d["hint"] = self.hint
         if self.enrollment is not None:
             d["enrollment"] = self.enrollment
         if self.connect is not None:

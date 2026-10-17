@@ -30,6 +30,8 @@ const maxStdout = 1 << 20
 // maxExecutable bounds how much of a pinned executable is hashed.
 const maxExecutable = 256 << 20
 
+const proxyInstallCommand = `curl -fsSL https://haikeilabs.com/install.sh | sh -s -- --proxy-only -d "$HOME/.local/bin"`
+
 // AuthorizeChildEnvAllowlist lists the parent variables the kei-proxy child
 // may inherit. PATH and HOME are deliberately absent, as are KEI_PROXY_*
 // identity variables: identity travels as flags.
@@ -121,7 +123,7 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 	parentPath, _ := c.lookupParent("PATH")
 	executable, ok := resolveExecutable(name, parentPath)
 	if !ok {
-		return nil, &AuthorizeError{Class: ReasonProxyUnavailable, Detail: "kei-proxy was not found on PATH"}
+		return nil, &AuthorizeError{Class: ReasonProxyUnavailable, Detail: fmt.Sprintf("kei-proxy was not found on PATH (tried: %s); install with: %s", strings.Join(executableCandidates(name, parentPath), ", "), proxyInstallCommand)}
 	}
 	timeout := c.Timeout
 	if timeout <= 0 {
@@ -152,7 +154,7 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 	if runErr != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(runErr, &exitErr) {
-			return nil, &AuthorizeError{Class: ReasonProxyUnavailable, Detail: "could not start kei-proxy"}
+			return nil, &AuthorizeError{Class: ReasonProxyUnavailable, Detail: fmt.Sprintf("could not start kei-proxy at %s; install with: %s", executable, proxyInstallCommand)}
 		}
 		exitCode = exitErr.ExitCode()
 		if exitCode < 0 {
@@ -163,6 +165,28 @@ func (c *CLIClient) Authorize(ctx context.Context, req AuthorizeRequest) (map[st
 		return nil, &AuthorizeError{Class: ReasonMalformedResponse, Detail: "stdout exceeded the size limit"}
 	}
 	return ParseAuthorizeOutput(stdout.Bytes(), exitCode)
+}
+
+func executableCandidates(name, pathList string) []string {
+	if filepath.IsAbs(name) {
+		return []string{name}
+	}
+	if strings.ContainsRune(name, os.PathSeparator) || strings.ContainsRune(name, '/') {
+		if abs, err := filepath.Abs(name); err == nil {
+			return []string{abs}
+		}
+		return []string{name}
+	}
+	var candidates []string
+	for _, dir := range filepath.SplitList(pathList) {
+		if dir != "" && filepath.IsAbs(dir) {
+			candidates = append(candidates, filepath.Join(dir, name))
+		}
+	}
+	if len(candidates) == 0 {
+		return []string{name + " (PATH has no absolute entries)"}
+	}
+	return candidates
 }
 
 // resolveExecutable returns an absolute path for name. Names containing a

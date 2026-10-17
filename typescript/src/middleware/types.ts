@@ -74,6 +74,10 @@ export interface Decision {
   action: Action;
   rule: string;
   reason: string;
+  /** Machine-readable deny code returned by kei-proxy, preserved verbatim. */
+  reason_code?: string;
+  /** Remediation hint returned by kei-proxy, preserved verbatim. */
+  hint?: string;
   redacted_args?: Record<string, unknown>;
   /**
    * Opaque enrollment object from kei-proxy on a DENY (provider,

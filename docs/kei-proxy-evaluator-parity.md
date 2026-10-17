@@ -15,7 +15,7 @@ inject a fake evaluator.
 | File | Role |
 | --- | --- |
 | `fixtures/kei/policy.v1.json` | Seeded, synthetic policy: one org, one workspace, one agent, three users (linked member, linked admin, unlinked chat user), three GitHub tools and their allow, deny and enrollment rules. |
-| `fixtures/kei/authorize-cases.v1.json` | The parity table. Each case gives a tool call, the fake proxy's stdout, stderr and exit code, and the expected action, reason class, rule and enrollment (null means absent). Some cases also pin the exact argv. |
+| `fixtures/kei/authorize-cases.v1.json` | The parity table. Each case gives a tool call, the fake proxy's stdout, stderr and exit code, and the expected action, reason class, rule, enrollment, and any `reason_code` / `hint` (null means absent). Some cases also pin the exact argv. |
 | `fixtures/kei/fake-kei-proxy.sh` | The fake kei-proxy. A test copies it into a temp dir next to the case's `stdout`, `stderr` and `exit_code` files (plus `hang` for the timeout case). It prints the canned answer and records its `argv` and `env`; in `hang` mode it backgrounds a grandchild and records its pid in `hang_pid`. It uses absolute command paths because the child has no PATH. It makes no network calls. |
 
 Every language reads these files from the repo root; there are no mirrored
@@ -24,11 +24,13 @@ three ports in the same stack.
 
 ## The contract
 
-The kei-proxy authorize output (kei-connector-runtime `authorize.go`, #41):
-stdout is one JSON object, `decision` plus optional `reason`, `service`,
-`credential` and `enrollment`. It exits 0 for `allow` and `enrollment_required`,
-and exits 1 for `deny`. Every error also exits 1, with nothing on stdout and a
-diagnostic on stderr.
+The kei-proxy authorize output:
+stdout is one JSON object, `decision` plus optional `reason`, `reason_code`,
+`hint`, `service`, `credential` and `enrollment`. The SDK carries `reason_code`
+and `hint` onto `Decision` unchanged when present. For remediation wording,
+see the deny reason table in the kei-proxy README. It exits 0 for `allow` and
+`enrollment_required`, and exits 1 for `deny`. Every error also exits 1, with
+nothing on stdout and a diagnostic on stderr.
 
 | Proxy result | Action | Reason class | Enrollment | Connect |
 | --- | --- | --- | --- | --- |
@@ -50,6 +52,12 @@ diagnostic on stderr.
 Every reason reads `kei-proxy <class>` or `kei-proxy <class>: <detail>`.
 `rule` is the output's `policy_id` (or `policy`) when present, else
 `kei-proxy`.
+
+When a proxy response includes a deny `reason_code` or `hint`, the evaluator
+preserves both values on `Decision` (`ReasonCode` / `Hint` in Go,
+`reason_code` / `hint` in Python and TypeScript). Existing responses without
+these fields remain valid. Socket and binary start failures identify the
+attempted path and include the proxy-only install command.
 
 Invariants every port asserts on every case:
 

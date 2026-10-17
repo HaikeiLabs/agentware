@@ -54,15 +54,18 @@ type authorizeCase struct {
 		OmitToken bool `json:"omit_token"`
 	} `json:"env"`
 	Expected struct {
-		Action         string         `json:"action"`
-		ReasonClass    string         `json:"reason_class"`
-		Rule           string         `json:"rule"`
-		Enrollment     map[string]any `json:"enrollment"`
-		Connect        map[string]any `json:"connect"`
-		Invoked        bool           `json:"invoked"`
-		ReasonContains string         `json:"reason_contains"`
-		Argv           []string       `json:"argv"`
-		GroupKilled    bool           `json:"group_killed"`
+		Action                   string         `json:"action"`
+		ReasonClass              string         `json:"reason_class"`
+		ReasonCode               string         `json:"reason_code"`
+		Hint                     string         `json:"hint"`
+		Rule                     string         `json:"rule"`
+		Enrollment               map[string]any `json:"enrollment"`
+		Connect                  map[string]any `json:"connect"`
+		Invoked                  bool           `json:"invoked"`
+		ReasonContains           string         `json:"reason_contains"`
+		ReasonContainsBinaryPath bool           `json:"reason_contains_binary_path"`
+		Argv                     []string       `json:"argv"`
+		GroupKilled              bool           `json:"group_killed"`
 	} `json:"expected"`
 }
 
@@ -276,8 +279,21 @@ func TestAuthorizeCases(t *testing.T) {
 			if !reflect.DeepEqual(got.decision.Connect, want.Connect) {
 				t.Errorf("connect = %v, want %v", got.decision.Connect, want.Connect)
 			}
+			if code := reflect.ValueOf(got.decision).FieldByName("ReasonCode"); !code.IsValid() {
+				t.Error("Decision does not expose reason_code")
+			} else if code.String() != want.ReasonCode {
+				t.Errorf("reason_code = %q, want %q", code.String(), want.ReasonCode)
+			}
+			if hint := reflect.ValueOf(got.decision).FieldByName("Hint"); !hint.IsValid() {
+				t.Error("Decision does not expose hint")
+			} else if hint.String() != want.Hint {
+				t.Errorf("hint = %q, want %q", hint.String(), want.Hint)
+			}
 			if want.ReasonContains != "" && !strings.Contains(got.decision.Reason, want.ReasonContains) {
 				t.Errorf("reason %q does not contain %q", got.decision.Reason, want.ReasonContains)
+			}
+			if want.ReasonContainsBinaryPath && !strings.Contains(got.decision.Reason, filepath.Join(got.dir, "kei-proxy")) {
+				t.Errorf("reason %q does not include the attempted binary path", got.decision.Reason)
 			}
 			for name, canary := range table.Canaries {
 				if strings.Contains(got.decision.Reason, canary) {

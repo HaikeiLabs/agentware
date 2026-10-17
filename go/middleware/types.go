@@ -54,9 +54,13 @@ func (c CallerContext) Delegate(parentSpan string) CallerContext {
 }
 
 type Decision struct {
-	Action       Action
-	Rule         string
-	Reason       string
+	Action Action
+	Rule   string
+	Reason string
+	// ReasonCode is the proxy's machine-readable denial code, carried verbatim.
+	ReasonCode string `json:"reason_code,omitempty"`
+	// Hint is the proxy's remediation hint, carried verbatim and never interpreted.
+	Hint         string `json:"hint,omitempty"`
 	RedactedArgs map[string]any
 	// Enrollment is kei-proxy's opaque enrollment object on a DENY
 	// (provider, provider_user_id, org_id, workspace_id and optionally

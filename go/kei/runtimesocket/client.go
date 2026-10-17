@@ -365,7 +365,7 @@ func (c *Client) stream(ctx context.Context, sessionID string, body map[string]a
 	}
 	res, err := c.httpClient().Do(req)
 	if err != nil {
-		return false, transportError(ctx, err, timedOut.Load())
+		return false, transportError(ctx, err, timedOut.Load(), c.ResolvedSocketPath())
 	}
 	defer func() { _ = res.Body.Close() }()
 
@@ -397,7 +397,7 @@ func (c *Client) stream(ctx context.Context, sessionID string, body map[string]a
 		if errors.Is(err, bufio.ErrTooLong) {
 			return false, malformed("a streamed line exceeds the size limit")
 		}
-		return false, transportError(ctx, err, timedOut.Load())
+		return false, transportError(ctx, err, timedOut.Load(), c.ResolvedSocketPath())
 	}
 	return false, nil
 }
@@ -489,12 +489,12 @@ func (c *Client) send(ctx context.Context, method, path, sessionID string, body 
 	}
 	res, err := c.httpClient().Do(req)
 	if err != nil {
-		return nil, transportError(ctx, err, false)
+		return nil, transportError(ctx, err, false, c.ResolvedSocketPath())
 	}
 	defer func() { _ = res.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
 	if err != nil {
-		return nil, transportError(ctx, err, false)
+		return nil, transportError(ctx, err, false, c.ResolvedSocketPath())
 	}
 	resp := &response{status: res.StatusCode, body: data}
 	if len(data) > maxResponseBytes {

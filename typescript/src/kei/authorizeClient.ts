@@ -66,6 +66,8 @@ const HASH_CHUNK_BYTES = 64 * 1024;
 const SHA256_HEX = /^[0-9a-fA-F]{64}$/;
 
 const RUNTIME_TOKEN_ENV = "KEI_RUNTIME_TOKEN";
+const PROXY_INSTALL_COMMAND =
+  'curl -fsSL https://haikeilabs.com/install.sh | sh -s -- --proxy-only -d "$HOME/.local/bin"';
 
 export interface KeiProxyAuthorizeClientOptions {
   /**
@@ -95,6 +97,8 @@ export interface KeiProxyAuthorizeClientOptions {
 export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
   /** Absolute path to spawn, or undefined when a bare name was not found. */
   private readonly executable: string | undefined;
+  /** Candidate paths tried while resolving a bare executable name. */
+  private readonly executableCandidates: string[];
   private readonly expectedDigest: Buffer | undefined;
   private readonly timeoutMs: number;
   private readonly env?: Readonly<Record<string, string | undefined>>;
@@ -112,10 +116,12 @@ export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
       this.expectedDigest = Buffer.from(options.expectedSha256, "hex");
     }
     this.env = options.env;
+    const parentPath = (this.env ?? process.env).PATH;
     this.executable = resolveExecutable(
       executable,
-      (this.env ?? process.env).PATH,
+      parentPath,
     );
+    this.executableCandidates = candidateExecutables(executable, parentPath);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_AUTHORIZE_TIMEOUT_MS;
     this.extraEnv = options.extraEnv ?? {};
   }
@@ -144,7 +150,7 @@ export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
     if (this.executable === undefined) {
       throw new KeiProxyAuthorizeError(
         "proxy_unavailable",
-        "kei-proxy was not found on PATH",
+        `kei-proxy was not found on PATH (tried: ${this.executableCandidates.join(", ")}); install with: ${PROXY_INSTALL_COMMAND}`,
       );
     }
     if (this.expectedDigest !== undefined) {
@@ -175,7 +181,7 @@ export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
           windowsHide: true,
         });
       } catch (err) {
-        rejectPromise(unavailable(err));
+        rejectPromise(unavailable(err, executable));
         return;
       }
 
@@ -215,9 +221,12 @@ export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
 
       child.on("error", (err) => {
         if (child.pid === undefined) {
-          fail(unavailable(err), false);
+          fail(unavailable(err, executable), false);
         } else {
-          fail(new KeiProxyAuthorizeError("proxy_error", "kei-proxy failed"), true);
+          fail(
+            new KeiProxyAuthorizeError("proxy_error", "kei-proxy failed"),
+            true,
+          );
         }
       });
       child.stdout?.on("data", (chunk: Buffer) => {
@@ -257,11 +266,11 @@ export class KeiProxyAuthorizeClient implements KeiProxyAuthorizationClient {
   }
 }
 
-function unavailable(err: unknown): KeiProxyAuthorizeError {
+function unavailable(err: unknown, executable: string): KeiProxyAuthorizeError {
   const code = (err as NodeJS.ErrnoException | undefined)?.code;
   return new KeiProxyAuthorizeError(
     "proxy_unavailable",
-    `could not start kei-proxy (${code ?? "error"})`,
+    `could not start kei-proxy at ${executable} (${code ?? "error"}); install with: ${PROXY_INSTALL_COMMAND}`,
   );
 }
 
@@ -290,6 +299,23 @@ function resolveExecutable(
     }
   }
   return undefined;
+}
+
+function candidateExecutables(
+  executable: string,
+  pathVar: string | undefined,
+): string[] {
+  if (isAbsolute(executable)) return [executable];
+  if (executable.includes("/") || executable.includes("\\")) {
+    return [resolve(executable)];
+  }
+  const candidates = (pathVar ?? "")
+    .split(delimiter)
+    .filter((dir) => dir && isAbsolute(dir))
+    .map((dir) => join(dir, executable));
+  return candidates.length > 0
+    ? candidates
+    : [`${executable} (PATH has no absolute entries)`];
 }
 
 function pinMismatch(detail: string): KeiProxyAuthorizeError {

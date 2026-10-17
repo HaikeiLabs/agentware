@@ -351,6 +351,34 @@
       }
     },
     {
+      "id": "deny_with_actionable_hint",
+      "description": "The proxy reason code and fix hint are carried through unchanged.",
+      "derived_from": "pol-write-member-deny",
+      "input": {
+        "user": "member",
+        "tool": "github.create_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "action": "github:write"
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"no policy permits this tool\",\"reason_code\":\"no_matching_policy\",\"hint\":\"fixture hint is preserved verbatim\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "reason_code": "no_matching_policy",
+        "hint": "fixture hint is preserved verbatim",
+        "invoked": true
+      }
+    },
+    {
       "id": "deny_with_policy_id",
       "description": "A policy_id in the output attributes the decision's rule.",
       "derived_from": "pol-write-member-deny",
@@ -1025,6 +1053,8 @@
         "rule": "kei-proxy",
         "enrollment": null,
         "reason_class": "proxy_unavailable",
+        "reason_contains": "--proxy-only",
+        "reason_contains_binary_path": true,
         "invoked": false
       }
     },
