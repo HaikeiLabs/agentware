@@ -14,6 +14,16 @@ The module path is lowercase; `github.com/HaikeiLabs/agentware/go` does not
 resolve. Releases are tagged `go/vX.Y.Z` at the same version as the npm and
 PyPI packages (`go get github.com/haikeilabs/agentware/go@vX.Y.Z`).
 
+## Governed harness quick start: socket client first
+
+For a working socket-based harness, start with the [Go getting started
+guide](../getting-started/go.md) and the
+[`examples/go/minimal-harness`](../../examples/go/minimal-harness) example.
+The socket client is recommended. `evaluator.CLIClient` and
+`kei-proxy authorize` subprocess integration are deprecated; use
+`runtimesocket.Client` or `runtimesocket.SelectAuthorizationClient` with a
+configured socket.
+
 ## Basic Usage
 
 ### Creating a Policy
@@ -135,7 +145,7 @@ result, err := client.Execute(ctx, "read_file", map[string]any{"path": "/tmp/tes
 // result: audited either way; framework stamped from the client source.
 ```
 
-## kei-proxy Policy Evaluator
+## Deprecated: subprocess kei-proxy policy evaluator
 
 `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) is a
 `middleware.PolicyEvaluator` that runs `kei-proxy authorize` before each tool
@@ -176,7 +186,7 @@ When present, the proxy's `reason_code` and `hint` are available unchanged as
 `Decision.ReasonCode` and `Decision.Hint`; see the deny reason table in the
 kei-proxy README for remediation wording.
 
-### Over the kei-proxy daemon socket
+### Recommended: over the kei-proxy daemon socket
 
 When `kei-proxy serve` runs beside the harness, talk to it over its Unix
 socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)

@@ -172,7 +172,8 @@ coordinated separately; entries collect under **Unreleased** until then.
 
 ### Changed
 
-- **Breaking:** Removed `approval_id` from the delegation envelope (ADR-027).
+- **Breaking:** Removed `approval_id` from the delegation envelope. The
+  per-call approval field is no longer part of the delegation contract.
   The Kei call-approval protocol no longer exists — approvals grant access and
   are not per-call signals. The field is dropped from delegation-envelope
   fixtures (`fixtures/kei/delegation-envelope-v1.json`) and delegation-boundary

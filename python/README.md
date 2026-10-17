@@ -15,6 +15,16 @@ TypeScript implementations with the same behaviour.
 pip install haikeilabs-agentware
 ```
 
+## Governed harness quick start: socket client first
+
+For an executable allow/deny walkthrough through the `kei-proxy` socket, see
+the [Python getting started guide](../docs/getting-started/python.md) and the
+[`examples/python/minimal-harness`](../examples/python/minimal-harness)
+example. `KeiProxySocketAuthorizeClient` is the recommended client;
+`KeiProxyAuthorizeClient` (`kei-proxy authorize` subprocess) is deprecated.
+The package install lines and supported runtime versions are listed in the
+[repository README](../README.md).
+
 ```python
 from haikeilabs.agentware.middleware import AuditedToolClient
 import haikeilabs.agentware.kei

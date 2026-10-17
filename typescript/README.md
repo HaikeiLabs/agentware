@@ -4,6 +4,15 @@
 that already own their agent loop, channel integration, identities, and tool
 handlers.
 
+## Governed harness quick start: socket client first
+
+For an executable allow/deny walkthrough through the `kei-proxy` socket, see
+the [TypeScript getting started guide](../docs/getting-started/typescript.md)
+and the [`examples/typescript/minimal-harness`](../examples/typescript/minimal-harness)
+example. The install lines and compatibility table are in the
+[repository README](../README.md). `KeiProxyAuthorizeClient`
+(`kei-proxy authorize` subprocess) is deprecated; use the socket client.
+
 ## Async tool wrapper
 
 Use `wrapTool` to make an existing tool callable through a consistent async
@@ -44,7 +53,7 @@ Keep channel ingress, identity verification, delegated credentials, and
 domain-specific authorization in the host application. Agentware is not a
 policy engine; a policy gate can wrap this same boundary later.
 
-## kei-proxy policy evaluator
+## Deprecated: subprocess kei-proxy policy evaluator
 
 `KeiProxyEvaluator` runs `kei-proxy authorize` before each tool call and fails
 closed on anything other than an explicit `allow`/`permit` with exit 0.

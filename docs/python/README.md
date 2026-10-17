@@ -19,6 +19,15 @@ deprecated alias that resolves to the same modules. See
 [PyPI distribution strategy](pypi-distribution-strategy.md) for the artifact
 contract and the release process.
 
+## Governed harness quick start: socket client first
+
+Start with the [Python getting started guide](../getting-started/python.md)
+and the [`examples/python/minimal-harness`](../../examples/python/minimal-harness)
+example. It demonstrates an allow and deny through the `kei-proxy` socket.
+The socket client is recommended. `KeiProxyAuthorizeClient`, which starts
+`kei-proxy authorize` as a subprocess, is deprecated; use
+`KeiProxySocketAuthorizeClient`.
+
 ## Basic Usage
 
 ### Creating a Policy
@@ -155,9 +164,9 @@ Third-party agent harnesses build against `haikeilabs.agentware` through the
 `python/tests/third_party_harness_test.py` for a complete example that imports
 nothing outside this library.
 
-## kei-proxy Policy Evaluator
+## Deprecated: subprocess policy evaluator
 
-`KeiProxyEvaluator` is a `PolicyEvaluator` that asks `kei-proxy authorize`
+`KeiProxyEvaluator` with `KeiProxyAuthorizeClient` asks `kei-proxy authorize`
 before every tool call and fails closed on anything that is not an explicit
 `allow`/`permit`. `KeiProxyAuthorizeClient` runs the binary; `KEI_RUNTIME_TOKEN`
 reaches it only through its (allowlisted) environment, never argv. The child
@@ -186,7 +195,7 @@ When present, the proxy's `reason_code` and `hint` are available unchanged as
 `Decision.reason_code` and `Decision.hint`; see the deny reason table in the
 kei-proxy README for remediation wording.
 
-### Over the kei-proxy daemon socket
+### Recommended: over the kei-proxy daemon socket
 
 When `kei-proxy serve` runs beside the harness, talk to it over its Unix
 socket (`KEI_RUNTIME_SOCKET_PATH`, default `/run/kei-proxy/runtime.sock`)
