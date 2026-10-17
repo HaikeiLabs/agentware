@@ -1,17 +1,86 @@
-# Python Harness Helper
+# Third-Party Harness Contract
 
-`HarnessContract`, `HarnessManifest`, and `validate_contract` are Python-only
-helpers. This document describes that Python implementation; it does not
-define a cross-language harness contract, and Go and TypeScript do not promise
-these types or validation APIs. Each language exposes its own middleware and
-Kei integration surfaces.
+This contract describes the requirements for a custom harness in any language.
+The harness may use an agentware port or call the local `kei-proxy` runtime
+socket directly. It must keep the invoking user's identity with each governed
+tool call and ask the proxy for an authorization decision before execution.
 
-Third-party harnesses can build on the language-specific SDK APIs without
-depending on an agent framework.
+The SDK (Agentware) path is one of Kei's six user-facing harness types. The
+other five types and their integration paths are listed in the section below.
 
-> **Boundary:** agentware models bindings, opaque auth references, local policy, and delegation — it never grants permission from bindings, resolves connector secrets, executes providers, or depends on Kei/ABAC to run a governed local loop. See [`action-tool-boundary.md`](action-tool-boundary.md).
+## Registration and tool manifest
 
-**Kei's harness taxonomy.** The six user-facing harness types are:
+Register a custom harness with `kei harness add --kind custom`. Register the
+tools it exposes with `kei harness sync --harness custom --manifest tools.json`.
+The manifest describes tools; it does not grant permission. Keep it as
+non-secret metadata. In particular, `tool_bindings` and `secret_refs` contain
+routing information and opaque references only. Never put `KEI_RUNTIME_TOKEN`
+or any other credential in a manifest.
+
+## Identity and context
+
+For each authorization request, preserve the authenticated runtime context and
+send the caller context that belongs to the invocation:
+
+- `user_id` identifies the invoking user; `invoking_subject` preserves that
+  same human identity across delegation.
+- `framework` identifies the harness/framework making the call.
+- The runtime token establishes the workspace and installation scope. Do not
+  treat caller-supplied workspace or installation values as authority.
+- Do not send `agent_id` to `authorize`. Agent identity is discovered from the
+  runtime identity event when the harness needs it; it is not an authorization
+  request field.
+
+A missing caller identity or authenticated runtime context must fail closed.
+Do not infer identity from prompt text or an agent-supplied environment value.
+
+## Authorize every governed tool call
+
+Send each governed tool call to `kei-proxy authorize` through the local Unix
+socket before executing it. The proxy is the connector/provider runtime and
+policy enforcement point. Treat the result as `allow` or `deny`; execute the
+tool only for an explicit allow/permit decision. Deny on an unknown or missing
+decision, an unreachable proxy, a missing credential, or an expired token.
+Never fall back to ungoverned execution when authorization cannot complete.
+
+A denial includes a machine-readable `reason_code` and a user-facing `hint`.
+Preserve and surface those values so the user can understand the next step.
+The reason and hint wording contract lives in
+[`deny-hints.md`](deny-hints.md).
+
+## Audit lineage and data boundaries
+
+Record each authorization outcome with its harness/framework and the invoking
+user preserved through delegation. Keep the decision and its reason available
+for audit. Do not log the runtime token or other credentials.
+
+The harness and agentware run on the tenant side. Kei is a metadata-only
+control plane: provider payloads and results, customer content, credentials,
+embeddings, and indexes never enter Kei. The proxy may use metadata and
+credential references from the control plane, but resolves credentials and
+executes providers within the tenant runtime. See
+[`tenant-proxy-reference.md`](tenant-proxy-reference.md) for the boundary.
+
+## Language guides and minimal harnesses
+
+- Go: [`docs/go/README.md`](go/README.md) and [`examples/go/minimal-harness/README.md`](../examples/go/minimal-harness/README.md).
+- Python: [`docs/python/README.md`](python/README.md) and [`examples/python/minimal-harness/README.md`](../examples/python/minimal-harness/README.md).
+- TypeScript: [`docs/typescript/README.md`](typescript/README.md) and [`examples/typescript/minimal-harness/README.md`](../examples/typescript/minimal-harness/README.md).
+
+## Python helper
+
+Python provides optional helper types for assembling a harness. These are
+Python APIs, not requirements for Go or TypeScript implementations.
+
+`HarnessContract`, `HarnessManifest`, and `validate_contract` are Python
+helpers. See the Python implementation and tests for their exact signatures
+and behavior. Python integrations can also use `KeiProxyEvaluator` and the
+Python runtime socket client; verify those APIs against the Python source and
+tests.
+
+## Kei harness types
+
+Kei has six user-facing harness types:
 
 - **SDK (Agentware)** — a harness built on Agentware that uses
   `KeiProxyEvaluator` → `kei-proxy authorize`, fail closed. Covers
@@ -23,252 +92,5 @@ depending on an agent framework.
 - **Pi** — own package + local-socket adapter.
 - **Open WebUI** — own Python library (`openwebui-kei`), not the SDK path.
 
-If you are building a custom agent loop that calls `kei-proxy authorize` for
-every governed tool invocation, you are on the SDK (Agentware) path and this
-contract is for you. For the other types, Kei provides the integration
-directly.
-
----
-
-## Python Helper Components
-
-The Python helper can assemble the following three components. They are not
-requirements imposed on harnesses in Go or TypeScript:
-
-### 1. AuthProvider
-
-Provides authentication tokens for the KEI API. The library defines the interface:
-
-```python
-from haikeilabs.agentware.kei import AuthProvider, OpaqueTokenProvider
-
-# Simple implementation using the built-in opaque token provider
-auth_provider = OpaqueTokenProvider(
-    token="your-bootstrap-token",  # or use secret_provider
-)
-```
-
-Or implement the protocol yourself:
-
-```python
-from typing import Protocol
-from haikeilabs.agentware.kei import TokenInfo, TokenType
-
-class MyAuthProvider(Protocol):
-    def get_token(self) -> TokenInfo: ...
-    def invalidate(self) -> None: ...
-    def get_token_type(self) -> TokenType: ...
-```
-
-### 2. ToolExecutor
-
-Executes tools on behalf of agents. The library defines the interface:
-
-```python
-from haikeilabs.agentware.kei import ToolExecutor
-
-class MyToolExecutor:
-    def execute(self, tool_name: str, args: dict) -> Any:
-        # Your tool execution logic here
-        if tool_name == "my_tool":
-            return {"result": "success"}
-        raise ToolNotFoundError(f"Unknown tool: {tool_name}")
-```
-
-### 3. SecretProvider
-
-Sources the bootstrap secret (`KEI_RUNTIME_TOKEN`). Use the built-in:
-
-```python
-from haikeilabs.agentware.kei import EnvSecretProvider
-
-secret_provider = EnvSecretProvider()
-```
-
-Or implement your own:
-
-```python
-class MySecretProvider(Protocol):
-    def get_secret(self, name: str) -> str | None: ...
-```
-
----
-
-## Smallest Python Example
-
-```python
-from haikeilabs.agentware.kei import (
-    HarnessContract,
-    OpaqueTokenProvider,
-    EnvSecretProvider,
-    ToolExecutor,
-    ToolNotFoundError,
-)
-
-# 1. Implement ToolExecutor
-class MinimalToolExecutor:
-    def execute(self, tool_name: str, args: dict) -> dict:
-        if tool_name == "echo":
-            return {"echo": args.get("message", "")}
-        raise ToolNotFoundError(f"Tool not found: {tool_name}")
-
-# 2. Create the contract
-contract = HarnessContract(
-    auth_provider=OpaqueTokenProvider(token="test-token"),
-    tool_executor=MinimalToolExecutor(),
-    secret_provider=EnvSecretProvider(),
-)
-
-# 3. Validate it
-from haikeilabs.agentware.kei import validate_contract
-errors = validate_contract(contract)
-if errors:
-    raise ValueError(f"Contract invalid: {errors}")
-```
-
----
-
-## What the Python SDK Provides
-
-### Policy Enforcement
-
-The library provides policy evaluation via `PolicyEvaluator`. See `kei/evaluator.py` for the `KeiProxyEvaluator` implementation that connects to the KEI proxy for policy decisions.
-
-```python
-from haikeilabs.agentware.middleware import AuditedToolClient
-
-client = AuditedToolClient(
-    source="my-harness",
-    evaluator=policy_evaluator,  # Your PolicyEvaluator
-    auditor=auditor,             # Optional: your Auditor
-)
-
-# Or let the contract wire its executor, policy, and auditor together:
-client = contract.create_tool_client(source="my-harness")
-```
-
-### Audit Logging
-
-Every tool call is recorded. Use the built-in or provide your own:
-
-```python
-from haikeilabs.agentware.middleware import InMemoryAuditor
-
-auditor = InMemoryAuditor()
-# Access records: auditor.query(filter)
-```
-
-### CallerContext Delegation
-
-The library tracks human identity across subagent delegation:
-
-```python
-from haikeilabs.agentware.middleware import CallerContext
-
-# At human entry point
-caller = CallerContext(
-    user_id="user-123",
-    invoking_subject="user-123",  # The HUMAN
-    source="my-harness",
-)
-
-# When spawning a subagent
-child = caller.delegate(span="agent-1")
-# child.invoking_subject remains "user-123"
-# child.delegation_depth = 1
-```
-
----
-
-## Fail-Closed Rules
-
-The library enforces fail-closed security. All of these result in **DENY**:
-
-| Condition | Behavior |
-|-----------|----------|
-| Unknown policy decision | DENY - no implicit allow |
-| Unreachable proxy | DENY - cannot bypass policy |
-| Missing credential | DENY - no token, no access |
-| Expired token | DENY - renewal must succeed |
-
-See `docs/fail-closed-design.md` for the full decision table, the
-`KEI_PROXY_DISABLED` contract (fail-closed, never an allow switch), and the
-governed vs non-governed tool call distinction.
-
----
-
-## Control-Plane Boundary
-
-The harness runs **on the tenant side**; Kei is a **metadata-only control
-plane**. Everything the harness sends to Kei — and everything agentware sends on
-its behalf — is metadata; customer data never crosses the boundary. See
-`docs/tenant-proxy-reference.md` for the authoritative architecture before
-changing this contract.
-
-- **Non-secret metadata only.** `tool_bindings` (tool → connector routing) and
-  `secret_refs` (opaque reference identifiers) are metadata; they grant no
-  permissions and are never resolved to credentials by the library. The
-  bootstrap secret (`KEI_RUNTIME_TOKEN`) is loaded separately from the
-  environment or a secret provider and is rejected from any manifest.
-- **Agent identity comes from the runtime.** `KEI_RUNTIME_TOKEN` is the only
-  credential a harness needs. The agent it runs as is the one whoami assigns,
-  reported on the runtime's `identity` event; an adapter reads it from
-  `link.identity()` (`defaultAgentId` / `default_agent_id` / `DefaultAgentID`,
-  plus the assigned `agents` list) and must not require an agent-ID env var.
-  See `docs/runtime-link-integration.md`.
-- **The proxy is the enforcement boundary.** Governed external operations go
-  through the proxy, which is the connector/provider runtime and policy
-  enforcement point. The local middleware chain evaluates policy and audits
-  locally and fails closed.
-- **ABAC is a decision point.** ABAC is called for metadata policy decisions
-  only — it decides; it never executes writes and never serves/store
-  credentials.
-- **Never in Kei.** Provider payloads and results, customer content,
-  credentials, embeddings, and indexes never enter the control plane.
-
----
-
-## Python CallerContext Delegation Rule
-
-**The `invoking_subject` is the HUMAN and is carried UNCHANGED across every delegation hop.** This section describes Python's `CallerContext.delegate()` method. Go provides `CallerContext.Delegate`; TypeScript contexts created with `createCallerContext()` provide `caller.delegate()`.
-
-- `parent_span` and `delegation_depth` record position in the chain
-- A subagent running as a service account still resolves to the person who initiated the request
-- The `delegate()` method creates child context but preserves `invoking_subject`
-
-This ensures full attribution: every tool call can be traced back to the human who authorized it, even through multiple levels of agent delegation.
-
----
-
-## Optional Components
-
-These have library defaults:
-
-| Component | Default | Description |
-|-----------|---------|-------------|
-| `policy_evaluator` | Explicit deny-all evaluator | Enforces policy on tool calls |
-| `auditor` | `InMemoryAuditor` | Records all tool call decisions |
-| `proxy_process` | `None` | Manages local KEI proxy |
-
----
-
-## Python File Structure
-
-The contract reuses existing types:
-
-- `kei/config.py` - `HarnessManifest`, `HarnessConfig`
-- `kei/auth.py` - `AuthProvider`, `SecretProvider`, `TokenInfo`
-- `kei/proxy.py` - `ProxyProcess`, `ProxyConfig`
-- `middleware/types.py` - `CallerContext`, `Decision`, `Action`
-- `middleware/policy.py` - `PolicyEvaluator`
-- `middleware/audit.py` - `Auditor`, `AuditRecord`
-- `middleware/tool_client.py` - `AuditedToolClient`
-- `kei/evaluator.py` - `KeiProxyEvaluator` (policy-enforcement seam)
-
----
-
-## Testing
-
-The Python helper is testable without importing `pedro-tag` or `pedro_service`.
-The test in `python/tests/third_party_harness_test.py` demonstrates building a
-Python harness using only `haikeilabs.agentware`.
+For the authoritative tenant-side proxy architecture, see
+[`tenant-proxy-reference.md`](tenant-proxy-reference.md).
