@@ -72,6 +72,9 @@ AUTHORIZE_CHILD_ENV_ALLOWLIST = (
 )
 
 DEFAULT_AUTHORIZE_TIMEOUT = 10.0
+_PROXY_INSTALL_COMMAND = (
+    'curl -fsSL https://haikeilabs.com/install.sh | sh -s -- --proxy-only -d "$HOME/.local/bin"'
+)
 
 _SHA256_HEX = re.compile(r"[0-9a-fA-F]{64}")
 _HASH_CHUNK = 64 * 1024
@@ -123,6 +126,9 @@ class KeiProxyAuthorizeClient:
         self._executable = _resolve_executable(
             executable, (os.environ if env is None else env).get("PATH")
         )
+        self._executable_candidates = _candidate_executables(
+            executable, (os.environ if env is None else env).get("PATH")
+        )
 
     def child_env(self) -> dict[str, str]:
         """The exact environment the kei-proxy child receives."""
@@ -159,7 +165,11 @@ class KeiProxyAuthorizeClient:
         if not env.get(BOOTSTRAP_TOKEN_ENV):
             raise KeiProxyAuthorizeError("missing_token", f"{BOOTSTRAP_TOKEN_ENV} is not set")
         if self._executable is None:
-            raise KeiProxyAuthorizeError("proxy_unavailable", "kei-proxy was not found on PATH")
+            tried = ", ".join(self._executable_candidates)
+            raise KeiProxyAuthorizeError(
+                "proxy_unavailable",
+                f"kei-proxy was not found on PATH (tried: {tried}); install with: {_PROXY_INSTALL_COMMAND}",
+            )
         if self._expected_digest is not None:
             _prove_executable(self._executable, self._expected_digest)
 
@@ -200,7 +210,8 @@ class KeiProxyAuthorizeClient:
             )
         except OSError as exc:
             raise KeiProxyAuthorizeError(
-                "proxy_unavailable", f"could not start kei-proxy ({type(exc).__name__})"
+                "proxy_unavailable",
+                f"could not start kei-proxy at {self._executable} ({type(exc).__name__}); install with: {_PROXY_INSTALL_COMMAND}",
             ) from None
         try:
             stdout, _ = proc.communicate(timeout=self._timeout)
@@ -242,6 +253,19 @@ def _resolve_executable(executable: str, path: str | None) -> str | None:
         return os.path.abspath(executable)
     search = os.pathsep.join(d for d in (path or "").split(os.pathsep) if os.path.isabs(d))
     return shutil.which(executable, path=search) if search else None
+
+
+def _candidate_executables(executable: str, path: str | None) -> list[str]:
+    if os.path.isabs(executable):
+        return [executable]
+    if os.sep in executable or (os.altsep and os.altsep in executable):
+        return [os.path.abspath(executable)]
+    candidates = [
+        os.path.join(directory, executable)
+        for directory in (path or "").split(os.pathsep)
+        if os.path.isabs(directory)
+    ]
+    return candidates or [f"{executable} (PATH has no absolute entries)"]
 
 
 def _pin_mismatch(detail: str) -> KeiProxyAuthorizeError:

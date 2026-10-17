@@ -169,6 +169,10 @@ await runtime.closeSession(session);
 const evaluator = new KeiProxyEvaluator(selectAuthorizationClient("teams"));
 ```
 
+When present, the proxy's `reason_code` and `hint` are available unchanged on
+`Decision`; see the deny reason table in the kei-proxy README for remediation
+wording.
+
 Register the harness's tools before serving with `syncToolManifest`: it `PUT`s
 the tool manifest v2 to `$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools`
 with `KEI_RUNTIME_TOKEN`, replacing the installation's tools, so it refuses to

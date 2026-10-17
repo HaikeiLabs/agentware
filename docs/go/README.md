@@ -172,6 +172,9 @@ Reasons read `kei-proxy <class>[: <detail>]` with a class from
 and `workspace_id` are read from `caller.Metadata`. The behaviour matches the
 Python and TypeScript ports case for case; see
 `docs/kei-proxy-evaluator-parity.md`.
+When present, the proxy's `reason_code` and `hint` are available unchanged as
+`Decision.ReasonCode` and `Decision.Hint`; see the deny reason table in the
+kei-proxy README for remediation wording.
 
 ### Over the kei-proxy daemon socket
 

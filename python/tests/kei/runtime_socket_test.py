@@ -66,7 +66,11 @@ class FakeDaemon:
             self.sessions += 1
             return httpx.Response(
                 201,
-                json={"schema": "kei.session/v2", "session_id": f"sess-{self.sessions}", "user_id": "u"},
+                json={
+                    "schema": "kei.session/v2",
+                    "session_id": f"sess-{self.sessions}",
+                    "user_id": "u",
+                },
             )
         if key == ("POST", "/v1/authorize"):
             return httpx.Response(200, json=PERMIT)
@@ -98,7 +102,8 @@ def _respond(answer: Answer, request: httpx.Request) -> httpx.Response:
 
 def error(status: int, code: str) -> httpx.Response:
     return httpx.Response(
-        status, json={"error": {"code": code, "message": f"{code} {TOKEN}", "type": "runtime_error"}}
+        status,
+        json={"error": {"code": code, "message": f"{code} {TOKEN}", "type": "runtime_error"}},
     )
 
 
@@ -231,7 +236,13 @@ async def test_authorize_sends_the_request_schema_in_the_session_and_no_user() -
 
 async def test_a_deny_is_returned_not_raised() -> None:
     daemon = FakeDaemon()
-    daemon.authorize = [deny("subject_unlinked", enrollment={"claim_url": "https://x"})]
+    daemon.authorize = [
+        deny(
+            "subject_unlinked",
+            hint="Link your account in Kei.",
+            enrollment={"claim_url": "https://x"},
+        )
+    ]
     client = daemon.client()
     answer = await client.authorize(await client.open_session(ADA), tool="t")
     assert answer["decision"] == "deny" and answer["reason_code"] == "subject_unlinked"
@@ -243,7 +254,9 @@ async def test_session_not_found_in_the_answer_reopens_once() -> None:
     client = daemon.client()
     answer = await client.authorize(await client.open_session(ADA), tool="t")
     assert answer == PERMIT
-    sessions = [r.headers.get("X-Kei-Session") for r in daemon.requests if r.url.path == "/v1/authorize"]
+    sessions = [
+        r.headers.get("X-Kei-Session") for r in daemon.requests if r.url.path == "/v1/authorize"
+    ]
     assert sessions == ["sess-1", "sess-2"]
     assert (await client.open_session(ADA)).session_id == "sess-2"
 
@@ -380,7 +393,9 @@ async def test_chat_completion_reopens_an_ended_session_once() -> None:
         "id": "c2"
     }
     sessions = [
-        r.headers.get("X-Kei-Session") for r in daemon.requests if r.url.path.endswith("completions")
+        r.headers.get("X-Kei-Session")
+        for r in daemon.requests
+        if r.url.path.endswith("completions")
     ]
     assert sessions == ["sess-1", "sess-2"]
 
@@ -485,14 +500,35 @@ def test_the_evaluator_denies_when_the_daemon_is_gone(daemon: FakeDaemon, reason
     assert decision.reason.startswith(reason)
 
 
+def test_socket_unavailable_error_includes_path_and_install_command() -> None:
+    socket_path = "/run/custom/kei-proxy.sock"
+    daemon = FakeDaemon(down=True)
+    client = KeiProxySocketAuthorizeClient(
+        socket_path=socket_path, env=ENV, transport=daemon.transport
+    )
+    decision = KeiProxyEvaluator(KeiProxySocketAuthorizationClient("openwebui", client)).evaluate(
+        "t", {}, caller()
+    )
+    assert socket_path in decision.reason
+    assert "--proxy-only" in decision.reason
+
+
 def test_the_evaluator_denies_a_daemon_deny_with_its_enrollment() -> None:
     daemon = FakeDaemon()
-    daemon.authorize = [deny("subject_unlinked", enrollment={"claim_url": "https://x"})]
+    daemon.authorize = [
+        deny(
+            "subject_unlinked",
+            hint="Link your account in Kei.",
+            enrollment={"claim_url": "https://x"},
+        )
+    ]
     evaluator = KeiProxyEvaluator(KeiProxySocketAuthorizationClient("openwebui", daemon.client()))
     decision = evaluator.evaluate("t", {}, caller())
     assert decision.action is Action.DENY
     assert decision.reason == "kei-proxy deny: subject_unlinked reason"
     assert decision.enrollment == {"claim_url": "https://x"}
+    assert decision.reason_code == "subject_unlinked"
+    assert decision.hint == "Link your account in Kei."
 
 
 def test_the_evaluator_denies_without_a_subject() -> None:

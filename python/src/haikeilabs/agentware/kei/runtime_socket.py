@@ -73,6 +73,9 @@ SESSION_NOT_FOUND = "session_not_found"
 
 DEFAULT_SOCKET_TIMEOUT = 10.0
 DEFAULT_MODEL_TIMEOUT = 120.0
+_PROXY_INSTALL_COMMAND = (
+    'curl -fsSL https://haikeilabs.com/install.sh | sh -s -- --proxy-only -d "$HOME/.local/bin"'
+)
 
 # The Unix-socket transport ignores the host; it only has to be a valid URL.
 _BASE_URL = "http://kei-proxy"
@@ -144,8 +147,8 @@ class KeiProxySocketAuthorizeClient:
             transport: Replaces the Unix-socket transport (tests).
         """
         source = os.environ if env is None else env
-        self._socket_path = socket_path or source.get(RUNTIME_SOCKET_PATH_ENV) or (
-            DEFAULT_RUNTIME_SOCKET_PATH
+        self._socket_path = (
+            socket_path or source.get(RUNTIME_SOCKET_PATH_ENV) or (DEFAULT_RUNTIME_SOCKET_PATH)
         )
         self._timeout = timeout
         self._model_timeout = model_timeout
@@ -181,8 +184,14 @@ class KeiProxySocketAuthorizeClient:
             )
         )
         session_id = body.get("session_id")
-        if body.get("schema") != SESSION_SCHEMA or not isinstance(session_id, str) or not session_id:
-            raise KeiProxySocketError("malformed_response", "the daemon returned an invalid session")
+        if (
+            body.get("schema") != SESSION_SCHEMA
+            or not isinstance(session_id, str)
+            or not session_id
+        ):
+            raise KeiProxySocketError(
+                "malformed_response", "the daemon returned an invalid session"
+            )
         session = KeiProxySocketSession(source, external_id, session_id)
         self._sessions[key] = session
         return session
@@ -310,7 +319,7 @@ class KeiProxySocketAuthorizeClient:
                 response = await client.send(request, stream=True)
             except (httpx.HTTPError, OSError) as exc:
                 await client.aclose()
-                raise _transport_error(exc) from None
+                raise _transport_error(exc, self._socket_path) from None
             except BaseException:
                 await client.aclose()
                 raise
@@ -327,7 +336,7 @@ class KeiProxySocketAuthorizeClient:
                         if line.startswith("data:"):
                             yield line
                 except httpx.HTTPError as exc:
-                    raise _transport_error(exc) from None
+                    raise _transport_error(exc, self._socket_path) from None
                 return
             finally:
                 await response.aclose()
@@ -377,7 +386,7 @@ class KeiProxySocketAuthorizeClient:
             async with client:
                 return await client.request(method, path, json=json_body, headers=headers)
         except (httpx.HTTPError, OSError) as exc:
-            raise _transport_error(exc) from None
+            raise _transport_error(exc, self._socket_path) from None
 
     async def _with_session(
         self,
@@ -522,13 +531,17 @@ def _run_blocking(factory: Callable[[], Awaitable[_T]]) -> _T:
         return pool.submit(asyncio.run, main()).result()
 
 
-def _transport_error(exc: BaseException) -> KeiProxySocketError:
+def _transport_error(exc: BaseException, socket_path: str) -> KeiProxySocketError:
     if isinstance(exc, KeiProxySocketError):
         return exc
     if isinstance(exc, httpx.TimeoutException):
-        return KeiProxySocketError("proxy_timeout", "the kei-proxy daemon did not answer in time")
+        return KeiProxySocketError(
+            "proxy_timeout",
+            f"the kei-proxy daemon did not answer in time at socket {socket_path}",
+        )
     return KeiProxySocketError(
-        "proxy_unavailable", f"the kei-proxy daemon is unreachable ({type(exc).__name__})"
+        "proxy_unavailable",
+        f"the kei-proxy daemon is unreachable at socket {socket_path} ({type(exc).__name__}); install with: {_PROXY_INSTALL_COMMAND}",
     )
 
 
@@ -568,7 +581,5 @@ def _json_object(response: httpx.Response) -> dict[str, Any]:
     except ValueError:
         raise KeiProxySocketError("malformed_response", "the daemon's answer is not JSON") from None
     if not isinstance(body, dict):
-        raise KeiProxySocketError(
-            "malformed_response", "the daemon's answer is not a JSON object"
-        )
+        raise KeiProxySocketError("malformed_response", "the daemon's answer is not a JSON object")
     return body

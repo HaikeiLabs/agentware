@@ -135,8 +135,12 @@ def test_authorize_case(
     assert decision.rule == expected["rule"]
     assert decision.enrollment == expected["enrollment"]
     assert decision.connect == expected.get("connect")
+    assert getattr(decision, "reason_code", None) == expected.get("reason_code")
+    assert getattr(decision, "hint", None) == expected.get("hint")
     if "reason_contains" in expected:
         assert expected["reason_contains"] in decision.reason
+    if expected.get("reason_contains_binary_path"):
+        assert str(tmp_path / "kei-proxy") in decision.reason
 
     for name, canary in CANARIES.items():
         assert canary not in decision.reason, f"{name} leaked into the reason"

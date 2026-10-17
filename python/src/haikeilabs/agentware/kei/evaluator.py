@@ -88,6 +88,8 @@ class AuthorizationResponse:
     policy_id: str | None = None
     enrollment: dict[str, Any] | None = None
     connect: dict[str, Any] | None = None
+    reason_code: str | None = None
+    hint: str | None = None
 
     @classmethod
     def from_result(cls, result: Any) -> "AuthorizationResponse":
@@ -122,6 +124,8 @@ class AuthorizationResponse:
         return cls(
             decision=str(decision) if decision is not None else "",
             reason=_as_optional_str(read("reason")),
+            reason_code=_as_optional_str(read("reason_code")),
+            hint=_as_optional_str(read("hint")),
             policy_id=_as_optional_str(policy_id),
             enrollment=enrollment,
             connect=connect,
@@ -325,6 +329,8 @@ class KeiProxyEvaluator:
                 Action.ALLOW,
                 reason=_reason("allow", response.reason),
                 policy_id=response.policy_id,
+                reason_code=response.reason_code,
+                hint=response.hint,
             )
 
         enrollment = None
@@ -351,6 +357,8 @@ class KeiProxyEvaluator:
             policy_id=response.policy_id,
             enrollment=enrollment,
             connect=connect,
+            reason_code=response.reason_code,
+            hint=response.hint,
         )
 
     def _authorize(
@@ -410,6 +418,8 @@ class KeiProxyEvaluator:
         policy_id: str | None = None,
         enrollment: dict[str, Any] | None = None,
         connect: dict[str, Any] | None = None,
+        reason_code: str | None = None,
+        hint: str | None = None,
     ) -> Decision:
         """Assemble a Decision, attributing it to the proxy policy when known.
 
@@ -425,4 +435,6 @@ class KeiProxyEvaluator:
             enrollment=enrollment,
             connect=connect,
             timestamp=datetime.now(),
+            reason_code=reason_code,
+            hint=hint,
         )

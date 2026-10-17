@@ -182,6 +182,9 @@ if decision.enrollment:  # deny + enrollment claim link: show it to the user, ne
 Reasons read `kei-proxy <class>[: <detail>]`, where the class is one of
 `REASON_CLASSES`. The behaviour is shared with the TypeScript and Go ports —
 see `docs/kei-proxy-evaluator-parity.md`.
+When present, the proxy's `reason_code` and `hint` are available unchanged as
+`Decision.reason_code` and `Decision.hint`; see the deny reason table in the
+kei-proxy README for remediation wording.
 
 ### Over the kei-proxy daemon socket
 

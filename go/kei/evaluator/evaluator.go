@@ -173,10 +173,10 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 		var ae *AuthorizeError
 		if errors.As(err, &ae) {
 			e.logger.Warn("kei-proxy authorize denied", "tool", toolName, "class", string(ae.Class))
-			return decision(middleware.ActionDeny, reason(ae.Class, ae.Detail), "", nil, nil)
+			return decision(middleware.ActionDeny, reason(ae.Class, ae.Detail), "", nil, nil, "", "")
 		}
 		e.logger.Warn("kei-proxy authorize failed, denying", "tool", toolName, "error", err)
-		return decision(middleware.ActionDeny, reason(ReasonProxyError, "authorize failed: "+err.Error()), "", nil, nil)
+		return decision(middleware.ActionDeny, reason(ReasonProxyError, "authorize failed: "+err.Error()), "", nil, nil, "", "")
 	}
 
 	normalized := ""
@@ -190,7 +190,7 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 	}
 
 	if isAffirmative(normalized) {
-		return decision(middleware.ActionAllow, reason(ReasonAllow, proxyReason), policyID, nil, nil)
+		return decision(middleware.ActionAllow, reason(ReasonAllow, proxyReason), policyID, nil, nil, optionalString(response["reason_code"]), optionalString(response["hint"]))
 	}
 
 	carried, _ := response["enrollment"].(map[string]any)
@@ -220,10 +220,10 @@ func (e *KeiProxyEvaluator) Evaluate(toolName string, args map[string]any, calle
 	}
 
 	e.logger.Debug("kei-proxy denied", "tool", toolName, "class", string(class))
-	return decision(middleware.ActionDeny, reason(class, detail), policyID, enrollment, connect)
+	return decision(middleware.ActionDeny, reason(class, detail), policyID, enrollment, connect, optionalString(response["reason_code"]), optionalString(response["hint"]))
 }
 
-func decision(action middleware.Action, reasonText, policyID string, enrollment, connect map[string]any) middleware.Decision {
+func decision(action middleware.Action, reasonText, policyID string, enrollment, connect map[string]any, reasonCode, hint string) middleware.Decision {
 	rule := policyID
 	if rule == "" {
 		rule = Rule
@@ -232,6 +232,8 @@ func decision(action middleware.Action, reasonText, policyID string, enrollment,
 		Action:     action,
 		Rule:       rule,
 		Reason:     reasonText,
+		ReasonCode: reasonCode,
+		Hint:       hint,
 		Enrollment: enrollment,
 		Connect:    connect,
 		Timestamp:  time.Now(),

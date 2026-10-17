@@ -56,11 +56,12 @@ func TestEvaluatorOverTheSocket(t *testing.T) {
 	t.Run("deny denies with its enrollment", func(t *testing.T) {
 		d := startDaemon(t, sessionAnswer, jsonResponse(200, map[string]any{
 			"schema": AuthorizeResponseSchema, "decision": "deny", "reason": "unlinked",
+			"reason_code": "subject_missing", "hint": "Link your account in Kei.",
 			"enrollment": map[string]any{"claim_url": "https://kei.example.test/claim/1"},
 		}))
 		client, _ := SelectAuthorizationClient("openwebui", SelectOptions{Env: tokenEnv(d.path)})
 		got := evaluator.NewKeiProxyEvaluator(client).Evaluate("github.get_issue", nil, caller)
-		if got.Action != middleware.ActionDeny || got.Reason != "kei-proxy deny: unlinked" || got.Enrollment == nil {
+		if got.Action != middleware.ActionDeny || got.Reason != "kei-proxy deny: unlinked" || got.Enrollment == nil || got.ReasonCode != "subject_missing" || got.Hint != "Link your account in Kei." {
 			t.Errorf("got %s %q %v", got.Action, got.Reason, got.Enrollment)
 		}
 	})
@@ -96,6 +97,23 @@ func TestEvaluatorOverTheSocket(t *testing.T) {
 			t.Errorf("got %s %q", got.Action, got.Reason)
 		}
 	})
+}
+
+func TestUnavailableSocketErrorIncludesPathAndInstallCommand(t *testing.T) {
+	const socketPath = "/run/custom/kei-proxy.sock"
+	client, err := SelectAuthorizationClient("openwebui", SelectOptions{
+		SocketPath: socketPath,
+		Env:        tokenEnv(socketPath),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision := evaluator.NewKeiProxyEvaluator(client).Evaluate(
+		"github.get_issue", nil, middleware.CallerContext{UserID: "ada"},
+	)
+	if !strings.Contains(decision.Reason, socketPath) || !strings.Contains(decision.Reason, "--proxy-only") {
+		t.Errorf("reason %q must show the socket path and proxy-only install command", decision.Reason)
+	}
 }
 
 func TestTheTokenIsReadOnEveryRequest(t *testing.T) {

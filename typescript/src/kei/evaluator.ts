@@ -238,6 +238,8 @@ export class KeiProxyEvaluator {
         ? ""
         : String(rawDecision).trim().toLowerCase();
     const proxyReason = optionalString(response.reason);
+    const reasonCode = optionalString(response.reason_code);
+    const hint = optionalString(response.hint);
     const policyId =
       optionalString(response.policy_id) ?? optionalString(response.policy);
 
@@ -246,6 +248,10 @@ export class KeiProxyEvaluator {
         Action.ALLOW,
         reason("allow", proxyReason),
         policyId,
+        undefined,
+        undefined,
+        reasonCode,
+        hint,
       );
     }
 
@@ -283,6 +289,8 @@ export class KeiProxyEvaluator {
       policyId,
       enrollment,
       connect,
+      reasonCode,
+      hint,
     );
   }
 
@@ -292,6 +300,8 @@ export class KeiProxyEvaluator {
     policyId?: string,
     enrollment?: Record<string, unknown>,
     connect?: Record<string, unknown>,
+    reasonCode?: string,
+    hint?: string,
   ): Decision {
     const out: Decision = {
       action,
@@ -301,6 +311,8 @@ export class KeiProxyEvaluator {
     };
     if (enrollment !== undefined) out.enrollment = enrollment;
     if (connect !== undefined) out.connect = connect;
+    if (reasonCode !== undefined) out.reason_code = reasonCode;
+    if (hint !== undefined) out.hint = hint;
     return out;
   }
 }

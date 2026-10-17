@@ -25,6 +25,8 @@ var (
 	ErrUnsupportedPlatform = errors.New("the kei-proxy runtime socket is not supported on windows")
 )
 
+const socketProxyInstallCommand = `curl -fsSL https://haikeilabs.com/install.sh | sh -s -- --proxy-only -d "$HOME/.local/bin"`
+
 // Error is a daemon call that produced no usable answer. Callers fail closed.
 //
 // Class is one of proxy_unavailable, proxy_timeout, proxy_error,
@@ -69,13 +71,13 @@ func malformed(detail string) *Error {
 
 // transportError classifies a failed request. parent is the caller's context:
 // when it ended, the refusal wraps its error rather than blaming the daemon.
-func transportError(parent context.Context, err error, timedOut bool) *Error {
+func transportError(parent context.Context, err error, timedOut bool, socketPath string) *Error {
 	var se *Error
 	if errors.As(err, &se) {
 		return se
 	}
 	if errors.Is(err, ErrUnsupportedPlatform) {
-		return &Error{Class: evaluator.ReasonProxyUnavailable, Detail: ErrUnsupportedPlatform.Error(), cause: ErrUnsupportedPlatform}
+		return &Error{Class: evaluator.ReasonProxyUnavailable, Detail: fmt.Sprintf("%s at socket %s; install with: %s", ErrUnsupportedPlatform, socketPath, socketProxyInstallCommand), cause: ErrUnsupportedPlatform}
 	}
 	if !timedOut {
 		if ctxErr := parent.Err(); ctxErr != nil {
@@ -83,14 +85,14 @@ func transportError(parent context.Context, err error, timedOut bool) *Error {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
 				class = evaluator.ReasonProxyTimeout
 			}
-			return &Error{Class: class, Detail: "the caller's context ended before the daemon answered", cause: ctxErr}
+			return &Error{Class: class, Detail: fmt.Sprintf("the caller's context ended before the daemon answered at socket %s", socketPath), cause: ctxErr}
 		}
 	}
 	var ne net.Error
 	if timedOut || errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout()) {
-		return &Error{Class: evaluator.ReasonProxyTimeout, Detail: "the kei-proxy daemon did not answer in time", cause: err}
+		return &Error{Class: evaluator.ReasonProxyTimeout, Detail: fmt.Sprintf("the kei-proxy daemon did not answer in time at socket %s", socketPath), cause: err}
 	}
-	return &Error{Class: evaluator.ReasonProxyUnavailable, Detail: "the kei-proxy daemon is unreachable", cause: err}
+	return &Error{Class: evaluator.ReasonProxyUnavailable, Detail: fmt.Sprintf("the kei-proxy daemon is unreachable at socket %s; install with: %s", socketPath, socketProxyInstallCommand), cause: err}
 }
 
 // statusError is a non-2xx answer, carrying only the daemon's error code.
