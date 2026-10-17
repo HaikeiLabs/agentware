@@ -77,4 +77,4 @@ The Go adapters (`go/adapters/`) provide the same functionality for Go-based too
 - `go/adapters/hermes/` - Hermes subprocess wrapper
 - `go/adapters/pydantic/` - Pydantic AI Go bindings
 
-See `go/adapters/*/example/main.go` for usage.
+See `examples/go/minimal-harness` for usage.
