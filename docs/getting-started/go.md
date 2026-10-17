@@ -1,5 +1,8 @@
 # Go: governed socket harness
 
+For a real Kei runtime setup walkthrough, see the
+[runtime setup guide](runtime-setup.md) and [deny hints](../deny-hints.md).
+
 This guide shows the `runtimesocket` client authorizing a governed allow and
 deny through the local `kei-proxy` socket. For package installation and
 supported versions, see the repository [README](../../README.md). For the

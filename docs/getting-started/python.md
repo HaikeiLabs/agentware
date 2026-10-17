@@ -1,5 +1,8 @@
 # Python: governed socket harness
 
+For a real Kei runtime setup walkthrough, see the
+[runtime setup guide](runtime-setup.md) and [deny hints](../deny-hints.md).
+
 The minimal example authorizes an allow and a deny through the local
 `kei-proxy` socket. For package installation and supported versions, see the
 repository [README](../../README.md); for the complete source, see
