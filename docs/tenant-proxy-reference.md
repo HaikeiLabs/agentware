@@ -6,10 +6,8 @@ described only the local enforcement seam. This document is the canonical
 tenant-side proxy architecture every worker must read before planning changes
 to middleware, tool bindings, or the `kei/` integration surface.
 
-**Source of truth**: captured in the shared Herdr wiki under *"Documentation
-audit: tenant data must stay behind distributed proxy"* and the governed
-connector decisions (`wiki search "tenant data distributed proxy"`). Trust the
-code in `python/src/haikeilabs/agentware/kei/` and this reference over older prose.
+The code in `python/src/haikeilabs/agentware/kei/` and this reference define
+the current contract; older prose may be stale.
 
 ---
 
@@ -101,12 +99,9 @@ cross out of the tenant to connectors/providers.
 
 ## Related documents
 
-- `AGENTS.md` — mandatory wiki-first workflow and boundary preservation rules.
+- `AGENTS.md` — repository contribution workflow and boundary preservation rules.
 - `docs/harness-contract.md` — the contract third-party agent builders
   implement against; see its *Control-Plane Boundary* section.
 - `docs/engineering-design.md` — the middleware SDK design; see the
   *Tenant-Side Distributed Proxy & Control-Plane Boundary* section.
 - `README.md` — the overview; see the harness-contract bullet.
-- Herdr wiki captures: `decision/documentation-audit_-tenant-data-must-stay-
-  behind-distributed-proxy` and the governed-connector decisions
-  (`wiki search "tenant data distributed proxy"`).

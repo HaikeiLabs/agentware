@@ -99,6 +99,20 @@ runtime agent identity needs kei-proxy 0.1.11 or later, and the runtime-link
 heartbeat flags need 0.1.12 or later. kei-proxy releases older than the
 minimum above are not tested against this SDK release.
 
+## Governed harness quick starts
+
+For governed tool calls, connect to the `kei-proxy` Unix socket first. Each
+language guide uses the minimal harness example and demonstrates an allow and
+a deny against the local fake socket:
+
+- [Go getting started](docs/getting-started/go.md)
+- [Python getting started](docs/getting-started/python.md)
+- [TypeScript getting started](docs/getting-started/typescript.md)
+- [Using agentware as a team](docs/using-agentware-as-a-team.md)
+
+The socket client is recommended. The older `KeiProxyAuthorizeClient`
+subprocess integration (`kei-proxy authorize`) is deprecated.
+
 ## Quick start (Python)
 
 ```python

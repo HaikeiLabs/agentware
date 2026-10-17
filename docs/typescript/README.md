@@ -12,6 +12,14 @@ For the package artifact, release, and npm publishing contract, see the [npm dis
 npm install @haikeilabs/agentware
 ```
 
+## Governed harness quick start: socket client first
+
+Start with the [TypeScript getting started guide](../getting-started/typescript.md)
+and the [`examples/typescript/minimal-harness`](../../examples/typescript/minimal-harness)
+example. It demonstrates an allow and deny through the `kei-proxy` socket.
+The socket client is recommended. `KeiProxyAuthorizeClient`, which starts
+`kei-proxy authorize` as a subprocess, is deprecated; use the socket client.
+
 ## Basic Usage
 
 ### Creating a Policy

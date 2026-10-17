@@ -794,9 +794,8 @@ New top-level packages require an ADR in `docs/adr/` before implementation.
 ## 12. Tenant-Side Distributed Proxy & Control-Plane Boundary
 
 > Before changing middleware, tool bindings, or the `kei/` surface, read the
-> canonical `docs/tenant-proxy-reference.md` and search the shared Herdr wiki
-> (`wiki search "tenant data distributed proxy"`). This section is the
-> abbreviated contract every design change must preserve.
+> canonical `docs/tenant-proxy-reference.md`. This section is the abbreviated
+> contract every design change must preserve.
 
 ### Roles in one sentence
 

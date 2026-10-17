@@ -8,18 +8,9 @@ The same library is implemented three times — **Go (`go/`, the reference imple
 
 The delegation contract: `CallerContext.InvokingSubject` is the human who initiated the request and is carried unchanged across every delegation hop (`CallerContext.Delegate` / `delegate()`); `ParentSpan` and `DelegationDepth` record where in the chain the call sits. `Trusted` defaults to **false** (fail-closed) in every language, and a missing caller context is never promoted to trusted.
 
-## Before Planning: Wiki First
+## Before Planning
 
-Every worker **must** search the shared Herdr wiki before planning changes:
-
-```bash
-wiki search "tenant data distributed proxy"
-wiki search "<topic>" --top-k 10
-```
-
-Read the canonical tenant-side proxy architecture in `docs/tenant-proxy-reference.md`
-(the in-repo copy of the wiki's *"Documentation audit: tenant data must stay
-behind distributed proxy"* capture) and preserve its **metadata-only
+Read `docs/tenant-proxy-reference.md` and preserve its **metadata-only
 control-plane boundary**:
 
 - `tool_bindings` and `secret_refs` are **non-secret metadata only**; the
@@ -34,48 +25,7 @@ control-plane boundary**:
   dependency; governed external operations use the proxy boundary.
 
 Never write docs that say ABAC serves credentials or that agentware sends
-customer data through the control plane. See [Shared Herdr Wiki](#shared-herdr-wiki).
-
-## Shared Herdr Wiki
-
-Architecture and coordination captures live in the shared Herdr wiki
-(plugin: <https://github.com/Soypete/herdr-wiki-plugin>). All operations go
-through the `wiki` command, which prints results to stdout.
-
-### Clone / setup
-
-```bash
-git clone https://github.com/Soypete/herdr-wiki-plugin
-# plugin is already installed and `wiki` is on PATH for most workers
-```
-
-If `wiki` is not on PATH, install it first:
-
-```bash
-git clone https://github.com/Soypete/herdr-wiki-plugin ~/code/herdr-wiki-plugin
-export PATH="$HOME/code/herdr-wiki-plugin/bin:$PATH"
-```
-
-### Commands
-
-```bash
-wiki search <query> [--top-k N] [--json]        # search prior notes/claims
-wiki stats                                      # knowledge-base stats
-wiki capture --title T --type T --content C \
-  --link predicate:target ...                   # capture a durable finding
-wiki organize                                   # HUMAN ONLY — folds inbox into the graph
-```
-
-### Rules
-
-- `--type` and link predicates come from the closed vocabulary (`claim`,
-  `contradiction`, `decision`, `entity`, `source`; predicates `derived_from`,
-  `contradicts`, `supports`, `about`, `relates_to`). Do not guess types.
-- Captures land in an inbox; a human runs `wiki organize`. **Workers never
-  edit wiki pages directly.**
-- Never read or edit wiki inbox JSON files directly; use only `wiki search` /
-  `wiki capture`.
-- Search the wiki before planning; when you learn something durable, capture it.
+customer data through the control plane.
 
 ## Build, Lint, and Test Commands
 

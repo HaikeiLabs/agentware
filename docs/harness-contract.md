@@ -185,8 +185,7 @@ governed vs non-governed tool call distinction.
 The harness runs **on the tenant side**; Kei is a **metadata-only control
 plane**. Everything the harness sends to Kei — and everything agentware sends on
 its behalf — is metadata; customer data never crosses the boundary. See
-`docs/tenant-proxy-reference.md` for the authoritative architecture and search
-the shared Herdr wiki (`wiki search "tenant data distributed proxy"`) before
+`docs/tenant-proxy-reference.md` for the authoritative architecture before
 changing this contract.
 
 - **Non-secret metadata only.** `tool_bindings` (tool → connector routing) and

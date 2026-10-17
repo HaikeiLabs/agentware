@@ -8,37 +8,12 @@ pedro-agentware is MCP-compatible middleware for LLM tool calling: it sits betwe
 
 The delegation contract: `CallerContext.InvokingSubject` is the human who initiated the request and is carried unchanged across every delegation hop (`CallerContext.Delegate` / `delegate()`); `ParentSpan` and `DelegationDepth` record where in the chain the call sits. `Trusted` defaults to **false** (fail-closed) in every language; a missing caller context is never promoted to trusted.
 
-## Before Planning: Wiki First
+## Before Planning
 
-Search the shared Herdr wiki before planning — `wiki search "tenant data
-distributed proxy"` (and per-topic searches with `--top-k 10`). Read the
-canonical tenant-side proxy architecture in `docs/tenant-proxy-reference.md`
-and preserve its **metadata-only control-plane boundary**: `tool_bindings` and
-`secret_refs` are non-secret metadata only; the distributed proxy is the
-connector/provider runtime and policy enforcement point; ABAC decides metadata
-policy but never executes writes or serves/store credentials; provider
-payloads/results, customer content, credentials, embeddings, and indexes never
-enter Kei; local execution stays possible without a direct ABAC connector
-dependency.
-
-## Shared Herdr Wiki
-
-Architecture and coordination captures live in the shared Herdr wiki
-(plugin: <https://github.com/Soypete/herdr-wiki-plugin>). All operations go
-through the `wiki` command.
-
-- Setup: `git clone https://github.com/Soypete/herdr-wiki-plugin ~/code/herdr-wiki-plugin`
-  and add it to PATH: `export PATH="$HOME/code/herdr-wiki-plugin/bin:$PATH"`.
-  If `wiki` is not on PATH, install it first and use it directly as `wiki`,
-  never as `python3 .../bin/wiki`.
-- Commands: `wiki search <query> [--top-k N] [--json]`, `wiki stats`,
-  `wiki capture --title T --type T --content C [--link predicate:target ...]`,
-  and `wiki organize` (**human only** — folds the inbox into the graph).
-- Rules: `--type` and link predicates come from the closed vocabulary
-  (`claim`/`contradiction`/`decision`/`entity`/`source`; predicates
-  `derived_from`/`contradicts`/`supports`/`about`/`relates_to`). Captures land
-  in an inbox; **workers never edit wiki pages directly** and always search the
-  wiki before planning. Never read or edit wiki inbox JSON files directly.
+Read `docs/tenant-proxy-reference.md` before architecture changes. Preserve
+the metadata-only control-plane boundary: bindings and secret references are
+metadata, the distributed proxy is the connector/provider runtime and policy
+enforcement point, and customer payloads and credentials stay tenant-side.
 
 ## Commands
 
