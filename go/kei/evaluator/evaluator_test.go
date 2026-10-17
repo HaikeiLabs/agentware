@@ -35,6 +35,9 @@ type authorizeCase struct {
 		Args   map[string]any `json:"args"`
 		Caller *struct {
 			UserID          string `json:"user_id"`
+			InvokingSubject string `json:"invoking_subject"`
+			OmitUser        bool   `json:"omit_user"`
+			OmitWorkspace   bool   `json:"omit_workspace"`
 			ParentSpan      string `json:"parent_span"`
 			DelegationDepth int    `json:"delegation_depth"`
 		} `json:"caller"`
@@ -66,6 +69,9 @@ type authorizeCase struct {
 		ReasonContainsBinaryPath bool           `json:"reason_contains_binary_path"`
 		Argv                     []string       `json:"argv"`
 		GroupKilled              bool           `json:"group_killed"`
+		CallerUserID             *string        `json:"caller_user_id"`
+		WorkspaceAbsent          bool           `json:"workspace_absent"`
+		ContextAbsent            []string       `json:"context_absent"`
 	} `json:"expected"`
 }
 
@@ -146,8 +152,14 @@ func buildCaller(table casesTable, policy seededPolicy, c authorizeCase) middlew
 		},
 	}
 	if o := c.Input.Caller; o != nil {
-		if o.UserID != "" {
+		if o.UserID != "" || o.OmitUser {
 			caller.UserID = o.UserID
+		}
+		if o.InvokingSubject != "" || o.OmitUser {
+			caller.InvokingSubject = o.InvokingSubject
+		}
+		if o.OmitWorkspace {
+			delete(caller.Metadata, "workspace_id")
 		}
 		caller.ParentSpan = o.ParentSpan
 		caller.DelegationDepth = o.DelegationDepth
@@ -261,6 +273,20 @@ func TestAuthorizeCases(t *testing.T) {
 		t.Run(c.ID, func(t *testing.T) {
 			got := runCase(t, table, policy, c, nil)
 			want := c.Expected
+			caller := buildCaller(table, policy, c)
+			if want.CallerUserID != nil && caller.UserID != *want.CallerUserID {
+				t.Errorf("caller user_id = %q, want %q", caller.UserID, *want.CallerUserID)
+			}
+			if want.WorkspaceAbsent {
+				if _, ok := caller.Metadata["workspace_id"]; ok {
+					t.Error("workspace_id unexpectedly present in caller metadata")
+				}
+			}
+			for _, key := range want.ContextAbsent {
+				if _, ok := caller.Metadata[key]; ok {
+					t.Errorf("context key %q unexpectedly present", key)
+				}
+			}
 
 			if string(got.decision.Action) != want.Action {
 				t.Errorf("action = %q, want %q", got.decision.Action, want.Action)

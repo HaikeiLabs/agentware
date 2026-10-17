@@ -1230,6 +1230,135 @@
       "client": {
         "expected_sha256": "installed"
       }
+    },
+    {
+      "id": "malformed_json_response",
+      "description": "Malformed JSON from the proxy denies.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "{not json}\n",
+        "stderr": "",
+        "exit_code": 0
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "malformed_response",
+        "invoked": true
+      }
+    },
+    {
+      "id": "missing_caller_user",
+      "description": "A call with no caller or invoking user is sent to the proxy and denied.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        },
+        "caller": {
+          "omit_user": true
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"missing caller identity\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "invoked": true,
+        "reason_contains": "missing caller identity",
+        "caller_user_id": ""
+      }
+    },
+    {
+      "id": "missing_org_workspace_installation_context",
+      "description": "Absent organization, workspace and installation scope is denied.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        },
+        "caller": {
+          "omit_workspace": true
+        },
+        "context": {
+          "organization_id": null,
+          "workspace_id": null,
+          "installation_id": null
+        }
+      },
+      "proxy": {
+        "stdout": "{\"decision\":\"deny\",\"reason\":\"missing tenant context\"}\n",
+        "stderr": "",
+        "exit_code": 1
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "deny",
+        "invoked": true,
+        "reason_contains": "missing tenant context",
+        "workspace_absent": true,
+        "context_absent": [
+          "organization_id",
+          "workspace_id",
+          "installation_id"
+        ]
+      }
+    },
+    {
+      "id": "unreachable_proxy_socket",
+      "description": "An unavailable proxy denies without executing the tool.",
+      "derived_from": null,
+      "input": {
+        "user": "member",
+        "tool": "github.get_issue",
+        "args": {
+          "owner": "acme",
+          "repo": "sales-pipeline",
+          "issue_number": 42,
+          "action": "github:read"
+        }
+      },
+      "proxy": {
+        "stdout": "",
+        "stderr": "",
+        "exit_code": 0,
+        "missing_binary": true
+      },
+      "expected": {
+        "action": "deny",
+        "rule": "kei-proxy",
+        "enrollment": null,
+        "reason_class": "proxy_unavailable",
+        "invoked": false
+      }
     }
   ]
 }
