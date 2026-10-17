@@ -64,6 +64,7 @@ const RUNTIME_EXPORTS = [
   "ToolManifestSyncConfig",
   "syncToolManifest",
   "AuditedToolClient",
+  "Guardrails",
   "delegateCallerContext",
   "createCallerContext",
 ];
