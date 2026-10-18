@@ -1,0 +1,138 @@
+{
+  "schema": "agentware.toolspec-cases/v1",
+  "cases": [
+    {
+      "name": "connector binding",
+      "spec": {
+        "name": "github.get_issue",
+        "description": "Fetch an issue from a GitHub repository",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "issue_number": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "issue_number"
+          ]
+        },
+        "service": "github",
+        "source": "github",
+        "operation_class": "read",
+        "route": {
+          "connector_binding": {
+            "agent_id": "11111111-1111-4111-8111-111111111111",
+            "connector_id": "22222222-2222-4222-8222-222222222222"
+          }
+        },
+        "required_capabilities": [
+          "issue.read"
+        ],
+        "resource_types": [
+          {
+            "type": "issue",
+            "parent_type": "repository"
+          }
+        ],
+        "enabled": true
+      },
+      "expected_wire": {
+        "name": "github.get_issue",
+        "service": "github",
+        "source": "github",
+        "operation_class": "read",
+        "route": {
+          "connector_binding": {
+            "agent_id": "11111111-1111-4111-8111-111111111111",
+            "connector_id": "22222222-2222-4222-8222-222222222222"
+          }
+        },
+        "required_capabilities": [
+          "issue.read"
+        ],
+        "resource_types": [
+          {
+            "type": "issue",
+            "parent_type": "repository"
+          }
+        ],
+        "description": "Fetch an issue from a GitHub repository",
+        "enabled": true
+      },
+      "expected_toolformat": {
+        "generic": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]"
+      }
+    },
+    {
+      "name": "harness executor",
+      "spec": {
+        "name": "codex.shell",
+        "description": "Run a local harness action",
+        "parameters": {
+          "type": "object"
+        },
+        "service": "codex",
+        "source": "codex",
+        "operation_class": "write",
+        "route": {
+          "harness_executor": {
+            "executor": "codex",
+            "registration": "codex.shell"
+          }
+        },
+        "enabled": true
+      },
+      "expected_wire": {
+        "name": "codex.shell",
+        "service": "codex",
+        "source": "codex",
+        "operation_class": "write",
+        "route": {
+          "harness_executor": {
+            "executor": "codex",
+            "registration": "codex.shell"
+          }
+        },
+        "description": "Run a local harness action",
+        "enabled": true
+      }
+    },
+    {
+      "name": "model only",
+      "spec": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "location"
+          ]
+        }
+      },
+      "expected_toolformat": {
+        "generic": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]"
+      }
+    },
+    {
+      "name": "missing route",
+      "spec": {
+        "name": "invalid.tool",
+        "description": "Invalid wire metadata",
+        "parameters": {
+          "type": "object"
+        },
+        "service": "sample",
+        "source": "sample",
+        "operation_class": "read"
+      },
+      "expected_error": "route is required"
+    }
+  ]
+}
