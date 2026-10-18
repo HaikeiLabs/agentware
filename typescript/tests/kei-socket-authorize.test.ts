@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { KeiProxySocketAuthorizeClient } from "../src/index.js";
 import type { KeiProxyAuthorizeRequest } from "../src/index.js";
+import { registerToolSpecs } from "../src/toolspec/index.js";
 
 const request: KeiProxyAuthorizeRequest = {
   userId: "ignored-not-session-identity", tool: "github.read", action: "read", resource: "repo:x/y",
@@ -29,11 +30,12 @@ describe("KeiProxySocketAuthorizeClient", () => {
   let sessionMissingOnce = false;
   let stall = false;
   let onAuthorize: ((req: any) => void) | undefined;
+  let registrations: unknown[] = [];
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "kei-socket-test-"));
     socketPath = join(dir, "runtime.sock");
-    sessions = 0; authorizations = 0; failStatus = 0; malformed = false; unauthorized = false; decision = "permit"; sessionMissingOnce = false; stall = false; onAuthorize = undefined;
+    sessions = 0; authorizations = 0; failStatus = 0; malformed = false; unauthorized = false; decision = "permit"; sessionMissingOnce = false; stall = false; onAuthorize = undefined; registrations = [];
     server = createServer((req, res) => {
       if (unauthorized || req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
       const chunks: Buffer[] = [];
@@ -45,6 +47,11 @@ describe("KeiProxySocketAuthorizeClient", () => {
           expect(req.method).toBe("PUT");
           expect(body).toMatchObject({ schema: "kei.session/v2", source: "teams", external_id: expect.any(String) });
           res.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify({ schema: "kei.session/v2", session_id: `s${sessions}` }));
+          return;
+        }
+        if (req.url === "/v1/tools:register") {
+          registrations.push(body);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ registered: body.tools.length }));
           return;
         }
         authorizations++;
@@ -67,6 +74,27 @@ describe("KeiProxySocketAuthorizeClient", () => {
     onAuthorize = (req) => expect(req.headers["x-kei-session"]).toBe(session.sessionId);
     expect((await client.authorize(session, request)).decision).toBe("permit");
     expect(sessions).toBe(1);
+  });
+
+  test("registers a v3 tool manifest over the runtime socket", async () => {
+    const specs = [{
+      name: "sample.read",
+      description: "Read a sample",
+      parameters: { type: "object" },
+      service: "sample",
+      source: "sample",
+      operation_class: "read" as const,
+      route: { harness_executor: { executor: "sample", registration: "sample.read" } },
+    }];
+    await expect(registerToolSpecs(specs, client)).resolves.toEqual({ registered: 1 });
+    expect(registrations).toEqual([{
+      schema: "kei.tool-manifest/v3",
+      tools: [{
+        name: "sample.read", service: "sample", source: "sample", operation_class: "read",
+        route: { harness_executor: { executor: "sample", registration: "sample.read" } },
+        description: "Read a sample", enabled: true,
+      }],
+    }]);
   });
 
   test("does not infer identity and denies missing identity/token", async () => {

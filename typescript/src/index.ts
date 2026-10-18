@@ -6,6 +6,7 @@ export * from "./llm/index.js";
 export * from "./llmcontext/index.js";
 export * from "./prompts/index.js";
 export * from "./toolformat/index.js";
+export * from "./toolspec/index.js";
 export * from "./memory/index.js";
 export * from "./reasoning/index.js";
 export * from "./kei/index.js";
