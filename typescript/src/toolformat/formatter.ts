@@ -1,4 +1,6 @@
 import type { AnyTool, Result } from "../tools/index.js";
+import type { ToolSpec } from "../toolspec/index.js";
+import type { ToolDefinition } from "../llm/request.js";
 
 export interface ParsedToolCall {
   id: string;
@@ -8,19 +10,21 @@ export interface ParsedToolCall {
 }
 
 export interface ToolFormatter {
-  formatToolDefinitions(tools: AnyTool[]): string;
+  formatToolDefinitions(tools: Array<AnyTool | ToolSpec | ToolDefinition>): string;
   parseToolCalls(response: string): ParsedToolCall[];
   formatToolResult(name: string, result: Result): string;
   modelFamily(): string;
   validateFormat(response: string): string | null;
 }
 
+type FormatterTool = AnyTool | ToolSpec | ToolDefinition;
+
 const qwenToolCallRegex = /<tool_call>\s*<tool name="([^"]+)">\s*([\s\S]*?)\s*<\/tool>\s*<\/tool_call>/g;
 
 const anthropicInvokeRegex = /<invoke tool="([^"]+)">([\s\S]*?)<\/invoke>/g;
 
 export class GenericFormatter implements ToolFormatter {
-  formatToolDefinitions(tools: AnyTool[]): string {
+  formatToolDefinitions(tools: FormatterTool[]): string {
     if (tools.length === 0) return "";
 
     const schemas: Record<string, unknown>[] = [];
@@ -29,7 +33,11 @@ export class GenericFormatter implements ToolFormatter {
         name: tool.name,
         description: tool.description,
       };
-      if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
+      if ("parameters" in tool) {
+        func.parameters = sortedJsonValue(tool.parameters);
+      } else if ("input_schema" in tool) {
+        func.parameters = sortedJsonValue(tool.input_schema);
+      } else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
         const schema = (tool as any).inputSchema();
         if (schema) {
           func.parameters = schema;
@@ -194,13 +202,17 @@ export class AnthropicFormatter extends GenericFormatter {
 }
 
 export class QwenFormatter implements ToolFormatter {
-  formatToolDefinitions(tools: AnyTool[]): string {
+  formatToolDefinitions(tools: FormatterTool[]): string {
     if (tools.length === 0) return "";
 
     let result = "";
     for (const tool of tools) {
       result += `<tool_description>\n<tool_name>${tool.name}</tool_name>\n<description>${tool.description}</description>\n`;
-      if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
+      if ("parameters" in tool) {
+        result += `<parameters>${JSON.stringify(sortedJsonValue(tool.parameters))}</parameters>\n`;
+      } else if ("input_schema" in tool) {
+        result += `<parameters>${JSON.stringify(sortedJsonValue(tool.input_schema))}</parameters>\n`;
+      } else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
         const schema = (tool as any).inputSchema();
         if (schema) {
           result += `<parameters>${JSON.stringify(schema)}</parameters>\n`;
@@ -274,6 +286,16 @@ export class QwenFormatter implements ToolFormatter {
     }
     return null;
   }
+}
+
+function sortedJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortedJsonValue);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, sortedJsonValue((value as Record<string, unknown>)[key])]),
+    );
+  }
+  return value;
 }
 
 export function getFormatter(modelName: string): ToolFormatter {

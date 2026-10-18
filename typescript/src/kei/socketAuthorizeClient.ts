@@ -25,6 +25,7 @@
 import { request as httpRequest, type IncomingMessage } from "node:http";
 import { createInterface } from "node:readline";
 import { KeiProxyAuthorizeClient } from "./authorizeClient.js";
+import type { ToolManifestV3 } from "../toolspec/index.js";
 import {
   KeiProxyAuthorizeError,
   type KeiProxyAuthorizationClient,
@@ -365,6 +366,13 @@ export class KeiProxySocketAuthorizeClient {
       );
     }
     return body;
+  }
+
+  /** Register an explicit tool manifest with the runtime over this socket. */
+  async registerToolManifest(manifest: ToolManifestV3): Promise<JsonObject> {
+    return jsonObject(
+      await this.send("POST", "/v1/tools:register", { body: manifest as unknown as JsonObject }),
+    );
   }
 
   // Transport --------------------------------------------------------------

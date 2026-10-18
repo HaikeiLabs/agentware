@@ -35,6 +35,10 @@ const REQUIRED_FILES = [
   "dist/kei/runtimeLink.d.ts",
   "dist/kei/runtimeLinkRuntime.js",
   "dist/kei/runtimeLinkRuntime.d.ts",
+  "dist/toolspec/index.js",
+  "dist/toolspec/index.d.ts",
+  "dist/toolspec/registrar.js",
+  "dist/toolspec/registrar.d.ts",
 ];
 // Nothing outside the build output may ship.
 const FORBIDDEN_PREFIXES = ["src/", "tests/", "node_modules/", "scripts/"];
@@ -63,6 +67,12 @@ const RUNTIME_EXPORTS = [
   "KeiProxySocketAuthorizeClient",
   "ToolManifestSyncConfig",
   "syncToolManifest",
+  "MANIFEST_SCHEMA_V3",
+  "serializeToolSpec",
+  "serializeManifestV3",
+  "serializeToolSpecs",
+  "toolSpecToToolDefinition",
+  "registerToolSpecs",
   "AuditedToolClient",
   "Guardrails",
   "delegateCallerContext",
@@ -145,12 +155,12 @@ console.log("runtime import OK, contract v" + aw.RUNTIME_LINK_CONTRACT_VERSION);
 
   writeFileSync(
     join(consumer, "types.ts"),
-    `import { newRuntimeLink, parseChildLine, runtimeLinkConfigFromEnv, KeiProxySocketAuthorizeClient, ToolManifestSyncConfig, syncToolManifest } from ${JSON.stringify(pkg.name)};
-import type { ChildEvent, LinkEvent, LinkStatus, RuntimeLink, RuntimeLinkConfig, RuntimeChildFactory } from ${JSON.stringify(pkg.name)};
+    `import { newRuntimeLink, parseChildLine, runtimeLinkConfigFromEnv, KeiProxySocketAuthorizeClient, ToolManifestSyncConfig, syncToolManifest, MANIFEST_SCHEMA_V3, serializeToolSpec, serializeManifestV3, serializeToolSpecs, toolSpecToToolDefinition, registerToolSpecs } from ${JSON.stringify(pkg.name)};
+import type { ChildEvent, LinkEvent, LinkStatus, RuntimeLink, RuntimeLinkConfig, RuntimeChildFactory, ToolSpec, Route, ResourceType } from ${JSON.stringify(pkg.name)};
 const cfg: RuntimeLinkConfig = runtimeLinkConfigFromEnv({});
 const ev: ChildEvent = parseChildLine("{}");
 declare const factory: RuntimeChildFactory;
-export type Surface = [typeof cfg, typeof ev, LinkEvent, LinkStatus, RuntimeLink, typeof newRuntimeLink, typeof factory, typeof KeiProxySocketAuthorizeClient, typeof ToolManifestSyncConfig, typeof syncToolManifest];
+export type Surface = [typeof cfg, typeof ev, LinkEvent, LinkStatus, RuntimeLink, typeof newRuntimeLink, typeof factory, typeof KeiProxySocketAuthorizeClient, typeof ToolManifestSyncConfig, typeof syncToolManifest, typeof MANIFEST_SCHEMA_V3, typeof serializeToolSpec, typeof serializeManifestV3, typeof serializeToolSpecs, typeof toolSpecToToolDefinition, typeof registerToolSpecs, ToolSpec, Route, ResourceType];
 `,
   );
   run(
