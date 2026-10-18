@@ -129,6 +129,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - name: Install minimal harness example dependency
+        working-directory: examples/typescript/minimal-harness
+        run: npm ci
       - run: npm test -- --runInBand
       - run: npm run check:package
       - run: env -u NODE_AUTH_TOKEN npm publish --provenance
