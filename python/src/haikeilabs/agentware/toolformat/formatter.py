@@ -5,7 +5,14 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ..tools import Result, Tool
+from ..tools import Result
+
+
+class ToolFormatInput(Protocol):
+    """The model-facing declaration fields shared by tool and ToolSpec types."""
+
+    name: str
+    description: str
 
 
 @dataclass
@@ -21,7 +28,7 @@ class ParsedToolCall:
 class ToolFormatter(Protocol):
     """Protocol for tool formatters."""
 
-    def format_tool_definitions(self, tools: list[Tool]) -> str:
+    def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
         """Format tool definitions for model prompt."""
         ...
 
@@ -42,9 +49,11 @@ class ToolFormatter(Protocol):
         ...
 
 
-def _get_input_schema(tool: Tool) -> dict[str, Any] | None:
+def _get_input_schema(tool: ToolFormatInput) -> dict[str, Any] | None:
     """Get input schema from a tool if available."""
-    attr = getattr(tool, "input_schema", None)
+    attr = getattr(tool, "parameters", None)
+    if attr is None:
+        attr = getattr(tool, "input_schema", None)
     if attr is not None:
         if callable(attr):
             result = attr()
@@ -60,7 +69,7 @@ def _get_input_schema(tool: Tool) -> dict[str, Any] | None:
 class GenericFormatter:
     """Generic OpenAI-compatible JSON tool formatter."""
 
-    def format_tool_definitions(self, tools: list[Tool]) -> str:
+    def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
         if not tools:
             return ""
         schemas: list[dict[str, Any]] = []
@@ -153,7 +162,7 @@ class AnthropicFormatter:
 
     _invoke_re = re.compile(r'<invoke\s+tool="([^"]*)"\s*>(.*?)</invoke>')
 
-    def format_tool_definitions(self, tools: list[Tool]) -> str:
+    def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
         if not tools:
             return ""
         schemas: list[dict[str, Any]] = []
@@ -238,7 +247,7 @@ class QwenFormatter:
         re.DOTALL,
     )
 
-    def format_tool_definitions(self, tools: list[Tool]) -> str:
+    def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
         if not tools:
             return ""
         parts = []

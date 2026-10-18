@@ -351,6 +351,14 @@ class KeiProxySocketAuthorizeClient:
             )
         return body
 
+    async def register_tools(self, manifest: Mapping[str, Any]) -> dict[str, Any]:
+        """Register a serialized tool manifest through the runtime socket."""
+        response = await self._send("POST", "/v1/tools:register", json_body=manifest)
+        _check_status(response)
+        if not response.content:
+            return {}
+        return _json_object(response)
+
     # Transport ------------------------------------------------------------
 
     def _client(self, timeout: float) -> httpx.AsyncClient:
