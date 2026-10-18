@@ -5,11 +5,21 @@ import (
 	"fmt"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type GenericFormatter struct{}
 
 func (f *GenericFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(toolsList))
+}
+
+// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
+func (f *GenericFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(specs))
+}
+
+func (f *GenericFormatter) formatToolDefinitions(toolsList []formatTool) string {
 	if len(toolsList) == 0 {
 		return ""
 	}
@@ -23,7 +33,7 @@ func (f *GenericFormatter) FormatToolDefinitions(toolsList []tools.Tool) string 
 				"description": t.Description(),
 			},
 		}
-		if et, ok := t.(tools.ExtendedTool); ok {
+		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if s := et.InputSchema(); s != nil {
 				schema["function"].(map[string]any)["parameters"] = s
 			}

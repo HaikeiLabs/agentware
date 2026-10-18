@@ -102,6 +102,10 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == ("DELETE", "/v1/session"):
             return self._send(204)
+        if route == ("POST", "/v1/tools:register"):
+            if body.get("schema") != "kei.tool-manifest/v3" or not isinstance(body.get("tools"), list):
+                return self._error(400, "invalid_tool_manifest")
+            return self._send(200, {"registered": len(body["tools"])})
         if route == ("POST", "/v1/authorize"):
             tool = str(body.get("tool", ""))
             session = self.headers.get("X-Kei-Session", "")

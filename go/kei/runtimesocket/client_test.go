@@ -259,3 +259,23 @@ func TestConcurrentAuthorizeIsSafe(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestSendToolsPostsManifestToRuntimeSocket(t *testing.T) {
+	manifest := []byte(`{"schema":"kei.tool-manifest/v3","tools":[{"name":"sample"}]}`)
+	d := startDaemon(t, jsonResponse(http.StatusOK, map[string]any{"accepted": true}))
+	client := &Client{Env: tokenEnv(d.path)}
+	if err := client.SendTools(context.Background(), manifest); err != nil {
+		t.Fatal(err)
+	}
+	reqs := d.requests()
+	if len(reqs) != 1 || reqs[0].Method != http.MethodPost || reqs[0].Path != "/v1/tools:register" {
+		t.Fatalf("requests: %+v", reqs)
+	}
+	if reqs[0].Authorization != "Bearer "+testToken {
+		t.Fatal("runtime token was not sent as bearer auth")
+	}
+	body, ok := reqs[0].Body.(map[string]any)
+	if !ok || body["schema"] != "kei.tool-manifest/v3" {
+		t.Fatalf("body: %#v", reqs[0].Body)
+	}
+}

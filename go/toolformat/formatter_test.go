@@ -2,9 +2,13 @@ package toolformat
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type mockToolForFormat struct {
@@ -524,6 +528,83 @@ func TestGetFormatter(t *testing.T) {
 		formatter := GetFormatter(tt.modelName)
 		if formatter.ModelFamily() != tt.expected {
 			t.Errorf("expected '%s' for model '%s', got '%s'", tt.expected, tt.modelName, formatter.ModelFamily())
+		}
+	}
+}
+
+func TestFormattersAcceptToolSpecs(t *testing.T) {
+	spec := toolspec.ToolSpec{
+		Name: "get_weather", Description: "Get current weather",
+		Parameters: map[string]any{"type": "object", "properties": map[string]any{"location": map[string]any{"type": "string"}}},
+		Service:    "weather", Source: "weather", OperationClass: "read",
+	}
+	formatters := []ToolSpecFormatter{
+		&GenericFormatter{}, &OpenAIFOrmatter{}, &LlamaFormatter{}, &QwenFormatter{},
+		&AnthropicFormatter{}, &NemotronFormatter{}, &MistralFormatter{}, &MiniMaxFormatter{},
+	}
+	for _, formatter := range formatters {
+		got := formatter.FormatToolSpecs([]toolspec.ToolSpec{spec})
+		for _, want := range []string{"get_weather", "Get current weather", "location"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%T output %q does not contain %q", formatter, got, want)
+			}
+		}
+		if strings.Contains(got, "operation_class") || strings.Contains(got, "service") {
+			t.Errorf("%T emitted registration metadata: %q", formatter, got)
+		}
+	}
+}
+
+type toolSpecLegacyEquivalent struct {
+	spec toolspec.ToolSpec
+}
+
+func (t toolSpecLegacyEquivalent) Name() string                { return t.spec.Name }
+func (t toolSpecLegacyEquivalent) Description() string         { return t.spec.Description }
+func (t toolSpecLegacyEquivalent) InputSchema() map[string]any { return t.spec.Parameters }
+func (toolSpecLegacyEquivalent) Examples() []tools.ToolExample { return nil }
+func (toolSpecLegacyEquivalent) Execute(context.Context, map[string]any) (*tools.Result, error) {
+	return &tools.Result{Success: true}, nil
+}
+
+func TestToolSpecFormattingMatchesLegacyToolDefinitionForEveryFlavor(t *testing.T) {
+	data, err := os.ReadFile("../../fixtures/toolspec/cases.v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases struct {
+		Cases []struct {
+			Name string            `json:"name"`
+			Spec toolspec.ToolSpec `json:"spec"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	formatters := []struct {
+		name   string
+		legacy ToolFormatter
+		spec   ToolSpecFormatter
+	}{
+		{"generic", &GenericFormatter{}, &GenericFormatter{}},
+		{"openai", &OpenAIFOrmatter{}, &OpenAIFOrmatter{}},
+		{"deepseek", &DeepSeekFormatter{}, &DeepSeekFormatter{}},
+		{"glm", &GLMFormatter{}, &GLMFormatter{}},
+		{"anthropic", &AnthropicFormatter{}, &AnthropicFormatter{}},
+		{"qwen", &QwenFormatter{}, &QwenFormatter{}},
+		{"llama", &LlamaFormatter{}, &LlamaFormatter{}},
+		{"mistral", &MistralFormatter{}, &MistralFormatter{}},
+		{"nemotron", &NemotronFormatter{}, &NemotronFormatter{}},
+		{"minimax", &MiniMaxFormatter{}, &MiniMaxFormatter{}},
+	}
+	for _, tc := range cases.Cases {
+		legacy := toolSpecLegacyEquivalent{spec: tc.Spec}
+		for _, formatter := range formatters {
+			got := formatter.spec.FormatToolSpecs([]toolspec.ToolSpec{tc.Spec})
+			want := formatter.legacy.FormatToolDefinitions([]tools.Tool{legacy})
+			if got != want {
+				t.Errorf("case %q flavor %s: ToolSpec output differs from equivalent ToolDefinition\ngot: %q\nwant: %q", tc.Name, formatter.name, got, want)
+			}
 		}
 	}
 }

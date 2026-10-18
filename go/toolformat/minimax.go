@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type MiniMaxFormatter struct{}
@@ -15,6 +16,15 @@ var minimaxToolCallRegex = regexp.MustCompile(`(?s)(?:action|function_call|tool_
 var minimaxToolCallRegex2 = regexp.MustCompile(`<tool_call>\s*<tool_name>([^<]+)</tool_name>\s*<parameters>(.*?)</parameters>\s*</tool_call>`)
 
 func (f *MiniMaxFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(toolsList))
+}
+
+// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
+func (f *MiniMaxFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(specs))
+}
+
+func (f *MiniMaxFormatter) formatToolDefinitions(toolsList []formatTool) string {
 	if len(toolsList) == 0 {
 		return ""
 	}
@@ -23,7 +33,7 @@ func (f *MiniMaxFormatter) FormatToolDefinitions(toolsList []tools.Tool) string 
 	result += "Available tools:\n"
 	for _, t := range toolsList {
 		result += fmt.Sprintf("- %s: %s\n", t.Name(), t.Description())
-		if et, ok := t.(tools.ExtendedTool); ok {
+		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if schema := et.InputSchema(); schema != nil {
 				schemaJSON, _ := json.Marshal(schema)
 				result += fmt.Sprintf("  Parameters: %s\n", schemaJSON)
