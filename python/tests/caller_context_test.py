@@ -234,11 +234,10 @@ def test_middleware_impl_links_delegation_fields():
 def test_middleware_impl_propagates_caller_to_policy():
     """The caller must reach the policy evaluator unchanged and unmutated."""
     from haikeilabs.agentware.middleware import Action, Decision, MiddlewareImpl
-    from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
     captured = {}
 
-    class CapturingEvaluator(SimplePolicyEvaluator):
+    class CapturingEvaluator:
         def evaluate(self, tool_name, args, caller):
             captured["policy"] = caller
             return Decision(action=Action.ALLOW, reason="capture")
@@ -247,8 +246,7 @@ def test_middleware_impl_propagates_caller_to_policy():
         def execute(self, tool_name, args):
             return ({"echo": args.get("value")}, True, "")
 
-    policy = Policy(rules=[], default_deny=False)
-    mw = MiddlewareImpl(EchoExecutor(), evaluator=CapturingEvaluator(policy))
+    mw = MiddlewareImpl(EchoExecutor(), evaluator=CapturingEvaluator())
 
     caller = CallerContext(
         user_id="u-1", invoking_subject="alice@example.com", parent_span="span-7"

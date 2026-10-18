@@ -88,7 +88,7 @@ func TestAuditedToolClientExecute_DenySkipsExecutor(t *testing.T) {
 	client := NewAuditedToolClient("test-source", func(ctx context.Context, toolName string, args map[string]any) (*tools.Result, error) {
 		executed = true
 		return &tools.Result{Success: true}, nil
-	}).WithPolicy(&Policy{DefaultDeny: true})
+	}).WithPolicy(&mockEvaluator{decision: Decision{Action: ActionDeny, Rule: "default-deny", Reason: "denied"}})
 
 	result, err := client.Execute(context.Background(), "dangerous_tool", nil)
 	if err != nil {
@@ -157,13 +157,12 @@ func TestAuditedToolClientExecute_FilterRedactsBeforeExecutor(t *testing.T) {
 	client := NewAuditedToolClient("test-source", func(ctx context.Context, toolName string, args map[string]any) (*tools.Result, error) {
 		gotArgs = args
 		return &tools.Result{Success: true}, nil
-	}).WithPolicy(&Policy{
-		Rules: []Rule{{
-			Name:         "redact-token",
-			Tools:        []string{"*"},
+	}).WithPolicy(&mockEvaluator{
+		decision: Decision{
 			Action:       ActionFilter,
-			RedactFields: []string{"token"},
-		}},
+			Rule:         "redact-token",
+			RedactedArgs: map[string]any{"token": RedactedPlaceholder},
+		},
 	})
 
 	args := map[string]any{"token": "secret-value", "keep": "visible"}

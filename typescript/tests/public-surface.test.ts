@@ -10,11 +10,9 @@ import {
   NodeKind,
   NodeStatus,
   NudgeKind,
-  Operator,
   ReasoningAdapter,
   ReasoningError,
   ResponseValidator,
-  SimplePolicyEvaluator,
   StepEnforcer,
   StepNotAllowedError,
   ToolRegistry,
@@ -29,15 +27,12 @@ import {
 } from "../src/index.js";
 import type {
   CallerContext,
-  Condition,
   ContextTree,
   Decision,
   Middleware,
   Node,
   Nudge,
-  Policy,
   ReasoningOptions,
-  Rule,
   ToolError,
   ToolExecutor,
   ValidatedToolCall,
@@ -58,11 +53,9 @@ describe("@haikeilabs/agentware public surface", () => {
       NodeKind,
       NodeStatus,
       NudgeKind,
-      Operator,
       ReasoningAdapter,
       ReasoningError,
       ResponseValidator,
-      SimplePolicyEvaluator,
       StepEnforcer,
       StepNotAllowedError,
       ToolRegistry,
@@ -82,13 +75,6 @@ describe("@haikeilabs/agentware public surface", () => {
 
   it("keeps the guardrail and reasoning types importable from the root barrel", () => {
     const caller: CallerContext = { trusted: false };
-    const condition: Condition = {
-      field: "caller.trusted",
-      operator: Operator.EQ,
-      value: "false",
-    };
-    const rule: Rule = { name: "deny-untrusted", tools: ["*"], action: Action.DENY };
-    const policy: Policy = { default_deny: false, rules: [rule] };
     const decision: Decision = {
       action: Action.ALLOW,
       rule: "default",
@@ -134,8 +120,6 @@ describe("@haikeilabs/agentware public surface", () => {
     };
 
     expect(caller.trusted).toBe(false);
-    expect(policy.rules).toHaveLength(1);
-    expect(condition.operator).toBe(Operator.EQ);
     expect(decision.action).toBe(Action.ALLOW);
     expect(nudge.kind).toBe(NudgeKind.RETRY);
     expect(toolError.category).toBe(ErrorCategory.UNKNOWN);
@@ -149,9 +133,9 @@ describe("@haikeilabs/agentware public surface", () => {
     const executor: ToolExecutor = {
       execute: (toolName) => [{ tool: toolName }, true, ""],
     };
-    const middleware: Middleware = new MiddlewareImpl(executor).withPolicy(
-      new SimplePolicyEvaluator({ default_deny: false, rules: [] })
-    );
+    const middleware: Middleware = new MiddlewareImpl(executor).withPolicy({
+      evaluate: () => ({ action: Action.ALLOW, rule: "allow", reason: "ok", timestamp: new Date() }),
+    });
     const [result, success] = middleware.execute("read_file", {}, { trusted: false });
     expect(success).toBe(true);
     expect(result).toEqual({ tool: "read_file" });

@@ -1,6 +1,7 @@
 """
 Eval harness runner - runs evals against models sequentially.
 """
+
 import json
 import time
 from collections.abc import Callable
@@ -14,11 +15,9 @@ from evals.models import BaseModelClient, ModelBackend, create_model_client
 from haikeilabs.agentware.middleware import (
     Action,
     CallerContext,
+    Decision,
     InMemoryAuditor,
     MiddlewareImpl,
-    Policy,
-    Rule,
-    SimplePolicyEvaluator,
 )
 
 # Prefix MiddlewareImpl puts on the error of a call its policy denied.
@@ -70,9 +69,7 @@ class EvalCase:
     call gets a DENY tool result fed back to the model."""
 
 
-def validate_tool_call(
-    case: EvalCase, tool_name: str, raw_arguments: str
-) -> tuple[bool, str]:
+def validate_tool_call(case: EvalCase, tool_name: str, raw_arguments: str) -> tuple[bool, str]:
     """Check a tool call against the case's schema and argument assertions.
 
     Returns ``(ok, reason)``. Validates, in order: the tool name, that the
@@ -149,7 +146,7 @@ def caller_context_for(case: EvalCase, session_id: str = "") -> CallerContext:
     )
 
 
-def policy_for(case: EvalCase) -> SimplePolicyEvaluator | None:
+def policy_for(case: EvalCase) -> Any | None:
     """An agentware policy allowing only ``case.allowed_tools``, else ``None``.
 
     Default-deny, so any tool outside the list -- including one the model
@@ -157,12 +154,23 @@ def policy_for(case: EvalCase) -> SimplePolicyEvaluator | None:
     """
     if case.allowed_tools is None:
         return None
-    rules = []
-    if case.allowed_tools:
-        rules.append(
-            Rule(name="eval-allowed-tools", tools=list(case.allowed_tools), action=Action.ALLOW)
-        )
-    return SimplePolicyEvaluator(Policy(rules=rules, default_deny=True))
+    allowed = set(case.allowed_tools)
+
+    class _EvalPolicyEvaluator:
+        def evaluate(self, tool_name: str, args: dict[str, Any], caller: Any) -> Decision:
+            if tool_name in allowed:
+                return Decision(
+                    action=Action.ALLOW,
+                    rule="eval-allowed-tools",
+                    reason=f"tool {tool_name!r} is in allowed list",
+                )
+            return Decision(
+                action=Action.DENY,
+                rule="eval-deny",
+                reason=f"tool {tool_name!r} not in allowed list",
+            )
+
+    return _EvalPolicyEvaluator()
 
 
 def score_table_case(
@@ -272,8 +280,9 @@ class EvalRunner:
     def _client(self, model: str) -> BaseModelClient:
         return create_model_client(self.backend, model, self.base_url, timeout=self.timeout)
 
-    def run_case(self, case: EvalCase, model: str,
-                 tool_executor: Callable[[str, dict[str, Any]], str]) -> EvalResult:
+    def run_case(
+        self, case: EvalCase, model: str, tool_executor: Callable[[str, dict[str, Any]], str]
+    ) -> EvalResult:
         start = time.time()
         client = self._client(model)
 
@@ -294,11 +303,9 @@ class EvalRunner:
                     break
 
                 for tc in result.tool_calls:
-                    tool_calls_made.append({
-                        "turn": turns,
-                        "name": tc["name"],
-                        "arguments": tc["arguments"]
-                    })
+                    tool_calls_made.append(
+                        {"turn": turns, "name": tc["name"], "arguments": tc["arguments"]}
+                    )
 
                     if tc["name"] == case.expected_tool:
                         ok, reason = validate_tool_call(case, tc["name"], tc["arguments"])
@@ -313,7 +320,7 @@ class EvalRunner:
                             turns=turns,
                             tool_calls=tool_calls_made,
                             error="" if ok else f"invalid call to {tc['name']}: {reason}",
-                            duration_ms=duration_ms
+                            duration_ms=duration_ms,
                         )
 
                     try:
@@ -321,23 +328,22 @@ class EvalRunner:
                     except json.JSONDecodeError:
                         parsed_args = {}
                     tool_result = tool_executor(tc["name"], parsed_args)
-                    messages.append({
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [{
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["name"],
-                                "arguments": tc["arguments"]
-                            }
-                        }]
-                    })
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": tool_result
-                    })
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": tc["id"],
+                                    "type": "function",
+                                    "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                                }
+                            ],
+                        }
+                    )
+                    messages.append(
+                        {"role": "tool", "tool_call_id": tc["id"], "content": tool_result}
+                    )
 
             duration_ms = int((time.time() - start) * 1000)
             return EvalResult(
@@ -347,7 +353,7 @@ class EvalRunner:
                 turns=turns,
                 tool_calls=tool_calls_made,
                 error=f"Expected tool '{case.expected_tool}' not called in {turns} turns",
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
             )
 
         except Exception as e:
@@ -359,7 +365,7 @@ class EvalRunner:
                 turns=turns,
                 tool_calls=tool_calls_made,
                 error=str(e),
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
             )
 
     def run_table_case(
@@ -411,29 +417,31 @@ class EvalRunner:
                     finished = not truncated
                     break
 
-                messages.append({
-                    "role": "assistant",
-                    "content": result.content or None,
-                    "tool_calls": [
-                        {
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {"name": tc["name"], "arguments": tc["arguments"]},
-                        }
-                        for tc in result.tool_calls
-                    ],
-                })
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": result.content or None,
+                        "tool_calls": [
+                            {
+                                "id": tc["id"],
+                                "type": "function",
+                                "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                            }
+                            for tc in result.tool_calls
+                        ],
+                    }
+                )
                 for tc in result.tool_calls:
                     content, denied = _execute_governed(middleware, caller, tc)
-                    calls.append({
-                        "turn": turns,
-                        "name": tc["name"],
-                        "arguments": tc["arguments"],
-                        "denied": denied,
-                    })
-                    messages.append(
-                        {"role": "tool", "tool_call_id": tc["id"], "content": content}
+                    calls.append(
+                        {
+                            "turn": turns,
+                            "name": tc["name"],
+                            "arguments": tc["arguments"],
+                            "denied": denied,
+                        }
                     )
+                    messages.append({"role": "tool", "tool_call_id": tc["id"], "content": content})
 
                 if last_turn:
                     break
@@ -499,13 +507,14 @@ class EvalRunner:
                 f"via the {self.backend.value} backend: {exc}"
             ) from exc
 
-    def run_evals(self, cases: list[EvalCase], models: list[str],
-                  tool_executor: Callable[[str, dict[str, Any]], str],
-                  preflight: bool = True) -> EvalReport:
-        report = EvalReport(
-            timestamp=datetime.now().isoformat(),
-            models=models
-        )
+    def run_evals(
+        self,
+        cases: list[EvalCase],
+        models: list[str],
+        tool_executor: Callable[[str, dict[str, Any]], str],
+        preflight: bool = True,
+    ) -> EvalReport:
+        report = EvalReport(timestamp=datetime.now().isoformat(), models=models)
 
         for model in models:
             print(f"\n=== Testing model: {model} ===")
@@ -528,22 +537,26 @@ class EvalRunner:
     def save_report(self, report: EvalReport, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
-            json.dump({
-                "timestamp": report.timestamp,
-                "models": report.models,
-                "results": [
-                    {
-                        "case": r.case_name,
-                        "model": r.model_name,
-                        "success": r.success,
-                        "turns": r.turns,
-                        "tool_calls": r.tool_calls,
-                        "error": r.error,
-                        "duration_ms": r.duration_ms
-                    }
-                    for r in report.results
-                ]
-            }, f, indent=2)
+            json.dump(
+                {
+                    "timestamp": report.timestamp,
+                    "models": report.models,
+                    "results": [
+                        {
+                            "case": r.case_name,
+                            "model": r.model_name,
+                            "success": r.success,
+                            "turns": r.turns,
+                            "tool_calls": r.tool_calls,
+                            "error": r.error,
+                            "duration_ms": r.duration_ms,
+                        }
+                        for r in report.results
+                    ],
+                },
+                f,
+                indent=2,
+            )
 
 
 _CONTINUE = "continue"
@@ -604,10 +617,12 @@ def _execute_governed(
         return result if isinstance(result, str) else json.dumps(result), False
     denied = error.startswith(_POLICY_DENIED_PREFIX)
     return (
-        json.dumps({
-            "error": "denied" if denied else "tool_error",
-            "reason": error,
-            "source": "policy" if denied else "executor",
-        }),
+        json.dumps(
+            {
+                "error": "denied" if denied else "tool_error",
+                "reason": error,
+                "source": "policy" if denied else "executor",
+            }
+        ),
         denied,
     )

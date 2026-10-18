@@ -61,8 +61,6 @@ type Config struct {
 	TBoxPaths []string
 	// Prefixes overrides the CURIE prefix map (SCHEMA.md defaults).
 	Prefixes map[string]string
-	// Policy overrides the embedded declarative policy.
-	Policy *middleware.Policy
 	// Auditor records every decision. Defaults to an in-memory auditor.
 	Auditor middleware.Auditor
 }
@@ -97,9 +95,6 @@ func Enable(cfg Config) (*WikiMemory, error) {
 	opts := []EvaluatorOption{WithVaultReader(exec)}
 	if cfg.Prefixes != nil {
 		opts = append(opts, WithPrefixes(cfg.Prefixes))
-	}
-	if cfg.Policy != nil {
-		opts = append(opts, WithDeclarativePolicy(cfg.Policy))
 	}
 	auditor := cfg.Auditor
 	if auditor == nil {

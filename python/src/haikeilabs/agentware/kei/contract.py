@@ -11,10 +11,21 @@ missing credentials, and expired tokens all result in DENY.
 from typing import Any, Protocol, runtime_checkable
 
 from haikeilabs.agentware.middleware import AuditedToolClient
-from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
+from haikeilabs.agentware.middleware.types import Action, Decision
 
 from .auth import SecretProvider
 from .proxy import ProxyProcess
+
+
+class _DenyAllEvaluator:
+    """Fail-closed default: denies every tool call."""
+
+    def evaluate(self, tool_name: str, args: dict[str, Any], caller: Any) -> Decision:
+        return Decision(
+            action=Action.DENY,
+            rule="default-deny",
+            reason="no policy evaluator configured (fail-closed)",
+        )
 
 
 class ToolNotFoundError(Exception):
@@ -111,7 +122,7 @@ class HarnessContract:
         self.auth_provider = auth_provider
         self.tool_executor = tool_executor
         self.secret_provider = secret_provider
-        self.policy_evaluator = policy_evaluator or SimplePolicyEvaluator(Policy(default_deny=True))
+        self.policy_evaluator = policy_evaluator or _DenyAllEvaluator()
         self.auditor = auditor
         self.proxy_process = proxy_process
 

@@ -370,7 +370,7 @@ func TestTokenUsage_DoesNotCollideWithCallerContext(t *testing.T) {
 	}
 }
 
-// TestMiddlewareFilterEndToEnd exercises the real Policy evaluator (not a mock)
+// TestMiddlewareFilterEndToEnd exercises the filter evaluation path end to end
 // to confirm sensitive args are redacted before the tool runs, the caller's map
 // is left untouched, and the audit digest is taken over redacted values.
 func TestMiddlewareFilterEndToEnd(t *testing.T) {
@@ -381,16 +381,15 @@ func TestMiddlewareFilterEndToEnd(t *testing.T) {
 			return &tools.Result{Success: true}, nil
 		},
 	}
-	policy := &Policy{
-		Rules: []Rule{{
-			Name:         "redact_password",
-			Tools:        []string{"login"},
+	eval := &mockEvaluator{
+		decision: Decision{
 			Action:       ActionFilter,
-			RedactFields: []string{"password"},
-		}},
+			Rule:         "redact_password",
+			RedactedArgs: map[string]any{"password": RedactedPlaceholder},
+		},
 	}
 	aud := &mockAuditor{}
-	mw := NewMiddleware(exec).WithPolicy(policy).WithAuditor(aud)
+	mw := NewMiddleware(exec).WithPolicy(eval).WithAuditor(aud)
 
 	callerArgs := map[string]any{"user": "alice", "password": "hunter2"}
 	if _, err := mw.Execute(context.Background(), "login", callerArgs); err != nil {

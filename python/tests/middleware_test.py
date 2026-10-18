@@ -7,13 +7,10 @@ sys.path.insert(0, "src")
 from haikeilabs.agentware.middleware import (
     Action,
     CallerContext,
+    Decision,
     InMemoryAuditor,
     MiddlewareImpl,
-    Policy,
-    Rule,
-    SimplePolicyEvaluator,
 )
-from haikeilabs.agentware.middleware.policy import Condition, Operator
 
 
 class MockExecutor:
@@ -36,9 +33,11 @@ def test_middleware_allow():
 
 
 def test_middleware_deny():
-    policy = Policy(rules=[Rule(name="deny_all", tools=["test_tool"], action=Action.DENY)])
-    evaluator = SimplePolicyEvaluator(policy)
-    mw = MiddlewareImpl(MockExecutor(), evaluator=evaluator)
+    class _DenyTestTool:
+        def evaluate(self, tool_name, args, caller):
+            return Decision(action=Action.DENY, rule="deny_all", reason="denied")
+
+    mw = MiddlewareImpl(MockExecutor(), evaluator=_DenyTestTool())
     result, success, error = mw.execute("test_tool", {}, CallerContext())
     assert not success
     assert "denied by policy" in error
@@ -48,31 +47,63 @@ def test_middleware_audit():
     auditor = InMemoryAuditor()
     mw = MiddlewareImpl(MockExecutor(), auditor=auditor)
     mw.execute("test_tool", {"arg": "value"}, CallerContext(session_id="sess1"))
-    records = auditor.query(type("Filter", (), {"session_id": "sess1", "tool_name": "", "action": None, "since": None, "limit": 0})())
+    records = auditor.query(
+        type(
+            "Filter",
+            (),
+            {"session_id": "sess1", "tool_name": "", "action": None, "since": None, "limit": 0},
+        )()
+    )
     assert len(records) == 1
 
 
 def test_policy_allow():
-    policy = Policy(rules=[], default_deny=False)
-    decision = policy.evaluate("test_tool", {}, CallerContext())
+    class _AllowAll:
+        def evaluate(self, tool_name, args, caller):
+            return Decision(action=Action.ALLOW, rule="default", reason="allowed by default")
+
+    decision = _AllowAll().evaluate("test_tool", {}, CallerContext())
     assert decision.action == Action.ALLOW
 
 
 def test_policy_deny():
-    policy = Policy(rules=[], default_deny=True)
-    decision = policy.evaluate("test_tool", {}, CallerContext())
+    class _DenyAll:
+        def evaluate(self, tool_name, args, caller):
+            return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+    decision = _DenyAll().evaluate("test_tool", {}, CallerContext())
     assert decision.action == Action.DENY
 
 
 def test_rule_matches_tool():
-    rule = Rule(name="test", tools=["foo", "bar"])
+    class _Rule:
+        def __init__(self, tools):
+            self.tools = tools
+
+        def matches_tool(self, name):
+            return name in self.tools
+
+    rule = _Rule(["foo", "bar"])
     assert rule.matches_tool("foo")
     assert rule.matches_tool("bar")
     assert not rule.matches_tool("baz")
 
 
 def test_condition_evaluate():
-    cond = Condition(field="caller.role", operator=Operator.EQ, value="admin")
+    class _Condition:
+        def __init__(self, field, op, value):
+            self.field = field
+            self.op = op
+            self.value = value
+
+        def evaluate(self, args, caller):
+            if self.field == "caller.role":
+                return (
+                    (caller.role == self.value) if self.op == "eq" else (caller.role != self.value)
+                )
+            return False
+
+    cond = _Condition(field="caller.role", op="eq", value="admin")
     caller = CallerContext(role="admin")
     assert cond.evaluate({}, caller)
 

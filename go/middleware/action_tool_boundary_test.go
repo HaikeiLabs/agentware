@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/haikeilabs/agentware/go/tools"
 )
@@ -27,6 +28,19 @@ func (b *boundaryTool) Execute(ctx context.Context, args map[string]any) (*tools
 	return &tools.Result{Success: true, Output: b.out}, nil
 }
 
+// localPolicy is a test PolicyEvaluator wired with allow/deny rules for the
+// isolated local loop tests.
+type localPolicy struct {
+	rules map[string]Action
+}
+
+func (p *localPolicy) Evaluate(toolName string, _ map[string]any, _ CallerContext) Decision {
+	if a, ok := p.rules[toolName]; ok {
+		return Decision{Action: a, Rule: toolName, Reason: "test rule", Timestamp: time.Now()}
+	}
+	return Decision{Action: ActionDeny, Rule: "default", Reason: "default deny", Timestamp: time.Now()}
+}
+
 // Invariant 3 + 6: a local policy governs an isolated loop and separates an
 // action tool from a read tool with no external ABAC/catalog consulted.
 func TestIsolatedLocalLoopSeparatesActionFromRead(t *testing.T) {
@@ -34,16 +48,12 @@ func TestIsolatedLocalLoopSeparatesActionFromRead(t *testing.T) {
 	registry.Register(&boundaryTool{name: "github.read", out: "read"})
 	registry.Register(&boundaryTool{name: "github.create_issue", out: "mutation"})
 
-	policy := &Policy{
-		Rules: []Rule{
-			{Name: "deny-mutation", Tools: []string{"github.create_issue"}, Action: ActionDeny},
-			{Name: "allow-read", Tools: []string{"github.read"}, Action: ActionAllow},
-		},
-	}
-
 	auditor := &mockAuditor{}
 	mw := NewMiddleware(tools.NewRegistryExecutor(registry)).
-		WithPolicy(policy).
+		WithPolicy(&localPolicy{rules: map[string]Action{
+			"github.create_issue": ActionDeny,
+			"github.read":         ActionAllow,
+		}}).
 		WithAuditor(auditor)
 
 	readRes, err := mw.Execute(context.Background(), "github.read", map[string]any{})
@@ -89,7 +99,7 @@ func TestIsolatedLocalLoopPreservesDelegationInAudit(t *testing.T) {
 
 	auditor := &mockAuditor{}
 	mw := NewMiddleware(tools.NewRegistryExecutor(registry)).
-		WithPolicy(&Policy{Rules: []Rule{{Name: "allow-read", Tools: []string{"github.read"}, Action: ActionAllow}}}).
+		WithPolicy(&localPolicy{rules: map[string]Action{"github.read": ActionAllow}}).
 		WithAuditor(auditor)
 
 	parent := CallerContext{UserID: "U_HUMAN", InvokingSubject: "U_HUMAN", SessionID: "C1"}

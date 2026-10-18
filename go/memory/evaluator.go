@@ -14,6 +14,22 @@ import (
 	"github.com/haikeilabs/agentware/go/middleware"
 )
 
+// toolRateLimit defines a per-tool rate limit enforced locally by the
+// evaluator. These are runtime limits only — they never decide allow/deny on
+// their own; a call that exceeds its rate is denied with a rate-limit reason.
+type toolRateLimit struct {
+	Count  int
+	Window time.Duration
+}
+
+var defaultToolRateLimits = map[string]toolRateLimit{
+	"memory_ingest":     {Count: 30, Window: time.Minute},
+	"memory_write_page": {Count: 30, Window: time.Minute},
+	"memory_query":      {Count: 120, Window: time.Minute},
+	"memory_get_claims": {Count: 120, Window: time.Minute},
+	"memory_lint":       {Count: 120, Window: time.Minute},
+}
+
 const (
 	skosConceptIRI = "http://www.w3.org/2004/02/skos/core#Concept"
 	rdfTypeIRI     = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
@@ -31,32 +47,30 @@ type VaultReader interface {
 }
 
 // OntologyEvaluator implements middleware.PolicyEvaluator for memory tools.
-// Evaluation is two-tier:
-//
-//  1. Declarative: the stock middleware Policy (deny-by-default, scope
-//     rules, per-rule rate limits).
-//  2. Semantic: for write tools, the page content in args["content"] is
-//     parsed and validated against the T-box, and the write is checked for
-//     SKOS violations it would introduce into the vault graph (cycles,
-//     broader/narrower inconsistency).
+// Evaluation is semantic: for write tools, the page content in args["content"]
+// is parsed and validated against the T-box, and the write is checked for
+// SKOS violations it would introduce into the vault graph (cycles,
+// broader/narrower inconsistency). Per-tool rate limits are enforced locally
+// as runtime limits only.
 //
 // DENY decisions embed structured diagnostics: Reason ends with a JSON
 // array of ontology.Violation after the "diagnostics:" marker, so calling
 // agents can self-correct and retry.
 type OntologyEvaluator struct {
-	tbox     *ontology.TBox
-	policy   *middleware.Policy
-	limiter  *middleware.RateLimiter
-	prefixes map[string]string
-	vault    VaultReader
+	tbox           *ontology.TBox
+	limiter        *middleware.RateLimiter
+	prefixes       map[string]string
+	vault          VaultReader
+	toolRateLimits map[string]toolRateLimit
 }
 
 // EvaluatorOption configures an OntologyEvaluator.
 type EvaluatorOption func(*OntologyEvaluator)
 
-// WithDeclarativePolicy replaces the embedded default policy.
-func WithDeclarativePolicy(p *middleware.Policy) EvaluatorOption {
-	return func(e *OntologyEvaluator) { e.policy = p }
+// WithToolRateLimits replaces the default per-tool rate limits.
+// Each entry maps a tool name to its local runtime rate limit.
+func WithToolRateLimits(limits map[string]toolRateLimit) EvaluatorOption {
+	return func(e *OntologyEvaluator) { e.toolRateLimits = limits }
 }
 
 // WithPrefixes replaces the default CURIE prefix map (SCHEMA.md).
@@ -73,10 +87,10 @@ func WithVaultReader(v VaultReader) EvaluatorOption {
 // NewOntologyEvaluator builds the evaluator for a read-only T-box.
 func NewOntologyEvaluator(tbox *ontology.TBox, opts ...EvaluatorOption) *OntologyEvaluator {
 	e := &OntologyEvaluator{
-		tbox:     tbox,
-		policy:   DefaultPolicy(),
-		limiter:  middleware.NewRateLimiter(),
-		prefixes: page.DefaultPrefixes(),
+		tbox:           tbox,
+		limiter:        middleware.NewRateLimiter(),
+		prefixes:       page.DefaultPrefixes(),
+		toolRateLimits: defaultToolRateLimits,
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -86,44 +100,57 @@ func NewOntologyEvaluator(tbox *ontology.TBox, opts ...EvaluatorOption) *Ontolog
 
 // Evaluate implements middleware.PolicyEvaluator.
 func (e *OntologyEvaluator) Evaluate(toolName string, args map[string]any, caller middleware.CallerContext) middleware.Decision {
-	decision := e.policy.Evaluate(toolName, args, caller)
-	if decision.Action == middleware.ActionDeny {
-		return decision
-	}
-	if denied, d := e.rateLimited(decision, toolName, caller); denied {
-		return d
-	}
-	if !isSemanticWrite(toolName) {
-		return decision
-	}
-	return e.evaluateWrite(decision, args, caller)
-}
-
-func (e *OntologyEvaluator) rateLimited(d middleware.Decision, toolName string, caller middleware.CallerContext) (bool, middleware.Decision) {
-	// The stock policy engine matches rules but does not enforce MaxRate;
-	// apply the matched rule's limit here, keyed per user and tool.
-	for i := range e.policy.Rules {
-		rule := &e.policy.Rules[i]
-		if rule.Name != d.Rule {
-			continue
-		}
-		if rule.MaxRate == nil {
-			return false, d
-		}
-		key := caller.UserID + "|" + toolName
-		e.limiter.SetWindow(key, rule.MaxRate.Window)
-		if e.limiter.Allow(key, rule.MaxRate.Count) {
-			return false, d
-		}
-		return true, middleware.Decision{
-			Action: middleware.ActionDeny,
-			Rule:   rule.Name,
-			Reason: fmt.Sprintf("rate limit exceeded: %d calls per %s for %s",
-				rule.MaxRate.Count, rule.MaxRate.Window, toolName),
+	if caller.UserID == "" {
+		return middleware.Decision{
+			Action:    middleware.ActionDeny,
+			Rule:      "memory-deny-anonymous",
+			Reason:    "memory: no caller context",
 			Timestamp: time.Now(),
 		}
 	}
-	return false, d
+	if _, ok := args["user_id"]; ok {
+		return middleware.Decision{
+			Action:    middleware.ActionDeny,
+			Rule:      "memory-deny-scope-override",
+			Reason:    "memory-deny-scope-override: scope-override via args.user_id is not permitted",
+			Timestamp: time.Now(),
+		}
+	}
+	if denied, d := e.rateLimited(toolName, caller); denied {
+		return d
+	}
+	if !isSemanticWrite(toolName) {
+		return defaultAllow(toolName)
+	}
+	return e.evaluateWrite(defaultAllow(toolName), args, caller)
+}
+
+func defaultAllow(toolName string) middleware.Decision {
+	return middleware.Decision{
+		Action:    middleware.ActionAllow,
+		Rule:      "default",
+		Reason:    "policy from catalog; local runtime check passed",
+		Timestamp: time.Now(),
+	}
+}
+
+func (e *OntologyEvaluator) rateLimited(toolName string, caller middleware.CallerContext) (bool, middleware.Decision) {
+	limit, ok := e.toolRateLimits[toolName]
+	if !ok {
+		return false, middleware.Decision{}
+	}
+	key := caller.UserID + "|" + toolName
+	e.limiter.SetWindow(key, limit.Window)
+	if e.limiter.Allow(key, limit.Count) {
+		return false, middleware.Decision{}
+	}
+	return true, middleware.Decision{
+		Action: middleware.ActionDeny,
+		Rule:   toolName,
+		Reason: fmt.Sprintf("rate limit exceeded: %d calls per %s for %s",
+			limit.Count, limit.Window, toolName),
+		Timestamp: time.Now(),
+	}
 }
 
 func (e *OntologyEvaluator) evaluateWrite(d middleware.Decision, args map[string]any, caller middleware.CallerContext) middleware.Decision {

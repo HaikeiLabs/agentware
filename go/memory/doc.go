@@ -4,11 +4,10 @@
 //
 // Memory is a composable agentware capability, not a standalone product.
 // Every memory write passes through the same middleware chain as any tool
-// call: declarative policy rules (deny-by-default, caller checks, rate
-// limits) plus a semantic tier — an OntologyEvaluator implementing
-// middleware.PolicyEvaluator that validates page frontmatter and typed
-// links against a read-only T-box (github.com/Soypete/ontologies by
-// default, vendored at ontologies/ in this repo).
+// call: an OntologyEvaluator implementing middleware.PolicyEvaluator that
+// validates page frontmatter and typed links against a read-only T-box
+// (github.com/Soypete/ontologies by default, vendored at ontologies/ in
+// this repo) and enforces per-tool runtime rate limits.
 //
 // On-disk layout, one vault per user:
 //
