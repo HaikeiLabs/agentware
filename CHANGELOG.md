@@ -1,32 +1,37 @@
 # Changelog
 
-Notable changes to pedro-agentware (Go, Python, and TypeScript). Releases are
-coordinated separately; entries collect under **Unreleased** until then.
+Notable changes to agentware (Go, Python, and TypeScript). Releases use one
+shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
-### Changed
+## [0.10.0] - 2026-10-17
 
-- **Breaking (Go, Python, TypeScript):** removed caller-provided `agent_id` / `AgentID` / `agentId` from Kei authorize request types and client APIs (HAI-557). The runtime token supplies authorization identity. Agent identity remains available in runtime identity, caller/audit metadata, delegation context, and connector binding metadata.
+### Breaking
 
-- **Go (breaking import path):** the module is now
+- **Go:** module path changed to
   `github.com/haikeilabs/agentware/go`, so
-  `go get github.com/haikeilabs/agentware/go` resolves. Replace
-  `github.com/soypete/pedro-agentware/go` with
-  `github.com/haikeilabs/agentware/go` in your imports and `go.mod`
-  (HAI-684). Package names and APIs are unchanged.
-- **Release:** npm, PyPI and the Go module share one version from the root
-  `VERSION` file. One `agentware-v<VERSION>` tag publishes npm, pushes
-  `go/v<VERSION>`, and runs the PyPI workflow; a `Version check` CI job fails
-  when any file drifts (HAI-684). The Python package and the SDK version each
-  runtime link reports (`KEI_AGENTWARE_SDK_VERSION`) move to the shared version
-  (Python was 0.1.0 and TypeScript reported 0.2.1).
-- **Docs:** README install lines use the published packages
-  (`pip install haikeilabs-agentware`, `npm i @haikeilabs/agentware`,
-  `go get github.com/haikeilabs/agentware/go`), and a compatibility table lists
-  the minimum kei-proxy and kei-cli per SDK release. `KEI_PROXY_VERSION` pins
-  the current kei-proxy (v0.2.11, bundled by kei-cli 0.1.32); CI fails when the
-  table disagrees with the pin or lacks a row for `VERSION` (HAI-684).
+  replace `github.com/soypete/pedro-agentware/go` in imports and `go.mod`.
+- **Go, Python, TypeScript:** removed caller-provided `agent_id` / `AgentID` /
+  `agentId` from Kei authorize request types and client APIs. The runtime token
+  supplies authorization identity.
+
+### Added
+
+- **TypeScript:** asynchronous `AuditedToolClient` and
+  `CallerContext.delegate()`.
+- **Go, Python, TypeScript:** Unix socket clients for `kei-proxy serve` and
+  minimal harness examples for each language.
+- Surface deny `reason_code` and `hint` in authorization decisions.
+- Guardrails facades in Go, Python, and TypeScript.
+- Getting-started guides and a runtime setup runbook.
+- Shared release versioning for npm, PyPI, and Go, driven by the
+  `agentware-v<VERSION>` release tag.
+
+### Documentation
+
+- README install instructions use the published npm, PyPI, and Go packages and
+  list the minimum kei-proxy and kei-cli versions for each SDK release.
 
 ## [0.9.0] - 2026-10-09
 
