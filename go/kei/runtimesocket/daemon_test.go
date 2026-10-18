@@ -46,7 +46,7 @@ type fakeDaemon struct {
 // caps Unix socket paths near 104 bytes, and t.TempDir() is too long there.
 func shortSocketPath(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "kei-")
+	dir, err := os.MkdirTemp(".", "kei-")
 	if err != nil {
 		t.Fatalf("mkdir temp: %v", err)
 	}

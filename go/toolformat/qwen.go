@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type QwenFormatter struct{}
@@ -14,6 +15,15 @@ var qwenToolCallRegex = regexp.MustCompile(`<tool_call>\s*<tool name="([^"]+)">\
 var qwenAnyToolRegex = regexp.MustCompile(`<tool\b[^>]*>`)
 
 func (f *QwenFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(toolsList))
+}
+
+// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
+func (f *QwenFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(specs))
+}
+
+func (f *QwenFormatter) formatToolDefinitions(toolsList []formatTool) string {
 	if len(toolsList) == 0 {
 		return ""
 	}
@@ -25,7 +35,7 @@ func (f *QwenFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
 <description>%s</description>
 `, t.Name(), t.Description())
 
-		if et, ok := t.(tools.ExtendedTool); ok {
+		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if schema := et.InputSchema(); schema != nil {
 				schemaJSON, _ := json.Marshal(schema)
 				result += fmt.Sprintf(`<parameters>%s</parameters>`, schemaJSON)

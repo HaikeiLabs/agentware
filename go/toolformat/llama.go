@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type LlamaFormatter struct{}
@@ -13,6 +14,15 @@ type LlamaFormatter struct{}
 var llamaToolCallRegex = regexp.MustCompile(`<\|python_tag\|>\s*([a-zA-Z_][a-zA-Z0-9_]*)\((.*?)\)`)
 
 func (f *LlamaFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(toolsList))
+}
+
+// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
+func (f *LlamaFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(specs))
+}
+
+func (f *LlamaFormatter) formatToolDefinitions(toolsList []formatTool) string {
 	if len(toolsList) == 0 {
 		return ""
 	}
@@ -21,7 +31,7 @@ func (f *LlamaFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
 	result += "Available tools:\n"
 	for _, t := range toolsList {
 		result += fmt.Sprintf("- %s: %s\n", t.Name(), t.Description())
-		if et, ok := t.(tools.ExtendedTool); ok {
+		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if schema := et.InputSchema(); schema != nil {
 				schemaJSON, _ := json.Marshal(schema)
 				result += fmt.Sprintf("  Parameters: %s\n", schemaJSON)

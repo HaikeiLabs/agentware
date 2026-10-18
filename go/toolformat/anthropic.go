@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type AnthropicFormatter struct{}
@@ -15,6 +16,15 @@ var anthropicInvokeRegex = regexp.MustCompile(`<invoke tool="([^"]+)">\s*(.*?)\s
 var anthropicAnyInvokeRegex = regexp.MustCompile(`<invoke\b[^>]*>`)
 
 func (f *AnthropicFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(toolsList))
+}
+
+// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
+func (f *AnthropicFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(specs))
+}
+
+func (f *AnthropicFormatter) formatToolDefinitions(toolsList []formatTool) string {
 	if len(toolsList) == 0 {
 		return ""
 	}
@@ -28,7 +38,7 @@ func (f *AnthropicFormatter) FormatToolDefinitions(toolsList []tools.Tool) strin
 				"description": t.Description(),
 			},
 		}
-		if et, ok := t.(tools.ExtendedTool); ok {
+		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if s := et.InputSchema(); s != nil {
 				schema["function"].(map[string]any)["parameters"] = s
 			}

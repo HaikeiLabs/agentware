@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/haikeilabs/agentware/go/tools"
+	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
 type MistralFormatter struct{}
@@ -14,6 +15,15 @@ var mistralToolCallRegex = regexp.MustCompile(`\[TOOL_CALLS\]\s*\[(.*?)\]\s*\[/T
 var mistralToolRegex = regexp.MustCompile(`tool_call>\s*(\w+)\s*:\s*(\{.*?\})`)
 
 func (f *MistralFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(toolsList))
+}
+
+// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
+func (f *MistralFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(specs))
+}
+
+func (f *MistralFormatter) formatToolDefinitions(toolsList []formatTool) string {
 	if len(toolsList) == 0 {
 		return ""
 	}
@@ -22,7 +32,7 @@ func (f *MistralFormatter) FormatToolDefinitions(toolsList []tools.Tool) string 
 	result += "[TOOL_DEFINITIONS]\n"
 	for _, t := range toolsList {
 		result += fmt.Sprintf("{%s: %s}", t.Name(), t.Description())
-		if et, ok := t.(tools.ExtendedTool); ok {
+		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if schema := et.InputSchema(); schema != nil {
 				schemaJSON, _ := json.Marshal(schema)
 				result += fmt.Sprintf(" | params: %s", schemaJSON)

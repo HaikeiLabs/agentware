@@ -533,3 +533,17 @@ func (r *response) object() (map[string]any, error) {
 	}
 	return obj, nil
 }
+
+// SendTools posts a serialized tool manifest to the runtime socket's
+// registration endpoint. The caller owns manifest validation and encoding.
+func (c *Client) SendTools(ctx context.Context, manifest []byte) error {
+	var body map[string]any
+	if err := json.Unmarshal(manifest, &body); err != nil || body == nil {
+		return malformed("tool manifest is not a JSON object")
+	}
+	resp, err := c.send(ctx, http.MethodPost, "/v1/tools:register", "", body, c.timeout())
+	if err != nil {
+		return err
+	}
+	return resp.check()
+}

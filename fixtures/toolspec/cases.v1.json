@@ -1,5 +1,13 @@
 {
   "schema": "agentware.toolspec-cases/v1",
+  "$comment": "Cross-language contract. ToolSpec formatting preserves each language's existing formatter behavior. JSON formatting is compared semantically using toolformat_compare. Non-JSON formatter behavior is tested by comparing ToolSpec formatting with the equivalent legacy ToolDefinition path.",
+  "toolformat_compare": {
+    "generic": "json",
+    "openai": "json",
+    "deepseek": "json",
+    "glm": "json",
+    "anthropic": "json"
+  },
   "cases": [
     {
       "name": "connector binding",
@@ -62,7 +70,11 @@
         "enabled": true
       },
       "expected_toolformat": {
-        "generic": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]"
+        "generic": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
+        "openai": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
+        "deepseek": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
+        "glm": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
+        "anthropic": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]"
       }
     },
     {
@@ -117,7 +129,11 @@
         }
       },
       "expected_toolformat": {
-        "generic": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]"
+        "generic": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
+        "openai": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
+        "deepseek": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
+        "glm": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
+        "anthropic": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]"
       }
     },
     {
