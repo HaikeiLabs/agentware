@@ -40,6 +40,22 @@ def test_caller_context_has_no_authorize_agent_id_input():
     assert "agent_id" not in {item.name for item in fields(CallerContext)}
 
 
+def test_register_tools_posts_manifest_to_runtime_route() -> None:
+    daemon = FakeDaemon()
+    daemon.routes[("POST", "/v1/tools:register")] = {"registered": 1}
+    client = KeiProxySocketAuthorizeClient(env=ENV, transport=httpx.MockTransport(daemon.handle))
+
+    result = asyncio.run(client.register_tools({"schema": "kei.tool-manifest/v3", "tools": []}))
+
+    assert result == {"registered": 1}
+    assert daemon.requests[-1].method == "POST"
+    assert daemon.requests[-1].url.path == "/v1/tools:register"
+    assert json.loads(daemon.requests[-1].content) == {
+        "schema": "kei.tool-manifest/v3",
+        "tools": [],
+    }
+
+
 PERMIT = {"schema": "kei.authorize-response/v1", "decision": "permit", "bundle_state": "fresh"}
 
 

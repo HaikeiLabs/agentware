@@ -68,6 +68,16 @@ def _client(path: str) -> KeiProxySocketAuthorizeClient:
     )
 
 
+async def test_tool_manifest_registration_uses_runtime_route(
+    fake_daemon: tuple[str, str],
+) -> None:
+    client = _client(fake_daemon[0])
+    result = await client.register_tools(
+        {"schema": "kei.tool-manifest/v3", "tools": [{"name": "x"}]}
+    )
+    assert result == {"registered": 1}
+
+
 async def test_echo_is_permitted_and_delete_is_denied_with_a_hint(
     fake_daemon: tuple[str, str],
 ) -> None:

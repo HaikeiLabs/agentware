@@ -18,10 +18,14 @@ from .prompts import PromptGenerator
 from .reasoning import ReasoningAdapter
 from .toolformat import ToolFormatter
 from .tools import Result, Tool, ToolRegistry
+from .toolspec import ToolSpec, register_tool_specs, serialize_tool_specs
 
 __all__ = [
     "Tool",
     "ToolRegistry",
+    "ToolSpec",
+    "serialize_tool_specs",
+    "register_tool_specs",
     "Result",
     "Middleware",
     "PolicyEvaluator",
