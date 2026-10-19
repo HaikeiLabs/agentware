@@ -5,6 +5,16 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+## [0.11.0] - 2026-10-19
+
+### Added
+
+- **Go, Python, TypeScript:** ToolSpec, where one object feeds the per-model
+  toolformat formatters and runtime registration.
+- **Go, Python, TypeScript:** registrars that post a
+  `kei.tool-manifest/v3` manifest to `/v1/tools:register`.
+- Shared ToolSpec fixture and fake-socket route for `/v1/tools:register`.
+
 ## [0.10.0] - 2026-10-17
 
 ### Breaking
