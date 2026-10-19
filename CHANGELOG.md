@@ -7,6 +7,13 @@ shared version across npm, PyPI, and Go.
 
 ## [0.11.0] - 2026-10-19
 
+### Breaking
+
+- **Go, Python:** Removed the local middleware policy engines, including
+  Python `Policy`, `Rule`, and `SimplePolicyEvaluator` and the Go middleware
+  policy engine (#220). Only the `PolicyEvaluator` interface remains; callers
+  provide their own evaluator.
+
 ### Added
 
 - **Go, Python, TypeScript:** ToolSpec, where one object feeds the per-model

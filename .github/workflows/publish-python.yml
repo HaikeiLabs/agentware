@@ -206,13 +206,15 @@ jobs:
               importlib.import_module(module)
 
           from haikeilabs.agentware.middleware import (
-              Action, CallerContext, Policy, Rule, SimplePolicyEvaluator,
+              Action, CallerContext, Decision, PolicyEvaluator,
           )
 
-          evaluator = SimplePolicyEvaluator(Policy(rules=[
-              Rule(name="deny", tools=["github.delete_repo"], action=Action.DENY),
-              Rule(name="allow", tools=["*"], action=Action.ALLOW),
-          ]))
+          class SmokePolicyEvaluator(PolicyEvaluator):
+              def evaluate(self, tool_name, args, caller):
+                  action = Action.DENY if tool_name == "github.delete_repo" else Action.ALLOW
+                  return Decision(action=action, rule="smoke", reason="smoke decision")
+
+          evaluator = SmokePolicyEvaluator()
           caller = CallerContext(user_id="smoke", invoking_subject="smoke")
           assert evaluator.evaluate("github.delete_repo", {}, caller).action is Action.DENY
           assert evaluator.evaluate("github.get_issue", {}, caller).action is Action.ALLOW
