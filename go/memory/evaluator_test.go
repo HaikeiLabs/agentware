@@ -3,6 +3,7 @@ package memory
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/soypete/ontology-go/types"
 
@@ -130,35 +131,26 @@ func TestEvaluatorDeniesCycleIntroducingLink(t *testing.T) {
 	}
 }
 
-func TestEvaluatorDeniesAnonymousAndScopeOverride(t *testing.T) {
+func TestEvaluatorDeniesMissingContent(t *testing.T) {
 	e := NewOntologyEvaluator(testTBox(t))
-	if d := e.Evaluate(ToolQuery, map[string]any{}, middleware.CallerContext{}); d.Action != middleware.ActionDeny {
-		t.Errorf("anonymous caller must be denied, got %s", d.Action)
-	}
-	args := map[string]any{"user_id": "bob"}
-	if d := e.Evaluate(ToolQuery, args, alice()); d.Action != middleware.ActionDeny {
-		t.Errorf("scope-override arg must be denied, got %s", d.Action)
-	} else if d.Rule != "memory-deny-scope-override" {
-		t.Errorf("expected scope-override rule, got %s", d.Rule)
+	d := e.Evaluate(ToolWritePage, map[string]any{}, alice())
+	if d.Action != middleware.ActionDeny {
+		t.Errorf("missing content must be denied, got %s", d.Action)
 	}
 }
 
-func TestEvaluatorDefaultDenyUnknownTool(t *testing.T) {
+func TestEvaluatorNonMemoryToolAllowed(t *testing.T) {
 	e := NewOntologyEvaluator(testTBox(t))
-	if d := e.Evaluate("delete_database", nil, alice()); d.Action != middleware.ActionDeny {
-		t.Errorf("non-memory tool must hit default deny, got %s", d.Action)
+	if d := e.Evaluate("delete_database", nil, alice()); d.Action != middleware.ActionAllow {
+		t.Errorf("non-memory tool should be allowed (policy from catalog), got %s", d.Action)
 	}
 }
 
 func TestEvaluatorRateLimit(t *testing.T) {
-	policy := DefaultPolicy()
-	// Tighten the read rule to 3/min for the test.
-	for i := range policy.Rules {
-		if policy.Rules[i].Name == "memory-reads" {
-			policy.Rules[i].MaxRate.Count = 3
-		}
+	limits := map[string]toolRateLimit{
+		"memory_query": {Count: 3, Window: time.Minute},
 	}
-	e := NewOntologyEvaluator(testTBox(t), WithDeclarativePolicy(policy))
+	e := NewOntologyEvaluator(testTBox(t), WithToolRateLimits(limits))
 	for i := range 3 {
 		if d := e.Evaluate(ToolQuery, nil, alice()); d.Action != middleware.ActionAllow {
 			t.Fatalf("call %d should be allowed, got %s: %s", i+1, d.Action, d.Reason)
@@ -182,24 +174,6 @@ func TestEvaluatorPageIDMismatch(t *testing.T) {
 	d := e.Evaluate(ToolWritePage, args, alice())
 	if d.Action != middleware.ActionDeny || !strings.Contains(d.Reason, "does not match") {
 		t.Errorf("expected page_id mismatch deny, got %s: %s", d.Action, d.Reason)
-	}
-}
-
-func TestDefaultPolicyParses(t *testing.T) {
-	p := DefaultPolicy()
-	if !p.DefaultDeny || len(p.Rules) != 4 {
-		t.Errorf("unexpected default policy shape: defaultDeny=%v rules=%d", p.DefaultDeny, len(p.Rules))
-	}
-	for _, name := range []string{"memory-deny-scope-override", "memory-deny-anonymous", "memory-writes", "memory-reads"} {
-		found := false
-		for _, r := range p.Rules {
-			if r.Name == name {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("missing rule %s", name)
-		}
 	}
 }
 

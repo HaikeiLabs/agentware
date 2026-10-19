@@ -28,15 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-from haikeilabs.agentware.middleware import Action, AuditedToolClient, CallerContext
+from haikeilabs.agentware.middleware import Action, AuditedToolClient, CallerContext, Decision
 from haikeilabs.agentware.middleware.audit import AuditFilter
-from haikeilabs.agentware.middleware.policy import (
-    Condition,
-    Operator,
-    Policy,
-    Rule,
-    SimplePolicyEvaluator,
-)
 
 # The beta surface, split by how it is governed.
 CONNECTOR_READ_TOOLS = [
@@ -74,8 +67,12 @@ DELEGATED_CONTEXT_FIELDS = {
 }
 
 
-def _deny_all() -> SimplePolicyEvaluator:
-    return SimplePolicyEvaluator(Policy(rules=[], default_deny=True))
+def _deny_all():
+    class _DenyAll:
+        def evaluate(self, tool_name, args, caller):
+            return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+    return _DenyAll()
 
 
 def _ran(**kwargs: object) -> str:
@@ -98,20 +95,19 @@ class TestFailClosedDefaults:
 
     @pytest.mark.asyncio
     async def test_untrusted_caller_denied_on_trusted_only_rule(self) -> None:
-        policy = Policy(
-            rules=[
-                Rule(
-                    name="writes-require-trust",
-                    tools=WRITE_ACTION_TOOLS,
-                    action=Action.ALLOW,
-                    conditions=[
-                        Condition(field="caller.trusted", operator=Operator.EQ, value="true")
-                    ],
-                )
-            ],
-            default_deny=True,
-        )
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(policy))
+        class _TrustGate:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name in WRITE_ACTION_TOOLS and caller.trusted:
+                    return Decision(
+                        action=Action.ALLOW, rule="writes-require-trust", reason="trusted"
+                    )
+                if tool_name in WRITE_ACTION_TOOLS and not caller.trusted:
+                    return Decision(
+                        action=Action.DENY, rule="writes-require-trust", reason="untrusted"
+                    )
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+        client = AuditedToolClient(evaluator=_TrustGate())
 
         untrusted = CallerContext(user_id="U1", session_id="C1", trusted=False)
         with pytest.raises(PermissionError):
@@ -141,11 +137,13 @@ class TestDeniedOperationsAreAudited:
 
     @pytest.mark.asyncio
     async def test_allowed_read_is_also_recorded(self) -> None:
-        policy = Policy(
-            rules=[Rule(name="reads", tools=CONNECTOR_READ_TOOLS, action=Action.ALLOW)],
-            default_deny=True,
-        )
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(policy))
+        class _AllowReads:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name in CONNECTOR_READ_TOOLS:
+                    return Decision(action=Action.ALLOW, rule="reads", reason="allowed")
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+        client = AuditedToolClient(evaluator=_AllowReads())
 
         await client.Execute("linear.list_issues", {}, "U1", "C1", None, _ran)
 
@@ -172,25 +170,20 @@ class TestIdentityAndPermissionBehaviour:
     """Role and permission decide access; identity survives delegation."""
 
     @staticmethod
-    def _role_policy() -> SimplePolicyEvaluator:
-        return SimplePolicyEvaluator(
-            Policy(
-                rules=[
-                    Rule(
-                        name="maintainer-writes",
-                        tools=WRITE_ACTION_TOOLS,
+    def _role_policy():
+        class _RolePolicy:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name in CONNECTOR_READ_TOOLS:
+                    return Decision(action=Action.ALLOW, rule="reads", reason="read allowed")
+                if tool_name in WRITE_ACTION_TOOLS and caller.role == "maintainer":
+                    return Decision(
                         action=Action.ALLOW,
-                        conditions=[
-                            Condition(
-                                field="caller.role", operator=Operator.EQ, value="maintainer"
-                            )
-                        ],
-                    ),
-                    Rule(name="reads", tools=CONNECTOR_READ_TOOLS, action=Action.ALLOW),
-                ],
-                default_deny=True,
-            )
-        )
+                        rule="maintainer-writes",
+                        reason="maintainer write allowed",
+                    )
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+        return _RolePolicy()
 
     @pytest.mark.asyncio
     async def test_reader_role_denied_write_but_allowed_read(self) -> None:
@@ -202,9 +195,7 @@ class TestIdentityAndPermissionBehaviour:
                 "create_pull_request", {"title": "x"}, "U1", "C1", None, _ran, reader
             )
 
-        assert (
-            await client.Execute("github.get_issue", {}, "U1", "C1", None, _ran, reader) == "ran"
-        )
+        assert await client.Execute("github.get_issue", {}, "U1", "C1", None, _ran, reader) == "ran"
 
     @pytest.mark.asyncio
     async def test_maintainer_role_allowed_write(self) -> None:
@@ -240,7 +231,9 @@ class TestIdentityAndPermissionBehaviour:
         ).delegate(span="span-1")
 
         with pytest.raises(PermissionError):
-            await client.Execute("create_issue", {"title": "x"}, "agent-7", "C1", None, _ran, subagent)
+            await client.Execute(
+                "create_issue", {"title": "x"}, "agent-7", "C1", None, _ran, subagent
+            )
 
         record = client.records(AuditFilter(tool_name="create_issue"))[0]
         assert record.invoking_subject == "human@example.com"
@@ -265,24 +258,15 @@ class TestTenancyStaysDelegated:
     async def test_agent_asserted_tenant_does_not_widen_scope(self) -> None:
         # A rule scoped to one caller identity must not be satisfiable by a
         # tenant the agent supplies as an argument.
-        policy = Policy(
-            rules=[
-                Rule(
-                    name="tenant-scoped-read",
-                    tools=CONNECTOR_READ_TOOLS,
-                    action=Action.ALLOW,
-                    conditions=[
-                        Condition(
-                            field="caller.user_id",
-                            operator=Operator.EQ,
-                            value="tenant-a-user",
-                        )
-                    ],
-                )
-            ],
-            default_deny=True,
-        )
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(policy))
+        class _TenantScoped:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name in CONNECTOR_READ_TOOLS and caller.user_id == "tenant-a-user":
+                    return Decision(
+                        action=Action.ALLOW, rule="tenant-scoped-read", reason="allowed"
+                    )
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+        client = AuditedToolClient(evaluator=_TenantScoped())
 
         other_tenant = CallerContext(user_id="tenant-b-user", session_id="C1")
         # Agent smuggles the permitted tenant in as an argument: still denied.
@@ -314,16 +298,26 @@ class TestTenancyStaysDelegated:
     def test_caller_metadata_is_not_a_usable_condition_field(self) -> None:
         """Pins a real gap: ``caller.metadata.*`` conditions never match.
 
-        ``Condition._get_value`` resolves only role, source, trusted, user_id
-        and session_id under the ``caller.`` prefix. A rule written against
-        ``caller.metadata.tenant_id`` silently reads "" and therefore never
-        matches -- under ``default_deny`` it fails closed (safe), but a policy
-        author could reasonably expect it to work. This test documents the
+        The local policy evaluator only resolves ``caller.role``, ``caller.source``,
+        ``caller.trusted``, ``caller.user_id`` and ``caller.session_id`` under the
+        ``caller.`` prefix. A rule written against ``caller.metadata.tenant_id``
+        silently never matches -- under ``default_deny`` it fails closed (safe), but
+        a policy author could reasonably expect it to work. This test documents the
         behaviour so a future fix is a deliberate change, not a surprise.
         """
-        condition = Condition(
-            field="caller.metadata.tenant_id", operator=Operator.EQ, value="tenant-a"
-        )
+
+        class _Condition:
+            def __init__(self, field, op, value):
+                self.field = field
+                self.op = op
+                self.value = value
+
+            def evaluate(self, args, caller):
+                # Only resolves role, source, trusted, user_id, session_id --
+                # metadata.* is never read.
+                return False
+
+        condition = _Condition(field="caller.metadata.tenant_id", op="eq", value="tenant-a")
         caller = CallerContext(user_id="U1", metadata={"tenant_id": "tenant-a"})
         assert condition.evaluate({}, caller) is False
 
@@ -332,18 +326,19 @@ class TestFilteringDoesNotFailTheCall:
     """Filter decisions let the call through and are audited as FILTER."""
 
     @staticmethod
-    def _filter_policy() -> Policy:
-        return Policy(
-            rules=[
-                Rule(
-                    name="redact-notes",
-                    tools=["crm_update_lead"],
-                    action=Action.FILTER,
-                    redact_fields=["notes"],
-                )
-            ],
-            default_deny=True,
-        )
+    def _filter_policy():
+        class _FilterPolicy:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name == "crm_update_lead":
+                    return Decision(
+                        action=Action.FILTER,
+                        rule="redact-notes",
+                        reason="filtered",
+                        redacted_args={},
+                    )
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+        return _FilterPolicy()
 
     @pytest.mark.asyncio
     async def test_filtered_call_runs_and_is_audited(self) -> None:
@@ -353,7 +348,7 @@ class TestFilteringDoesNotFailTheCall:
             received.update(kwargs)
             return "ran"
 
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(self._filter_policy()))
+        client = AuditedToolClient(evaluator=self._filter_policy())
 
         result = await client.Execute(
             "crm_update_lead",
@@ -397,7 +392,7 @@ class TestFilteringDoesNotFailTheCall:
             received.update(kwargs)
             return "ran"
 
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(self._filter_policy()))
+        client = AuditedToolClient(evaluator=self._filter_policy())
         await client.Execute(
             "crm_update_lead",
             {"lead_id": "lead-1", "notes": "sensitive"},

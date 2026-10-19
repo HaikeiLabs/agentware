@@ -38,14 +38,17 @@ from haikeilabs.agentware.kei.config import (
     get_config,
     load_manifest,
 )
-from haikeilabs.agentware.middleware import Action, AuditedToolClient, CallerContext
-from haikeilabs.agentware.middleware.policy import Policy, Rule, SimplePolicyEvaluator
+from haikeilabs.agentware.middleware import Action, AuditedToolClient, CallerContext, Decision
 
 VALID_MANIFEST = Path(__file__).parent / "fixtures" / "kei" / "harness-v1.json"
 
 
-def _deny_all() -> SimplePolicyEvaluator:
-    return SimplePolicyEvaluator(Policy(rules=[], default_deny=True))
+def _deny_all():
+    class _DenyAll:
+        def evaluate(self, tool_name, args, caller):
+            return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+    return _DenyAll()
 
 
 class TestBindingsNeverGrantPermission:
@@ -132,10 +135,13 @@ class TestLocalLoopHasNoABACDependency:
     async def test_isolated_local_loop_enforces_and_audits(self):
         # A governed loop with a local policy and a plain function: no proxy,
         # no kei, no ABAC. It still denies and audits.
-        policy = Policy(
-            rules=[Rule(name="deny-mutation", tools=["github.create_issue"], action=Action.DENY)]
-        )
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(policy))
+        class _LocalPolicy:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name == "github.create_issue":
+                    return Decision(action=Action.DENY, rule="deny-mutation", reason="denied")
+                return Decision(action=Action.ALLOW, rule="default", reason="allowed")
+
+        client = AuditedToolClient(evaluator=_LocalPolicy())
 
         ok = await client.Execute(
             "github.read", {"owner": "a", "repo": "b"}, "U1", "C1", None, lambda **k: "read"
@@ -244,13 +250,15 @@ class TestActionToolsAndReadBindingsStaySeparate:
     async def test_policy_separates_action_from_read_independently_of_bindings(self):
         # Both tools are bound in the manifest. Policy alone decides: the read
         # tool is allowed, the action (mutation) tool is denied.
-        policy = Policy(
-            rules=[
-                Rule(name="deny-mutation", tools=["web_search"], action=Action.DENY),
-                Rule(name="allow-read", tools=["file_read"], action=Action.ALLOW),
-            ]
-        )
-        client = AuditedToolClient(evaluator=SimplePolicyEvaluator(policy))
+        class _SeparatePolicy:
+            def evaluate(self, tool_name, args, caller):
+                if tool_name == "file_read":
+                    return Decision(action=Action.ALLOW, rule="allow-read", reason="allowed")
+                if tool_name == "web_search":
+                    return Decision(action=Action.DENY, rule="deny-mutation", reason="denied")
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+        client = AuditedToolClient(evaluator=_SeparatePolicy())
 
         ok = await client.Execute(
             "file_read", {"path": "/tmp/x"}, "U1", "C1", None, lambda **k: "read"

@@ -44,7 +44,6 @@ from haikeilabs.agentware.middleware import (
     InMemoryAuditor,
     MiddlewareImpl,
 )
-from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
 
 ENVELOPE_PATH = Path(__file__).resolve().parent / "fixtures" / "kei" / "delegation-envelope-v1.json"
 ENVELOPE = json.loads(ENVELOPE_PATH.read_text())
@@ -62,8 +61,12 @@ METADATA_ENVELOPE_FIELDS = {
 }
 
 
-def _deny_all() -> SimplePolicyEvaluator:
-    return SimplePolicyEvaluator(Policy(rules=[], default_deny=True))
+def _deny_all():
+    class _DenyAll:
+        def evaluate(self, tool_name, args, caller):
+            return Decision(action=Action.DENY, rule="default", reason="default deny")
+
+    return _DenyAll()
 
 
 def _human_context(**overrides):

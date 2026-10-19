@@ -30,7 +30,6 @@ import {
   Action,
   InMemoryAuditor,
   MiddlewareImpl,
-  SimplePolicyEvaluator,
 } from "../src/index.js";
 import type {
   ChildEvent,
@@ -562,14 +561,12 @@ describe("RuntimeLink supervised runtime integration", () => {
         return ["ok", true, ""];
       },
     })
-      .withPolicy(
-        new SimplePolicyEvaluator({
-          default_deny: true,
-          rules: [
-            { name: "allow-read", tools: ["read_file"], action: Action.ALLOW },
-          ],
-        }),
-      )
+      .withPolicy({
+        evaluate: (toolName) =>
+          toolName === "read_file"
+            ? { action: Action.ALLOW, rule: "allow-read", reason: "ok", timestamp: new Date() }
+            : { action: Action.DENY, rule: "default", reason: "denied", timestamp: new Date() },
+      })
       .withAuditor(toolAudit);
     const caller = {
       trusted: false,
@@ -709,14 +706,12 @@ describe("RuntimeLink supervised runtime integration", () => {
         return ["ok", true, ""];
       },
     })
-      .withPolicy(
-        new SimplePolicyEvaluator({
-          default_deny: true,
-          rules: [
-            { name: "allow-read", tools: ["read_file"], action: Action.ALLOW },
-          ],
-        }),
-      )
+      .withPolicy({
+        evaluate: (toolName) =>
+          toolName === "read_file"
+            ? { action: Action.ALLOW, rule: "allow-read", reason: "ok", timestamp: new Date() }
+            : { action: Action.DENY, rule: "default", reason: "denied", timestamp: new Date() },
+      })
       .withAuditor(auditor);
     const caller = {
       trusted: false,

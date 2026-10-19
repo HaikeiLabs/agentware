@@ -296,26 +296,23 @@ class TestPolicyBundleDataFromWire:
 
 
 # ===================================================================
-# PolicyBundleData — to_policy
+# PolicyBundleData — direct properties (to_policy removed)
 # ===================================================================
 
 
-class TestPolicyBundleDataToPolicy:
+class TestPolicyBundleDataProperties:
     def test_default_deny_reflected(self):
         bundle = PolicyBundleData.from_wire({"version": "1", "default_deny": True, "rules": []})
-        policy = bundle.to_policy()
-        assert policy.default_deny is True
+        assert bundle.default_deny is True
 
     def test_default_allow_reflected(self):
         bundle = PolicyBundleData.from_wire({"version": "1", "default_deny": False, "rules": []})
-        policy = bundle.to_policy()
-        assert policy.default_deny is False
+        assert bundle.default_deny is False
 
     def test_rules_are_carried(self):
         bundle = PolicyBundleData.from_wire(_VALID_BUNDLE)
-        policy = bundle.to_policy()
-        assert len(policy.rules) == 2
-        assert policy.rules[0].name == "allow-search-wiki"
+        assert len(bundle.rules) == 2
+        assert bundle.rules[0].name == "allow-search-wiki"
 
 
 # ===================================================================

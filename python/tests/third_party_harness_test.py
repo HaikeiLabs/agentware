@@ -51,7 +51,7 @@ class TestThirdPartyHarness:
             ToolNotFoundError,
             validate_contract,
         )
-        from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware import Action, Decision
 
         class MinimalToolExecutor:
             def execute(self, tool_name: str, args: dict) -> dict:
@@ -59,16 +59,15 @@ class TestThirdPartyHarness:
                     return {"greeting": f"Hello, {args.get('name', 'world')}!"}
                 raise ToolNotFoundError(f"Tool not found: {tool_name}")
 
-        policy = Policy(
-            rules=[],
-            default_deny=True,  # Fail-closed: deny by default
-        )
+        class _DenyAll:
+            def evaluate(self, tool_name, args, caller):
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
 
         contract = HarnessContract(
             auth_provider=OpaqueTokenProvider(token="test-token"),
             tool_executor=MinimalToolExecutor(),
             secret_provider=EnvSecretProvider(),
-            policy_evaluator=SimplePolicyEvaluator(policy),
+            policy_evaluator=_DenyAll(),
         )
 
         errors = validate_contract(contract)
@@ -119,19 +118,28 @@ class TestThirdPartyHarness:
             HarnessContract,
             OpaqueTokenProvider,
         )
-        from haikeilabs.agentware.middleware import AuditFilter, CallerContext, InMemoryAuditor
-        from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware import (
+            Action,
+            AuditFilter,
+            CallerContext,
+            Decision,
+            InMemoryAuditor,
+        )
 
         class Executor:
             def execute(self, tool_name: str, args: dict) -> dict:
                 return {"tool": tool_name, **args}
+
+        class _AllowAll:
+            def evaluate(self, tool_name, args, caller):
+                return Decision(action=Action.ALLOW, rule="default", reason="allowed")
 
         auditor = InMemoryAuditor()
         contract = HarnessContract(
             auth_provider=OpaqueTokenProvider(token="test-token"),
             tool_executor=Executor(),
             secret_provider=EnvSecretProvider(),
-            policy_evaluator=SimplePolicyEvaluator(Policy(default_deny=False)),
+            policy_evaluator=_AllowAll(),
             auditor=auditor,
         )
         client = contract.create_tool_client(source="contract-test")
@@ -187,8 +195,12 @@ class TestThirdPartyHarness:
             ToolNotFoundError,
             validate_contract,
         )
-        from haikeilabs.agentware.middleware import AuditedToolClient, CallerContext
-        from haikeilabs.agentware.middleware.policy import Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware import (
+            Action,
+            AuditedToolClient,
+            CallerContext,
+            Decision,
+        )
 
         tools = {}
 
@@ -209,14 +221,13 @@ class TestThirdPartyHarness:
             def execute(self, tool_name: str, args: dict) -> dict:
                 return self._handler(tool_name, args)
 
-        policy = Policy(
-            rules=[],
-            default_deny=False,  # Allow by default for this test
-        )
+        class _AllowAll:
+            def evaluate(self, tool_name, args, caller):
+                return Decision(action=Action.ALLOW, rule="default", reason="allowed")
 
         client = AuditedToolClient(
             source="third-party-harness",
-            evaluator=SimplePolicyEvaluator(policy),
+            evaluator=_AllowAll(),
         )
 
         executor = HarnessToolExecutor(call_tool)
@@ -224,7 +235,7 @@ class TestThirdPartyHarness:
             auth_provider=OpaqueTokenProvider(token="test-token"),
             tool_executor=executor,
             secret_provider=EnvSecretProvider(),
-            policy_evaluator=SimplePolicyEvaluator(policy),
+            policy_evaluator=_AllowAll(),
         )
 
         errors = validate_contract(contract)
@@ -271,15 +282,13 @@ class TestThirdPartyHarness:
 
     def test_fail_closed_unknown_policy(self):
         """Verify fail-closed: unknown policy decision = DENY."""
-        from haikeilabs.agentware.middleware.policy import Action, Policy, SimplePolicyEvaluator
+        from haikeilabs.agentware.middleware import Action, CallerContext, Decision
 
-        policy = Policy(
-            rules=[],
-            default_deny=True,
-        )
-        evaluator = SimplePolicyEvaluator(policy)
+        class _DenyAll:
+            def evaluate(self, tool_name, args, caller):
+                return Decision(action=Action.DENY, rule="default", reason="default deny")
 
-        from haikeilabs.agentware.middleware import CallerContext
+        evaluator = _DenyAll()
 
         caller = CallerContext(
             user_id="test",
