@@ -97,6 +97,7 @@ with each SDK release:
 <!-- compat:begin -->
 | agentware SDK | kei-proxy (minimum) | kei-cli (minimum) |
 | --- | --- | --- |
+| 0.11.0 | v0.3.0 | 0.2.0 |
 | 0.10.0 | v0.2.13 | 0.1.33 |
 | 0.9.0 | v0.2.13 | 0.1.33 |
 <!-- compat:end -->
@@ -106,7 +107,8 @@ with each SDK release:
 the version in `VERSION`. Earlier feature floors still apply to older proxies:
 runtime agent identity needs kei-proxy 0.1.11 or later, and the runtime-link
 heartbeat flags need 0.1.12 or later. kei-proxy releases older than the
-minimum above are not tested against this SDK release.
+minimum above are not tested against this SDK release. ToolSpec registration
+over the socket requires kei-proxy v0.3.0 or later.
 
 ## Governed harness quick starts
 
