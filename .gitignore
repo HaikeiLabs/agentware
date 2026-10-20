@@ -19,3 +19,5 @@ go/python/
 typescript/python/
 # Local eval runs (CI is the record; see docs/evals/README.md)
 evals-out/
+# Scratch notes from the CI integration ticket (HAI-785) — never committed
+NOTES-785.md

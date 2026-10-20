@@ -1,0 +1,164 @@
+name: Real kei-proxy integration
+
+# Smoke-test-only: download+sha256, start proxy against the fake control-plane,
+# register tool manifest.  End-to-end ALLOW/DENY against the real proxy is
+# blocked on HAI-796 (v2 requires preflight); ALLOW/DENY is covered by the
+# fake-proxy CI.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly Monday 06:00 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'examples/**'
+      - 'fixtures/kei/**'
+      - 'go/kei/runtimesocket/**'
+      - 'python/src/haikeilabs/agentware/kei/**'
+      - 'typescript/src/kei/**'
+      - '.github/workflows/real-proxy-integration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  examples-vs-real-proxy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      KEI_RUNTIME_TOKEN: kh_live_ci_dummy_token_0123456789abcdef0123456789abcdef0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- Read pinned version ----
+      - name: Read pinned kei-proxy version
+        id: version
+        run: |
+          VERSION=$(tr -d '[:space:]' < KEI_PROXY_VERSION)
+          echo "full=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "num=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      # ---- Check version matches the pin file ----
+      - name: Verify version matches pinned hash archive name
+        run: |
+          NUM="${{ steps.version.outputs.num }}"
+          PIN_FILE="fixtures/kei/KEI_PROXY_SHA256"
+          PIN_NAME="kei-proxy_${NUM}_Linux_x86_64.tar.gz"
+          if ! grep -qF "$PIN_NAME" "$PIN_FILE"; then
+            echo "ERROR: KEI_PROXY_VERSION (${{ steps.version.outputs.full }})"
+            echo "  gives archive name '$PIN_NAME'"
+            echo "  but $PIN_FILE contains:"
+            cat "$PIN_FILE"
+            echo ""
+            echo "Update both KEI_PROXY_VERSION and fixtures/kei/KEI_PROXY_SHA256 together."
+            exit 1
+          fi
+          echo "Version $NUM matches pinned archive name."
+
+      # ---- Download + verify + extract kei-proxy ----
+      - name: Download kei-proxy binary
+        run: |
+          NUM="${{ steps.version.outputs.num }}"
+          BASE="https://kei-cli-releases.s3.us-east-1.amazonaws.com/kei-proxy/$NUM"
+          ARCHIVE="kei-proxy_${NUM}_Linux_x86_64.tar.gz"
+          curl -fsSL --connect-timeout 15 --retry 3 \
+            "$BASE/$ARCHIVE" -O
+          echo "Downloaded $ARCHIVE"
+
+      - name: Verify SHA256 checksum
+        run: |
+          sha256sum -c fixtures/kei/KEI_PROXY_SHA256 --ignore-missing
+
+      - name: Extract kei-proxy
+        run: |
+          NUM="${{ steps.version.outputs.num }}"
+          ARCHIVE="kei-proxy_${NUM}_Linux_x86_64.tar.gz"
+          tar -xzf "$ARCHIVE"
+
+      # ---- Start fake control plane ----
+      - name: Start fake control plane
+        id: control-plane
+        run: |
+          python3 fixtures/kei/fake-control-plane.py \
+            > "$RUNNER_TEMP/cp-port.txt" \
+            2> "$RUNNER_TEMP/cp-stderr.log" &
+          echo "pid=$!" >> "$GITHUB_OUTPUT"
+          sleep 1
+          PORT=$(head -1 "$RUNNER_TEMP/cp-port.txt")
+          echo "port=$PORT" >> "$GITHUB_OUTPUT"
+          echo "Fake control plane running on port $PORT"
+
+      # ---- Start real kei-proxy against the stub ----
+      - name: Start kei-proxy serve
+        id: proxy
+        env:
+          KEI_RUNTIME_CONTROL_PLANE_URL: "http://127.0.0.1:${{ steps.control-plane.outputs.port }}"
+          KEI_RUNTIME_STATE_DIR: "${{ runner.temp }}/kei-state"
+          KEI_RUNTIME_SOCKET_PATH: "${{ runner.temp }}/kei.sock"
+          ENV: development
+        run: |
+          mkdir -p "$KEI_RUNTIME_STATE_DIR"
+          ./kei-proxy serve > "$RUNNER_TEMP/kei-proxy.log" 2>&1 &
+          echo "pid=$!" >> "$GITHUB_OUTPUT"
+          echo "socket=$KEI_RUNTIME_SOCKET_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for kei-proxy socket
+        run: |
+          SOCKET="${{ steps.proxy.outputs.socket }}"
+          for i in $(seq 1 60); do
+            if [ -S "$SOCKET" ]; then
+              echo "Socket ready after ${i}s"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "Timed out waiting for kei-proxy socket"
+          cat "$RUNNER_TEMP/kei-proxy.log"
+          exit 1
+
+      # ---- Register tools ----
+      - name: Register echo and delete_everything tools
+        run: |
+          SOCKET="${{ steps.proxy.outputs.socket }}"
+          cat > "$RUNNER_TEMP/tools.json" << 'MANIFEST'
+          {
+            "schema": "kei.tool-manifest/v3",
+            "tools": [
+              {
+                "name": "echo",
+                "service": "harness",
+                "source": "minimal_harness",
+                "operation_class": "write",
+                "route": { "harness_executor": { "executor": "go", "registration": "echo" } },
+                "description": "Echo back a message",
+                "enabled": true
+              },
+              {
+                "name": "delete_everything",
+                "service": "harness",
+                "source": "minimal_harness",
+                "operation_class": "write",
+                "route": { "harness_executor": { "executor": "go", "registration": "delete_everything" } },
+                "description": "Delete everything (should be denied)",
+                "enabled": true
+              }
+            ]
+          }
+          MANIFEST
+          printf 'header = "Authorization: Bearer %s"\n' "$KEI_RUNTIME_TOKEN" | \
+            curl -sS --fail-with-body --unix-socket "$SOCKET" -K - \
+              -H "Content-Type: application/json" \
+              -d @"$RUNNER_TEMP/tools.json" \
+              "http://localhost/v1/tools:register"
+
+      # ---- Always show proxy + stub logs on failure ----
+      - name: Show kei-proxy and stub logs on failure
+        if: failure()
+        run: |
+          echo "=== kei-proxy serve log ==="
+          cat "$RUNNER_TEMP/kei-proxy.log" 2>/dev/null || echo "(no log)"
+          echo "=== fake control-plane stderr ==="
+          cat "$RUNNER_TEMP/cp-stderr.log" 2>/dev/null || echo "(no log)"
