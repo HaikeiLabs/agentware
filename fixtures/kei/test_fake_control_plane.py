@@ -672,6 +672,67 @@ def test_bundle_subject_block_has_no_unknown_fields() -> None:
         _stop_stub(proc)
 
 
+def test_bundle_tools_must_contain_echo_and_delete_everything() -> None:
+    """The served bundle's policy_set.tools must include echo and delete_everything with harness_executor."""
+    proc, port = _start_stub()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request(
+            "GET",
+            "/api/v1/runtime/policy-bundles/current",
+            headers=_headers_with_token(),
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read())
+
+        tools = body.get("policy_set", {}).get("tools", [])
+        tool_names = [t["name"] for t in tools]
+        assert tool_names == ["echo", "delete_everything"], (
+            f"expected tools ['echo', 'delete_everything'], got {tool_names}"
+        )
+        for t in tools:
+            route = t.get("route", {})
+            assert "harness_executor" in route, (
+                f"tool {t['name']} is missing route.harness_executor"
+            )
+    finally:
+        _stop_stub(proc)
+
+
+def test_bundle_identities_include_all_example_pairs() -> None:
+    """The served bundle's identities must include all three example pairs plus the ci-user."""
+    proc, port = _start_stub()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request(
+            "GET",
+            "/api/v1/runtime/policy-bundles/current",
+            headers=_headers_with_token(),
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read())
+
+        identities = body.get("identities", [])
+        pairs = [(i["source"], i["external_id"]) for i in identities]
+
+        # The existing ci-user must be present
+        assert ("ci", "ci-user") in pairs, "missing identity (ci, ci-user)"
+        # Go example: source=minimal-harness, external_id=user-123
+        assert ("minimal-harness", "user-123") in pairs, (
+            f"missing identity (minimal-harness, user-123) in {pairs}"
+        )
+        # Python example: source=my-harness, external_id=local
+        assert ("my-harness", "local") in pairs, (
+            f"missing identity (my-harness, local) in {pairs}"
+        )
+        # TypeScript example: source=example, external_id=local-user
+        assert ("example", "local-user") in pairs, (
+            f"missing identity (example, local-user) in {pairs}"
+        )
+    finally:
+        _stop_stub(proc)
+
+
 def test_bundle_model_profiles_have_no_unknown_fields() -> None:
     """Each agent_model_profiles item must only use schema fields."""
     proc, port = _start_stub()

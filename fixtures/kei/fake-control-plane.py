@@ -81,7 +81,30 @@ POLICY_BUNDLE: dict[str, Any] = {
             "checks": "per_capability_first_match_and",
             "default": "deny",
         },
-        "tools": [],
+        "tools": [
+            {
+                "name": "echo",
+                "source": "minimal_harness",
+                "operation_class": "read",
+                "route": {
+                    "harness_executor": {
+                        "executor": "minimal_harness",
+                        "registration": "echo",
+                    }
+                },
+            },
+            {
+                "name": "delete_everything",
+                "source": "minimal_harness",
+                "operation_class": "write",
+                "route": {
+                    "harness_executor": {
+                        "executor": "minimal_harness",
+                        "registration": "delete_everything",
+                    }
+                },
+            },
+        ],
         "checks": [],
         "tool_policies": [
             {
@@ -126,7 +149,28 @@ POLICY_BUNDLE: dict[str, Any] = {
             "user_id": "u-ci-user",
             "status": "linked",
             "groups": ["everyone"],
-        }
+        },
+        {
+            "source": "minimal-harness",
+            "external_id": "user-123",
+            "user_id": "u-user-123",
+            "status": "linked",
+            "groups": ["everyone"],
+        },
+        {
+            "source": "my-harness",
+            "external_id": "local",
+            "user_id": "u-local",
+            "status": "linked",
+            "groups": ["everyone"],
+        },
+        {
+            "source": "example",
+            "external_id": "local-user",
+            "user_id": "u-local-user",
+            "status": "linked",
+            "groups": ["everyone"],
+        },
     ],
     "subject": {
         "user_id": "ci-installer",
