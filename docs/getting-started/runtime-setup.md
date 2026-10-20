@@ -178,10 +178,10 @@ import (
 
 func register(ctx context.Context) error {
 	specs := []toolspec.ToolSpec{
-		{Name: "echo", Description: "Echo a message", Service: "minimal-harness", Source: "minimal-harness", OperationClass: "read",
-			Route: &toolspec.Route{HarnessExecutor: &toolspec.HarnessExecutor{Executor: "minimal-harness", Registration: "echo"}}},
-		{Name: "delete_everything", Description: "Delete everything", Service: "minimal-harness", Source: "minimal-harness", OperationClass: "write",
-			Route: &toolspec.Route{HarnessExecutor: &toolspec.HarnessExecutor{Executor: "minimal-harness", Registration: "delete_everything"}}},
+		{Name: "echo", Description: "Echo a message", Service: "minimal_harness", Source: "minimal_harness", OperationClass: "read",
+			Route: &toolspec.Route{HarnessExecutor: &toolspec.HarnessExecutor{Executor: "minimal_harness", Registration: "echo"}}},
+		{Name: "delete_everything", Description: "Delete everything", Service: "minimal_harness", Source: "minimal_harness", OperationClass: "write",
+			Route: &toolspec.Route{HarnessExecutor: &toolspec.HarnessExecutor{Executor: "minimal_harness", Registration: "delete_everything"}}},
 	}
 	return (toolsync.SocketRegistrar{Client: &runtimesocket.Client{}}).Send(ctx, specs)
 }
@@ -195,14 +195,14 @@ from haikeilabs.agentware import ToolSpec, serialize_tool_specs
 async def register(client):
     specs = [
         ToolSpec(
-            name="echo", description="Echo a message", service="minimal-harness",
-            source="minimal-harness", operation_class="read",
-            route={"harness_executor": {"executor": "minimal-harness", "registration": "echo"}},
+            name="echo", description="Echo a message", service="minimal_harness",
+            source="minimal_harness", operation_class="read",
+            route={"harness_executor": {"executor": "minimal_harness", "registration": "echo"}},
         ),
         ToolSpec(
-            name="delete_everything", description="Delete everything", service="minimal-harness",
-            source="minimal-harness", operation_class="write",
-            route={"harness_executor": {"executor": "minimal-harness", "registration": "delete_everything"}},
+            name="delete_everything", description="Delete everything", service="minimal_harness",
+            source="minimal_harness", operation_class="write",
+            route={"harness_executor": {"executor": "minimal_harness", "registration": "delete_everything"}},
         ),
     ]
     return await client.register_tools(serialize_tool_specs(specs))
@@ -221,13 +221,13 @@ async function register(client: KeiProxySocketAuthorizeClient) {
   const specs: ToolSpec[] = [
     {
       name: "echo", description: "Echo a message", parameters: { type: "object" },
-      service: "minimal-harness", source: "minimal-harness", operation_class: "read",
-      route: { harness_executor: { executor: "minimal-harness", registration: "echo" } },
+      service: "minimal_harness", source: "minimal_harness", operation_class: "read",
+      route: { harness_executor: { executor: "minimal_harness", registration: "echo" } },
     },
     {
       name: "delete_everything", description: "Delete everything", parameters: { type: "object" },
-      service: "minimal-harness", source: "minimal-harness", operation_class: "write",
-      route: { harness_executor: { executor: "minimal-harness", registration: "delete_everything" } },
+      service: "minimal_harness", source: "minimal_harness", operation_class: "write",
+      route: { harness_executor: { executor: "minimal_harness", registration: "delete_everything" } },
     },
   ];
   return registerToolSpecs(specs, client);

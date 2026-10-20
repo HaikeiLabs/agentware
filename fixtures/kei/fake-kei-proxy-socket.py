@@ -18,12 +18,15 @@ Every authorize appends one JSON audit line to AUDIT_FILE:
 
 import argparse
 import json
+import re
 import socketserver
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
+
+SOURCE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 SESSION_ID = "fake-session"
 AUTHORIZE_SCHEMA = "kei.authorize-response/v1"
@@ -62,7 +65,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _error(self, status: int, code: str) -> None:
-        self._send(status, {"error": {"code": code, "message": code, "type": "runtime_error"}})
+        self._send(
+            status, {"error": {"code": code, "message": code, "type": "runtime_error"}}
+        )
 
     def _authed(self) -> bool:
         auth = self.headers.get("Authorization", "")
@@ -89,7 +94,10 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         route = (self.command, self.path)
         if route == ("PUT", "/v1/session"):
-            _SESSIONS[SESSION_ID] = (str(body.get("source", "")), str(body.get("external_id", "")))
+            _SESSIONS[SESSION_ID] = (
+                str(body.get("source", "")),
+                str(body.get("external_id", "")),
+            )
             external_id = str(body.get("external_id", ""))
             return self._send(
                 201,
@@ -103,8 +111,34 @@ class Handler(BaseHTTPRequestHandler):
         if route == ("DELETE", "/v1/session"):
             return self._send(204)
         if route == ("POST", "/v1/tools:register"):
-            if body.get("schema") != "kei.tool-manifest/v3" or not isinstance(body.get("tools"), list):
+            if body.get("schema") != "kei.tool-manifest/v3" or not isinstance(
+                body.get("tools"), list
+            ):
                 return self._error(400, "invalid_tool_manifest")
+            for idx, tool in enumerate(body["tools"]):
+                if not isinstance(tool, dict):
+                    return self._send(
+                        400,
+                        {
+                            "error": {
+                                "code": "invalid_manifest",
+                                "message": f"invalid tool manifest: tools[{idx}]: not an object",
+                                "type": "runtime_error",
+                            }
+                        },
+                    )
+                src = tool.get("source", "")
+                if not isinstance(src, str) or not SOURCE_RE.match(src):
+                    return self._send(
+                        400,
+                        {
+                            "error": {
+                                "code": "invalid_manifest",
+                                "message": f"invalid tool manifest: tools[{idx}]: invalid source",
+                                "type": "runtime_error",
+                            }
+                        },
+                    )
             return self._send(200, {"registered": len(body["tools"])})
         if route == ("POST", "/v1/authorize"):
             tool = str(body.get("tool", ""))
