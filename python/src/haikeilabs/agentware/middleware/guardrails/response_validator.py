@@ -50,7 +50,12 @@ class ResponseValidator:
         self._python_tag_pattern = re.compile(r"(?i)<\|python_tag\|>")
         self._code_fence_pattern = re.compile(r"```(?:json)?\s*\n?")
         self._rehearsal_pattern = re.compile(r"(\w+)\[ARGS\](\{.*?\})")
-        self._qwen_function_pattern = re.compile(r"<function=([^>\s]+)>(.*?)</function>")
+        self._qwen_function_pattern = re.compile(
+            r"<function=([^>\s]+)>(.*?)</function>", re.DOTALL
+        )
+        self._qwen_parameter_pattern = re.compile(
+            r"<parameter=([^>\s]+)>(.*?)</parameter>", re.DOTALL
+        )
 
     def validate_text_response(self, response: str) -> ValidationResult:
         """Validate a text response and attempt to rescue tool calls."""
@@ -168,5 +173,23 @@ class ResponseValidator:
         return calls
 
     def _extract_qwen_xml_tool_calls(self, text: str) -> list[ToolCall]:
-        """Extract tool calls from Qwen XML format (not implemented)."""
-        return []
+        """Extract tool calls from the Qwen3 XML format.
+
+        Format: <tool_call><function=NAME><parameter=KEY>\\nVALUE\\n</parameter>
+        </function></tool_call>. The <tool_call> wrapper is optional. Blocks that
+        are truncated or name an unknown tool are skipped.
+
+        All parameter values are returned as strings; the format carries no type
+        information, so any coercion is left to the tool layer.
+        """
+        calls = []
+        for name, body in self._qwen_function_pattern.findall(text):
+            if name not in self.tool_names:
+                continue
+            args = {}
+            for key, raw in self._qwen_parameter_pattern.findall(body):
+                # Strip exactly one leading and one trailing newline.
+                raw = raw.removeprefix("\n").removesuffix("\n")
+                args[key] = raw
+            calls.append(ToolCall(tool=name, args=args))
+        return calls

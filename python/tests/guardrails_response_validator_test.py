@@ -144,10 +144,70 @@ class TestResponseValidator:
         assert call is None
 
     def test_extract_qwen_xml_tool_calls(self):
-        """Test Qwen XML extraction (not implemented)."""
-        tools = ["tool1", "tool2"]
-        rv = ResponseValidator(tools, rescue_enabled=True)
+        """A parameterless function block is a call with empty args."""
+        rv = ResponseValidator(["tool1", "tool2"], rescue_enabled=True)
 
         calls = rv._extract_qwen_xml_tool_calls("<function=tool1>content</function>")
 
-        assert len(calls) == 0
+        assert calls == [ToolCall(tool="tool1", args={})]
+
+    def test_qwen_xml_single_call(self):
+        rv = ResponseValidator(["tool1"])
+        text = "<tool_call>\n<function=tool1>\n<parameter=a>\nx\n</parameter>\n</function>\n</tool_call>"
+        assert rv._extract_qwen_xml_tool_calls(text) == [ToolCall("tool1", {"a": "x"})]
+
+    def test_qwen_xml_multi_param_values_are_strings(self):
+        rv = ResponseValidator(["tool1"])
+        text = (
+            "<tool_call>\n<function=tool1>\n<parameter=n>\n5\n</parameter>\n"
+            "<parameter=b>\ntrue\n</parameter>\n</function>\n</tool_call>"
+        )
+        assert rv._extract_qwen_xml_tool_calls(text)[0].args == {"n": "5", "b": "true"}
+
+    def test_qwen_xml_multiline_value_keeps_interior_whitespace(self):
+        rv = ResponseValidator(["tool1"])
+        text = "<function=tool1>\n<parameter=code>\nline1\n  line2\n\n</parameter>\n</function>"
+        assert rv._extract_qwen_xml_tool_calls(text)[0].args == {"code": "line1\n  line2\n"}
+
+    def test_qwen_xml_two_calls(self):
+        rv = ResponseValidator(["tool1", "tool2"])
+        text = (
+            "<tool_call>\n<function=tool1>\n<parameter=a>\n1\n</parameter>\n</function>\n</tool_call>\n"
+            "<tool_call>\n<function=tool2>\n<parameter=b>\n2\n</parameter>\n</function>\n</tool_call>"
+        )
+        assert rv._extract_qwen_xml_tool_calls(text) == [
+            ToolCall("tool1", {"a": "1"}),
+            ToolCall("tool2", {"b": "2"}),
+        ]
+
+    def test_qwen_xml_unknown_tool_ignored(self):
+        rv = ResponseValidator(["tool1"])
+        text = (
+            "<function=nope>\n<parameter=a>\n1\n</parameter>\n</function>"
+            "<function=tool1>\n<parameter=a>\n2\n</parameter>\n</function>"
+        )
+        assert rv._extract_qwen_xml_tool_calls(text) == [ToolCall("tool1", {"a": "2"})]
+
+    def test_qwen_xml_no_wrapper(self):
+        rv = ResponseValidator(["tool1"])
+        text = "<function=tool1>\n<parameter=a>\nx\n</parameter>\n</function>"
+        assert rv._extract_qwen_xml_tool_calls(text) == [ToolCall("tool1", {"a": "x"})]
+
+    def test_qwen_xml_truncated_ignored(self):
+        rv = ResponseValidator(["tool1"])
+        assert rv._extract_qwen_xml_tool_calls("<tool_call>\n<function=tool1>\n<parameter=a>\nx") == []
+        text = (
+            "<function=tool1>\n<parameter=a>\n1\n</parameter>\n</function>\n"
+            "<function=tool1>\n<parameter=a>\n2\n</param"
+        )
+        assert rv._extract_qwen_xml_tool_calls(text) == [ToolCall("tool1", {"a": "1"})]
+
+    def test_validate_text_response_qwen_xml_after_think(self):
+        rv = ResponseValidator(["tool1"])
+        text = (
+            "<think>I should call tool1</think>\n<tool_call>\n<function=tool1>\n"
+            "<parameter=a>\nx\n</parameter>\n</function>\n</tool_call>"
+        )
+        result = rv.validate_text_response(text)
+        assert result.needs_retry is False
+        assert result.tool_calls == [ToolCall("tool1", {"a": "x"})]
