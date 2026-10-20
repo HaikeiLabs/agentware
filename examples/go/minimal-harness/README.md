@@ -34,6 +34,18 @@ go run . my-agent
 go run . --socket /run/kei-proxy/runtime.sock
 ```
 
+For the registered runtime setup, use the `installation_id` returned by
+`kei bot init` and run:
+
+```sh
+kei harness add --kind custom --installation INSTALLATION_ID
+```
+
+The CLI uses the agent assigned to that installation by default. If none is
+assigned, add one with `kei bot agents add --installation INSTALLATION_ID
+--agent AGENT_ID --default` first. See the [runtime setup guide](../../../docs/getting-started/runtime-setup.md)
+for socket tool registration, group policies, and audit entries.
+
 ## Tests
 
 ```bash

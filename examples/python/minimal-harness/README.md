@@ -39,7 +39,12 @@ uv run python ../examples/python/minimal-harness/main.py
 This example is the last step of the bring-up sequence:
 
 1. `kei bot init` — create the runtime installation and its credential.
-2. `kei harness add --kind custom` — register this harness.
-3. `kei harness sync --harness custom --manifest tools.json` — register its tools.
+2. `kei harness add --kind custom --installation INSTALLATION_ID` — register
+   this harness. Use the `installation_id` returned by `kei bot init`; the CLI
+   resolves its assigned agent by default. If none is assigned, use
+   `kei bot agents add --installation INSTALLATION_ID --agent AGENT_ID --default`
+   first.
+3. Register tools over the runtime socket using ToolSpec, as shown in the
+   [runtime setup guide](../../../docs/getting-started/runtime-setup.md).
 4. `kei-proxy serve` — run the runtime daemon on the socket.
 5. Call — this harness authorizes each tool call over the socket.

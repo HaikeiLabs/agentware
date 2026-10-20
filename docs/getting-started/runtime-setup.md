@@ -15,8 +15,8 @@ and credentials stay out of the control plane.
   you.
 - An organization owner or admin who can approve `kei login` and provision a
   runtime installation credential.
-- `kei` 0.1.32 or later (the installed version at the time of writing) and
-  `kei-proxy` 0.2.11 or later.
+- `kei-cli` 0.2.0 or later and `kei-proxy` v0.3.0 or later (the compatible
+  minimums for Agentware 0.11.0).
 
 ## Install and sign in
 
@@ -68,28 +68,6 @@ Follow the prompts to configure the Kei control-plane URL and runtime
 installation credential. `kei setup` stores local configuration in
 `~/.config/kei.yaml` with `0600` permissions. Keep the credential out of
 harness code and logs.
-
-## Optional tool manifest sync
-
-Manifest sync is optional for Agentware harnesses. Create and maintain your
-own `tools.json` with only the tools you need. At runtime bootstrap,
-`kei-proxy` reads the file named by `KEI_TOOL_MANIFEST` and sends its tool
-metadata to Kei. The runtime never creates or overwrites this file. Set the
-environment variable before bootstrap:
-
-```sh
-export KEI_TOOL_MANIFEST="$PWD/tools.json"
-```
-
-With `kei` 0.1.33 or later, you can instead sync the manifest from the CLI:
-
-```sh
-kei harness sync --harness custom --manifest tools.json
-```
-
-Tool registration over the runtime's Unix socket is not available today. This
-manifest is an optional Agentware integration, not a general tool-registration
-API.
 
 ## Bootstrap the runtime
 
@@ -169,26 +147,107 @@ Kei console.
 ## Register the SDK harness and sync its tools
 
 The user-facing harness name is **SDK (Agentware)**; its API kind is `custom`.
-Register it against the runtime installation:
+Use the `installation_id` returned by `kei bot init` in [Create a runtime
+installation](#create-a-runtime-installation). The CLI resolves the assigned
+agent for that installation; if there is no default agent, assign one with
+`kei bot agents add --installation INSTALLATION_ID --agent AGENT_ID --default`.
+Register the harness:
 
 ```sh
 kei harness add --kind custom --installation INSTALLATION_ID
 ```
 
-If you use optional manifest sync, create `tools.json` in the working
-directory using the harness tool manifest format. It must contain a non-empty
-top-level `tools` array; each tool includes `name` and `route`, with optional
-`source`, `required_capabilities`, and `resource_types`. Set
-`KEI_TOOL_MANIFEST` before bootstrap as shown above, or use the CLI manifest
-option on `kei` 0.1.33 or later. Then sync the tool metadata:
+### Register tools over the runtime socket
+
+Agentware 0.11.0 can register tools directly with `kei-proxy` over its Unix
+socket. Use `ToolSpec` with an explicit `harness_executor` route; the tool name
+must match the name your harness authorizes. These examples register the
+minimal harness's `echo` and `delete_everything` names. The socket API is
+available in `kei-proxy` v0.3.0 at `POST /v1/tools:register`.
+
+Go (`go/toolspec` and `go/kei/toolsync`):
+
+```go
+import (
+	"context"
+
+	"github.com/haikeilabs/agentware/go/kei/runtimesocket"
+	"github.com/haikeilabs/agentware/go/kei/toolsync"
+	"github.com/haikeilabs/agentware/go/toolspec"
+)
+
+func register(ctx context.Context) error {
+	specs := []toolspec.ToolSpec{
+		{Name: "echo", Description: "Echo a message", Service: "minimal-harness", Source: "minimal-harness", OperationClass: "read",
+			Route: &toolspec.Route{HarnessExecutor: &toolspec.HarnessExecutor{Executor: "minimal-harness", Registration: "echo"}}},
+		{Name: "delete_everything", Description: "Delete everything", Service: "minimal-harness", Source: "minimal-harness", OperationClass: "write",
+			Route: &toolspec.Route{HarnessExecutor: &toolspec.HarnessExecutor{Executor: "minimal-harness", Registration: "delete_everything"}}},
+	}
+	return (toolsync.SocketRegistrar{Client: &runtimesocket.Client{}}).Send(ctx, specs)
+}
+```
+
+Python (`haikeilabs.agentware.toolspec`):
+
+```python
+from haikeilabs.agentware import ToolSpec, serialize_tool_specs
+
+async def register(client):
+    specs = [
+        ToolSpec(
+            name="echo", description="Echo a message", service="minimal-harness",
+            source="minimal-harness", operation_class="read",
+            route={"harness_executor": {"executor": "minimal-harness", "registration": "echo"}},
+        ),
+        ToolSpec(
+            name="delete_everything", description="Delete everything", service="minimal-harness",
+            source="minimal-harness", operation_class="write",
+            route={"harness_executor": {"executor": "minimal-harness", "registration": "delete_everything"}},
+        ),
+    ]
+    return await client.register_tools(serialize_tool_specs(specs))
+```
+
+TypeScript (`toolspec`):
+
+```ts
+import {
+  KeiProxySocketAuthorizeClient,
+  registerToolSpecs,
+  type ToolSpec,
+} from "@haikeilabs/agentware";
+
+async function register(client: KeiProxySocketAuthorizeClient) {
+  const specs: ToolSpec[] = [
+    {
+      name: "echo", description: "Echo a message", parameters: { type: "object" },
+      service: "minimal-harness", source: "minimal-harness", operation_class: "read",
+      route: { harness_executor: { executor: "minimal-harness", registration: "echo" } },
+    },
+    {
+      name: "delete_everything", description: "Delete everything", parameters: { type: "object" },
+      service: "minimal-harness", source: "minimal-harness", operation_class: "write",
+      route: { harness_executor: { executor: "minimal-harness", registration: "delete_everything" } },
+    },
+  ];
+  return registerToolSpecs(specs, client);
+}
+```
+
+Each language client uses `KEI_RUNTIME_SOCKET_PATH` (or its default socket
+path) and `KEI_RUNTIME_TOKEN` from its process environment. Keep the token out
+of code, arguments, and logs.
+
+As an alternative, maintain a `tools.json` manifest and sync it with the CLI.
+With `kei-cli` 0.1.33 or later, run:
 
 ```sh
 kei harness sync --harness custom --manifest tools.json
 ```
 
-The manifest is tool metadata, not a credential store or a permission grant.
-The proxy and Kei policy determine whether a call is allowed. Keep credentials
-and customer payloads out of the manifest.
+The manifest is tool metadata, not a credential store or permission grant. The
+proxy and Kei policy determine whether a call is allowed. Keep credentials and
+customer payloads out of it.
 
 The Go, Python, and TypeScript Agentware socket clients automatically discover
 the daemon using `KEI_RUNTIME_SOCKET_PATH`; each also accepts an explicit socket
@@ -196,6 +255,31 @@ path in its client configuration. The SDK sends authorization requests through
 that local socket. Some session-based SDK flows also need `KEI_RUNTIME_TOKEN`
 in the harness process environment; see the language-specific guide. Supply it
 through your secret manager, never in source code, arguments, or logs.
+
+## Create a group and policies
+
+In the selected workspace in the Kei console, open **Groups** → **Create
+Group**, create a group for this run, then add the agent's user to that group.
+Open **Policies**, choose **New policy** (or **Create your first grant** when
+the workspace has no policies), and create two tool-call policies for the
+group: set the **What** field to **Tool call**, choose the group under **Who**,
+and target the exact `echo` tool with **Allow** (the permit effect). Click
+**Create**.
+Create a second policy for the exact `delete_everything` tool with **Deny**.
+If a tool is not in the picker, use its exact name without a `tool:` prefix.
+The examples authorize those exact tool names. See the public [Give a group
+access](https://docs.haikeilabs.com/content/kei/get-started/give-a-group-access.html)
+and [Create policies](https://docs.haikeilabs.com/content/kei/policies/create-policies.html)
+guides for the console workflow and policy fields. An explicit deny makes the
+second result a policy decision rather than a no-match result.
+
+## See your audit entries
+
+In the Kei console, open **Audit Logs**. Find the records by the `echo` and
+`delete_everything` action names; each row shows its timestamp, user, agent,
+harness, action, result (`permit` or `deny`), and policy. The public [Audit
+logs](https://docs.haikeilabs.com/content/kei/audit/logs.html) page describes
+the recent activity view and recorded fields.
 
 ## Understand a denial
 
