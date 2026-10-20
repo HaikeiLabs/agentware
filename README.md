@@ -119,6 +119,7 @@ a deny against the local fake socket:
 - [Go getting started](docs/getting-started/go.md)
 - [Python getting started](docs/getting-started/python.md)
 - [TypeScript getting started](docs/getting-started/typescript.md)
+- [Agentware 60-minute cold-start dry run](docs/dry-run/60-minute-dry-run.md)
 - [Using agentware as a team](docs/using-agentware-as-a-team.md)
 
 The socket client is recommended. The older `KeiProxyAuthorizeClient`
