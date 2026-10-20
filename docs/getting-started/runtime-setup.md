@@ -256,6 +256,22 @@ that local socket. Some session-based SDK flows also need `KEI_RUNTIME_TOKEN`
 in the harness process environment; see the language-specific guide. Supply it
 through your secret manager, never in source code, arguments, or logs.
 
+### After tool registration
+
+A registered tool does not become authorizable immediately. The runtime's
+policy refresher polls the control plane for a new bundle (the catalog sends a
+`refresh.poll_interval_seconds` of 60; the runtime clamps it to 30–300
+seconds, with jitter), and the tool is authorized only once the active bundle
+lists it. Until then, authorize calls for the tool are denied; against
+kei-proxy v0.3.0 with a v2 bundle, for example, with `reason_code:
+preflight_required`.
+
+Session-based SDK flows open a session with `PUT /v1/session` for a `(source,
+external_id)` pair. If that pair is not a linked identity in the active
+bundle, the call is denied with `reason_code: subject_unlinked`. Once the
+person is linked to the installation, the identity reaches the runtime with
+the next bundle refresh.
+
 ## Create a group and policies
 
 In the selected workspace in the Kei console, open **Groups** → **Create
