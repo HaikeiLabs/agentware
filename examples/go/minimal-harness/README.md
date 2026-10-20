@@ -24,7 +24,7 @@ the kei-proxy runtime socket.
 ```bash
 cd examples/go/minimal-harness
 
-# With kei-proxy socket running:
+# With kei-proxy socket running (go run prints one governed allow and deny):
 go run .
 
 # Override the source name:
@@ -46,6 +46,28 @@ assigned, add one with `kei bot agents add --installation INSTALLATION_ID
 --agent AGENT_ID --default` first. See the [runtime setup guide](../../../docs/getting-started/runtime-setup.md)
 for socket tool registration, group policies, and audit entries.
 
+For an offline run from the repository root, start the shared fake socket in
+one terminal:
+
+```bash
+python3 fixtures/kei/fake-kei-proxy-socket.py ./.runtime.sock --audit ./.runtime-audit.jsonl
+```
+
+Then, in another terminal:
+
+```bash
+cd examples/go/minimal-harness
+KEI_RUNTIME_SOCKET_PATH=../../../.runtime.sock KEI_RUNTIME_TOKEN=offline-example-token go run .
+```
+
+The expected output shows the allowed handler result and confirms the denied
+handler did not run:
+
+```text
+ALLOW tool=echo policy_id=fake-allow-echo result=map[echo:hello harness]
+DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create handler=not_run
+```
+
 ## Tests
 
 ```bash
@@ -53,5 +75,5 @@ cd examples/go/minimal-harness
 GOTOOLCHAIN=go1.26.9 go test ./...
 ```
 
-The test replay filee clients that return `allow` / `deny` / `unknown`
-without needing a real daemon.
+The tests use fake clients that return `allow` / `deny` / `unknown` without
+needing a real daemon, and verify a denied handler never runs.

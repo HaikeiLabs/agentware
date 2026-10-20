@@ -42,25 +42,24 @@ jobs:
           cd examples/go/minimal-harness
           go mod download
           go test ./...
-      - name: Integration test (gated)
-        if: env.HARNESS_INTEGRATION_TEST == 'true'
+      - name: Run Go minimal harness offline
         run: |
-          TMPDIR=$(mktemp -d)
+          TMPDIR=$(mktemp -d "$RUNNER_TEMP/minimal-harness.XXXXXX")
           SOCKET="$TMPDIR/runtime.sock"
           AUDIT="$TMPDIR/audit.jsonl"
           python3 fixtures/kei/fake-kei-proxy-socket.py "$SOCKET" --audit "$AUDIT" &
           FAKE_PID=$!
+          trap 'kill "$FAKE_PID" 2>/dev/null || true; wait "$FAKE_PID" 2>/dev/null || true; rm -rf "$TMPDIR"' EXIT
           for i in $(seq 1 20); do
             [ -S "$SOCKET" ] && break
             sleep 0.5
           done
-          if [ ! -S "$SOCKET" ]; then echo "fake socket did not start"; kill $FAKE_PID 2>/dev/null; exit 1; fi
+          if [ ! -S "$SOCKET" ]; then echo "fake socket did not start"; exit 1; fi
           cd examples/go/minimal-harness
-          KEI_RUNTIME_TOKEN=fake-token go run . --socket "$SOCKET" 2>&1
-          kill $FAKE_PID 2>/dev/null || true
-          wait $FAKE_PID 2>/dev/null || true
-          LINES=$(wc -l < "$AUDIT")
-          echo "audit lines: $LINES"
-          [ "$LINES" -ge 1 ] || { echo "expected at least 1 audit line"; exit 1; }
+          OUTPUT=$(KEI_RUNTIME_TOKEN=fake-token go run . --socket "$SOCKET")
+          printf '%s\n' "$OUTPUT"
+          printf '%s\n' "$OUTPUT" | grep -Fq 'ALLOW tool=echo policy_id=fake-allow-echo result=map[echo:hello harness]'
+          printf '%s\n' "$OUTPUT" | grep -Fq 'DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create handler=not_run'
+          python3 -c 'import json, sys; rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]; assert len(rows) == 2, rows; assert [(row["tool"], row["decision"]) for row in rows] == [("echo", "permit"), ("delete_everything", "deny")], rows' "$AUDIT"
       - name: Check kei/runtimelink ships in the module
         run: go/scripts/check-module.sh
