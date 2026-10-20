@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from haikeilabs.agentware.kei import KeiProxySocketAuthorizeClient, KeiProxySocketIdentity
+from haikeilabs.agentware.kei import KeiProxySocketError
 
 TOKEN = "kei_rt_fake-socket-secret-0123456789"
 SCRIPT = Path(__file__).resolve().parents[3] / "fixtures" / "kei" / "fake-kei-proxy-socket.py"
@@ -73,7 +74,33 @@ async def test_tool_manifest_registration_uses_runtime_route(
 ) -> None:
     client = _client(fake_daemon[0])
     result = await client.register_tools(
-        {"schema": "kei.tool-manifest/v3", "tools": [{"name": "x"}]}
+        {"schema": "kei.tool-manifest/v3", "tools": [{"name": "x", "source": "minimal_harness"}]}
+    )
+    assert result == {"registered": 1}
+
+
+async def test_tool_manifest_invalid_source_returns_400(
+    fake_daemon: tuple[str, str],
+) -> None:
+    client = _client(fake_daemon[0])
+    manifest = {
+        "schema": "kei.tool-manifest/v3",
+        "tools": [{"name": "x", "source": "bad-source"}],
+    }
+    with pytest.raises(KeiProxySocketError) as excinfo:
+        await client.register_tools(manifest)
+    assert excinfo.value.code == "invalid_manifest"
+
+
+async def test_tool_manifest_valid_source_registers(
+    fake_daemon: tuple[str, str],
+) -> None:
+    client = _client(fake_daemon[0])
+    result = await client.register_tools(
+        {
+            "schema": "kei.tool-manifest/v3",
+            "tools": [{"name": "x", "source": "minimal_harness"}],
+        }
     )
     assert result == {"registered": 1}
 
