@@ -64,6 +64,8 @@ type stepArgs struct {
 		DelegationDepth int    `json:"delegation_depth"`
 		Framework       string `json:"framework"`
 		ToolArgsDigest  string `json:"tool_args_digest"`
+		ConnectorID     string `json:"connector_id"`
+		Capability      string `json:"capability"`
 	} `json:"request"`
 }
 
@@ -105,6 +107,14 @@ func runStep(ctx context.Context, c *Client, op string, a stepArgs) (any, error)
 		return lines, err
 	case "policy_bundle_status":
 		return c.PolicyBundleStatus(ctx)
+	case "release_credential":
+		r := a.Request
+		return c.ReleaseCredential(ctx, a.session(), ReleaseRequest{
+			Tool: r.Tool, ConnectorID: r.ConnectorID, Capability: r.Capability,
+			Resource: r.Resource, SpanID: r.SpanID, ParentSpan: r.ParentSpan,
+			DelegationDepth: r.DelegationDepth, Framework: r.Framework,
+			ToolArgsDigest: r.ToolArgsDigest,
+		})
 	}
 	return nil, fmt.Errorf("unknown op %q", op)
 }

@@ -46,6 +46,8 @@ from .evaluator import AuthorizationClient, KeiProxyAuthorizeError
 __all__ = [
     "AUTHORIZE_REQUEST_SCHEMA",
     "AUTHORIZE_RESPONSE_SCHEMA",
+    "CREDENTIAL_RELEASE_REQUEST_SCHEMA",
+    "CREDENTIAL_RELEASE_RESPONSE_SCHEMA",
     "DEFAULT_MODEL_TIMEOUT",
     "DEFAULT_RUNTIME_SOCKET_PATH",
     "DEFAULT_SOCKET_TIMEOUT",
@@ -69,6 +71,8 @@ SESSION_SCHEMA = "kei.session/v2"
 AUTHORIZE_REQUEST_SCHEMA = "kei.authorize-request/v1"
 AUTHORIZE_RESPONSE_SCHEMA = "kei.authorize-response/v1"
 POLICY_BUNDLE_STATUS_SCHEMA = "kei.policy-bundle-status/v1"
+CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
+CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
 SESSION_NOT_FOUND = "session_not_found"
 
 DEFAULT_SOCKET_TIMEOUT = 10.0
@@ -268,6 +272,74 @@ class KeiProxySocketAuthorizeClient:
                 continue
             return response
         raise KeiProxySocketError("proxy_error", "socket authorize failed closed")
+
+    # Credential release ---------------------------------------------------
+
+    async def release_credential(
+        self,
+        session: KeiProxySocketSession,
+        *,
+        connector_id: str,
+        capability: str,
+        resource: str,
+        tool: str = "",
+        span_id: str = "",
+        parent_span: str = "",
+        delegation_depth: int = 0,
+        framework: str = "",
+        tool_args_digest: str = "",
+    ) -> dict[str, Any]:
+        """Pull a session credential from the daemon after an allow decision.
+
+        A deny is returned as a dict with ``reason_code``, not raised.
+        Transport failures raise :class:`KeiProxySocketError`. The credential
+        value must never be logged or printed.
+        """
+        if not session.source or not session.external_id or not session.session_id:
+            raise ValueError("socket release_credential needs an explicit named session")
+        request: dict[str, Any] = {
+            "schema": CREDENTIAL_RELEASE_REQUEST_SCHEMA,
+            "resource": resource,
+            "connector": {"connector_id": connector_id, "capability": capability},
+        }
+        if tool:
+            request["tool"] = tool
+        optional: dict[str, Any] = {
+            "span_id": span_id,
+            "parent_span": parent_span,
+            "delegation_depth": delegation_depth,
+            "framework": framework,
+            "tool_args_digest": tool_args_digest,
+        }
+        request.update({k: v for k, v in optional.items() if v})
+
+        for attempt in range(2):
+            try:
+                response = _json_object(
+                    await self._send(
+                        "POST",
+                        "/v1/credentials:release",
+                        session_id=session.session_id,
+                        json_body=request,
+                    )
+                )
+            except KeiProxySocketError as exc:
+                if attempt == 0 and exc.code == SESSION_NOT_FOUND:
+                    session = await self._reopen(session)
+                    continue
+                raise
+            if response.get("schema") != CREDENTIAL_RELEASE_RESPONSE_SCHEMA or not isinstance(
+                response.get("decision"), str
+            ):
+                raise KeiProxySocketError(
+                    "malformed_response",
+                    "the daemon returned an invalid credential release response",
+                )
+            if attempt == 0 and response.get("reason_code") == SESSION_NOT_FOUND:
+                session = await self._reopen(session)
+                continue
+            return response
+        raise KeiProxySocketError("proxy_error", "socket credential release failed closed")
 
     # Model routes ---------------------------------------------------------
 
@@ -483,6 +555,42 @@ class KeiProxySocketAuthorizationClient:
                 tool=tool,
                 action=action,
                 resource=resource,
+                span_id=span_id,
+                parent_span=parent_span,
+                delegation_depth=delegation_depth,
+                framework=framework,
+                tool_args_digest=tool_args_digest,
+            )
+
+        return _run_blocking(run)
+
+    def release_credential(
+        self,
+        user_id: str,
+        *,
+        connector_id: str,
+        capability: str,
+        resource: str,
+        tool: str = "",
+        span_id: str = "",
+        parent_span: str = "",
+        delegation_depth: int = 0,
+        framework: str = "",
+        tool_args_digest: str = "",
+    ) -> dict[str, Any]:
+        """Pull a session credential for ``user_id`` over the socket."""
+        if not user_id:
+            raise KeiProxySocketError("proxy_error", "no invoking subject to open a session for")
+        identity = KeiProxySocketIdentity(self._source, user_id)
+
+        async def run() -> dict[str, Any]:
+            session = await self._client.open_session(identity)
+            return await self._client.release_credential(
+                session,
+                connector_id=connector_id,
+                capability=capability,
+                resource=resource,
+                tool=tool,
                 span_id=span_id,
                 parent_span=parent_span,
                 delegation_depth=delegation_depth,

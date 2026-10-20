@@ -279,3 +279,140 @@ func TestSendToolsPostsManifestToRuntimeSocket(t *testing.T) {
 		t.Fatalf("body: %#v", reqs[0].Body)
 	}
 }
+
+func TestReleaseCredential(t *testing.T) {
+	t.Run("allow releases the credential", func(t *testing.T) {
+		d := startDaemon(t,
+			sessionAnswer,
+			jsonResponse(200, map[string]any{
+				"schema":   CredentialReleaseResponseSchema,
+				"decision": "allow",
+				"credential": map[string]any{
+					"connector_id":  "github",
+					"issuer":        "https://auth.example.com",
+					"resource":      "repo:owner/name",
+					"account_model": "per_user",
+					"access_token":  "ghs_secret",
+					"expires_at":    "2026-10-17T10:00:00Z",
+				},
+				"policy_id":    "pol_01J",
+				"bundle_state": "ready",
+			}),
+		)
+		c := &Client{Env: tokenEnv(d.path)}
+		sess, err := c.OpenSession(context.Background(), Identity{Source: "test", ExternalID: "ada"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := c.ReleaseCredential(context.Background(), sess, ReleaseRequest{
+			ConnectorID: "github",
+			Capability:  "read",
+			Resource:    "repo:owner/name",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Decision != "allow" {
+			t.Fatalf("expected allow, got %s", result.Decision)
+		}
+		if result.Credential == nil {
+			t.Fatal("expected credential on allow")
+		}
+		if result.Credential.AccessToken != "ghs_secret" {
+			t.Errorf("expected ghs_secret, got %s", result.Credential.AccessToken)
+		}
+		reqs := d.requests()
+		if len(reqs) != 2 {
+			t.Fatalf("expected 2 requests, got %d", len(reqs))
+		}
+		if reqs[1].Method != http.MethodPost || reqs[1].Path != "/v1/credentials:release" {
+			t.Errorf("expected POST /v1/credentials:release, got %s %s", reqs[1].Method, reqs[1].Path)
+		}
+		if reqs[1].Authorization != "Bearer "+testToken {
+			t.Error("runtime token was not sent as bearer auth")
+		}
+		body, ok := reqs[1].Body.(map[string]any)
+		if !ok {
+			t.Fatal("body is not a map")
+		}
+		if body["schema"] != CredentialReleaseRequestSchema {
+			t.Errorf("expected schema %s, got %v", CredentialReleaseRequestSchema, body["schema"])
+		}
+		conn, ok := body["connector"].(map[string]any)
+		if !ok || conn["connector_id"] != "github" || conn["capability"] != "read" {
+			t.Errorf("unexpected connector: %v", body["connector"])
+		}
+		if body["resource"] != "repo:owner/name" {
+			t.Errorf("expected resource repo:owner/name, got %v", body["resource"])
+		}
+		if body["span_id"] != nil {
+			t.Errorf("span_id should be omitted when empty, got %v", body["span_id"])
+		}
+	})
+
+	t.Run("deny returns reason_code without credential", func(t *testing.T) {
+		d := startDaemon(t,
+			sessionAnswer,
+			jsonResponse(200, map[string]any{
+				"schema":       CredentialReleaseResponseSchema,
+				"decision":     "deny",
+				"reason_code":  "credential_not_connected",
+				"reason":       "the connector is not connected for this user",
+				"bundle_state": "ready",
+			}),
+		)
+		c := &Client{Env: tokenEnv(d.path)}
+		sess, err := c.OpenSession(context.Background(), Identity{Source: "test", ExternalID: "ada"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := c.ReleaseCredential(context.Background(), sess, ReleaseRequest{
+			ConnectorID: "github",
+			Capability:  "read",
+			Resource:    "repo:owner/name",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Decision != "deny" {
+			t.Fatalf("expected deny, got %s", result.Decision)
+		}
+		if result.Credential != nil {
+			t.Fatal("expected no credential on deny")
+		}
+		if result.ReasonCode != "credential_not_connected" {
+			t.Errorf("expected reason_code credential_not_connected, got %s", result.ReasonCode)
+		}
+	})
+
+	t.Run("transport failure is an error", func(t *testing.T) {
+		c := &Client{Env: tokenEnv(shortSocketPath(t))}
+		_, err := c.ReleaseCredential(context.Background(), Session{Source: "test", ExternalID: "ada", SessionID: "sess-1"}, ReleaseRequest{
+			ConnectorID: "github",
+			Capability:  "read",
+			Resource:    "repo:owner/name",
+		})
+		if err == nil {
+			t.Fatal("expected error for unreachable socket")
+		}
+	})
+
+	t.Run("credential value never appears in error", func(t *testing.T) {
+		d := startDaemon(t, jsonResponse(401, map[string]any{
+			"error": map[string]any{"code": "invalid_runtime_token", "message": "bad token"},
+		}))
+		c := &Client{Env: tokenEnv(d.path)}
+		_, err := c.ReleaseCredential(context.Background(), Session{SessionID: "sess-1"}, ReleaseRequest{
+			ConnectorID: "github",
+			Capability:  "read",
+			Resource:    "repo:owner/name",
+		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		msg := err.Error()
+		if strings.Contains(msg, "ghs_secret") || strings.Contains(msg, "secret") {
+			t.Errorf("credential value leaked into error: %s", msg)
+		}
+	})
+}

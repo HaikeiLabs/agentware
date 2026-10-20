@@ -58,10 +58,12 @@ func TestConstantsMatchContract(t *testing.T) {
 			DefaultModelTimeoutMS int64  `json:"default_model_timeout_ms"`
 		} `json:"socket"`
 		Schemas struct {
-			Session            string `json:"session"`
-			AuthorizeRequest   string `json:"authorize_request"`
-			AuthorizeResponse  string `json:"authorize_response"`
-			PolicyBundleStatus string `json:"policy_bundle_status"`
+			Session                   string `json:"session"`
+			AuthorizeRequest          string `json:"authorize_request"`
+			AuthorizeResponse         string `json:"authorize_response"`
+			PolicyBundleStatus        string `json:"policy_bundle_status"`
+			CredentialReleaseRequest  string `json:"credential_release_request"`
+			CredentialReleaseResponse string `json:"credential_release_response"`
 		} `json:"schemas"`
 		ReasonClasses []string `json:"socket_error_reason_classes"`
 	}
@@ -92,6 +94,8 @@ func TestConstantsMatchContract(t *testing.T) {
 		{"authorize_request schema", AuthorizeRequestSchema, c.Schemas.AuthorizeRequest},
 		{"authorize_response schema", AuthorizeResponseSchema, c.Schemas.AuthorizeResponse},
 		{"policy_bundle_status schema", PolicyBundleStatusSchema, c.Schemas.PolicyBundleStatus},
+		{"credential_release_request schema", CredentialReleaseRequestSchema, c.Schemas.CredentialReleaseRequest},
+		{"credential_release_response schema", CredentialReleaseResponseSchema, c.Schemas.CredentialReleaseResponse},
 	}
 	for _, ch := range checks {
 		if !reflect.DeepEqual(ch.got, ch.want) {
