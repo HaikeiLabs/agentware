@@ -122,6 +122,17 @@ a deny against the local fake socket:
 - [Agentware 60-minute cold-start dry run](docs/dry-run/60-minute-dry-run.md)
 - [Using agentware as a team](docs/using-agentware-as-a-team.md)
 
+The in-repo guides above describe the same path as the
+[Agentware docs site](https://docs.haikeilabs.com/agentware/build/overview) —
+the repo docs are the checked source, but both reflect the same quick-start
+flow. The site also hosts language-specific pages for
+[Go](https://docs.haikeilabs.com/agentware/build/go),
+[Python](https://docs.haikeilabs.com/agentware/build/python), and
+[TypeScript](https://docs.haikeilabs.com/agentware/build/typescript), plus
+guides on [runtime setup](https://docs.haikeilabs.com/agentware/build/runtime-setup),
+[policy and audit](https://docs.haikeilabs.com/agentware/build/policy-and-audit),
+and the [deny-hints reference](https://docs.haikeilabs.com/agentware/reference/deny-hints).
+
 The socket client is recommended. The older `KeiProxyAuthorizeClient`
 subprocess integration (`kei-proxy authorize`) is deprecated.
 
