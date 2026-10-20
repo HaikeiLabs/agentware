@@ -45,6 +45,21 @@ func (a *AuthorizationClient) Authorize(ctx context.Context, req evaluator.Autho
 	return a.Socket.Authorize(ctx, session, req)
 }
 
+// ReleaseCredential pulls a session credential for userID over the socket.
+func (a *AuthorizationClient) ReleaseCredential(ctx context.Context, userID string, req ReleaseRequest) (*ReleaseResult, error) {
+	if a.Socket == nil {
+		return nil, refusal(evaluator.ReasonProxyUnavailable, "no socket client configured")
+	}
+	if userID == "" {
+		return nil, refusal(evaluator.ReasonProxyError, "no invoking subject to open a session for")
+	}
+	session, err := a.Socket.OpenSession(ctx, Identity{Source: a.Source, ExternalID: userID})
+	if err != nil {
+		return nil, err
+	}
+	return a.Socket.ReleaseCredential(ctx, session, req)
+}
+
 // SelectOptions configures SelectAuthorizationClient.
 type SelectOptions struct {
 	// SocketPath selects the socket client explicitly.

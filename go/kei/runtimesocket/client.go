@@ -29,6 +29,10 @@ const (
 	AuthorizeRequestSchema   = "kei.authorize-request/v1"
 	AuthorizeResponseSchema  = "kei.authorize-response/v1"
 	PolicyBundleStatusSchema = "kei.policy-bundle-status/v1"
+	// CredentialReleaseRequestSchema is the schema for POST /v1/credentials:release requests.
+	CredentialReleaseRequestSchema = "kei.credential-release-request/v1"
+	// CredentialReleaseResponseSchema is the schema for POST /v1/credentials:release responses.
+	CredentialReleaseResponseSchema = "kei.credential-release-response/v1"
 	// SessionNotFound is the daemon code for a session it no longer knows.
 	SessionNotFound = "session_not_found"
 
@@ -38,6 +42,50 @@ const (
 	// between lines of a streamed one.
 	DefaultModelTimeout = 120 * time.Second
 )
+
+// ReleaseRequest is the request body for POST /v1/credentials:release.
+// Exactly one of Tool or ConnectorID+Capability must be set. Resource is
+// required when a credential is requested.
+type ReleaseRequest struct {
+	// Tool is the harness tool name. Exactly one of Tool or ConnectorID+Capability.
+	Tool string
+	// ConnectorID is the connector to release a credential for.
+	ConnectorID string
+	// Capability is the capability on that connector, e.g. "read".
+	Capability string
+	// Resource is the resource the provider call targets.
+	Resource string
+
+	// Audit context (optional, as in /v1/authorize).
+	SpanID          string
+	ParentSpan      string
+	DelegationDepth int
+	Framework       string
+	ToolArgsDigest  string
+}
+
+// Credential is a released connector credential value. It is short-lived
+// and must never be logged or printed.
+type Credential struct {
+	ConnectorID  string `json:"connector_id"`
+	Issuer       string `json:"issuer"`
+	Resource     string `json:"resource"`
+	AccountModel string `json:"account_model"`
+	AccessToken  string `json:"access_token"`
+	ExpiresAt    string `json:"expires_at"`
+}
+
+// ReleaseResult is the parsed response from POST /v1/credentials:release.
+// On allow, Credential is non-nil. On deny, ReasonCode is set and Credential
+// is nil. Transport failures are returned as error, never a ReleaseResult.
+type ReleaseResult struct {
+	Decision    string      `json:"decision"`
+	ReasonCode  string      `json:"reason_code,omitempty"`
+	Reason      string      `json:"reason,omitempty"`
+	Credential  *Credential `json:"credential,omitempty"`
+	PolicyID    string      `json:"policy_id,omitempty"`
+	BundleState string      `json:"bundle_state"`
+}
 
 // baseURL is the request URL host; the Unix-socket dialer ignores it.
 const baseURL = "http://kei-proxy"
@@ -267,6 +315,107 @@ func (c *Client) Authorize(ctx context.Context, session Session, req evaluator.A
 		return answer, nil
 	}
 	return nil, refusal(evaluator.ReasonProxyError, "socket authorize failed closed")
+}
+
+// ReleaseCredential pulls a session credential from the daemon over the Unix
+// socket, after an allow decision. A deny is returned as a typed result (the
+// reason_code), not an error. Transport failures return an error. The
+// credential value must never be logged or printed.
+func (c *Client) ReleaseCredential(ctx context.Context, session Session, req ReleaseRequest) (*ReleaseResult, error) {
+	if err := validSession(session); err != nil {
+		return nil, fmt.Errorf("release credential: %w", err)
+	}
+	body := map[string]any{
+		"schema":   CredentialReleaseRequestSchema,
+		"resource": req.Resource,
+		"connector": map[string]string{
+			"connector_id": req.ConnectorID,
+			"capability":   req.Capability,
+		},
+	}
+	if req.Tool != "" {
+		body["tool"] = req.Tool
+	}
+	for k, v := range map[string]string{
+		"span_id":          req.SpanID,
+		"parent_span":      req.ParentSpan,
+		"framework":        req.Framework,
+		"tool_args_digest": req.ToolArgsDigest,
+	} {
+		if v != "" {
+			body[k] = v
+		}
+	}
+	if req.DelegationDepth > 0 {
+		body["delegation_depth"] = req.DelegationDepth
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		resp, err := c.send(ctx, http.MethodPost, "/v1/credentials:release", session.SessionID, body, c.timeout())
+		var data map[string]any
+		if err == nil {
+			data, err = resp.object()
+		}
+		if err != nil {
+			var se *Error
+			if attempt == 0 && errors.As(err, &se) && se.Code == SessionNotFound {
+				if session, err = c.reopen(ctx, session); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			return nil, err
+		}
+		// Validate the response has the expected shape.
+		dec, _ := data["decision"].(string)
+		schema, _ := data["schema"].(string)
+		if dec == "" || schema != CredentialReleaseResponseSchema {
+			return nil, malformed("the daemon returned an invalid credential release response")
+		}
+		if attempt == 0 && data["reason_code"] == SessionNotFound {
+			if session, err = c.reopen(ctx, session); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		result := &ReleaseResult{Decision: dec}
+		if rc, ok := data["reason_code"].(string); ok {
+			result.ReasonCode = rc
+		}
+		if r, ok := data["reason"].(string); ok {
+			result.Reason = r
+		}
+		if pid, ok := data["policy_id"].(string); ok {
+			result.PolicyID = pid
+		}
+		if bs, ok := data["bundle_state"].(string); ok {
+			result.BundleState = bs
+		}
+		if credRaw, ok := data["credential"].(map[string]any); ok && credRaw != nil {
+			cred := &Credential{}
+			if v, _ := credRaw["connector_id"].(string); v != "" {
+				cred.ConnectorID = v
+			}
+			if v, _ := credRaw["issuer"].(string); v != "" {
+				cred.Issuer = v
+			}
+			if v, _ := credRaw["resource"].(string); v != "" {
+				cred.Resource = v
+			}
+			if v, _ := credRaw["account_model"].(string); v != "" {
+				cred.AccountModel = v
+			}
+			if v, _ := credRaw["access_token"].(string); v != "" {
+				cred.AccessToken = v
+			}
+			if v, _ := credRaw["expires_at"].(string); v != "" {
+				cred.ExpiresAt = v
+			}
+			result.Credential = cred
+		}
+		return result, nil
+	}
+	return nil, refusal(evaluator.ReasonProxyError, "socket credential release failed closed")
 }
 
 // ListModels returns the models the daemon advertises (GET /v1/models), each

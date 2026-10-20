@@ -40,6 +40,115 @@ def test_caller_context_has_no_authorize_agent_id_input():
     assert "agent_id" not in {item.name for item in fields(CallerContext)}
 
 
+def test_release_credential_allow_returns_credential() -> None:
+    daemon = FakeDaemon()
+    daemon.routes[("POST", "/v1/credentials:release")] = {
+        "schema": "kei.credential-release-response/v1",
+        "decision": "allow",
+        "credential": {
+            "connector_id": "github",
+            "issuer": "https://auth.example.com",
+            "resource": "repo:owner/name",
+            "account_model": "per_user",
+            "access_token": "ghs_secret",
+            "expires_at": "2026-10-17T10:00:00Z",
+        },
+        "policy_id": "pol_01J",
+        "bundle_state": "ready",
+    }
+    client = daemon.client()
+    session = asyncio.run(client.open_session(ADA))
+    result = asyncio.run(
+        client.release_credential(
+            session,
+            connector_id="github",
+            capability="read",
+            resource="repo:owner/name",
+        )
+    )
+    assert result["decision"] == "allow"
+    assert result["credential"]["access_token"] == "ghs_secret"
+    assert result["credential"]["connector_id"] == "github"
+    assert TOKEN not in str(result)
+
+
+def test_release_credential_deny_returns_reason_code() -> None:
+    daemon = FakeDaemon()
+    daemon.routes[("POST", "/v1/credentials:release")] = {
+        "schema": "kei.credential-release-response/v1",
+        "decision": "deny",
+        "reason_code": "credential_not_connected",
+        "reason": "the connector is not connected for this user",
+        "bundle_state": "ready",
+    }
+    client = daemon.client()
+    session = asyncio.run(client.open_session(ADA))
+    result = asyncio.run(
+        client.release_credential(
+            session,
+            connector_id="github",
+            capability="read",
+            resource="repo:owner/name",
+        )
+    )
+    assert result["decision"] == "deny"
+    assert result["reason_code"] == "credential_not_connected"
+    assert "credential" not in result
+
+
+def test_release_credential_transport_failure_is_an_error() -> None:
+    client = FakeDaemon(down=True).client()
+    with pytest.raises(KeiProxySocketError):
+        asyncio.run(
+            client.release_credential(
+                KeiProxySocketSession("test", "ada", "sess-1"),
+                connector_id="github",
+                capability="read",
+                resource="repo:owner/name",
+            )
+        )
+
+
+def test_release_credential_sends_correct_request_body() -> None:
+    daemon = FakeDaemon()
+    daemon.routes[("POST", "/v1/credentials:release")] = {
+        "schema": "kei.credential-release-response/v1",
+        "decision": "allow",
+        "credential": {
+            "connector_id": "github",
+            "issuer": "https://auth.example.com",
+            "resource": "repo:owner/name",
+            "account_model": "per_user",
+            "access_token": "ghs_secret",
+            "expires_at": "2026-10-17T10:00:00Z",
+        },
+        "bundle_state": "ready",
+    }
+    client = daemon.client()
+    asyncio.run(client.open_session(ADA))
+    # forget so the next open_session is a real PUT
+    client.forget_session(ADA)
+    session = asyncio.run(client.open_session(ADA))
+    asyncio.run(
+        client.release_credential(
+            session,
+            connector_id="github",
+            capability="read",
+            resource="repo:owner/name",
+            span_id="span-1",
+            framework="openwebui",
+        )
+    )
+    bodies = daemon.bodies("/v1/credentials:release")
+    assert len(bodies) == 1
+    body = bodies[0]
+    assert body["schema"] == "kei.credential-release-request/v1"
+    assert body["connector"] == {"connector_id": "github", "capability": "read"}
+    assert body["resource"] == "repo:owner/name"
+    assert body["span_id"] == "span-1"
+    assert body["framework"] == "openwebui"
+
+
 def test_register_tools_posts_manifest_to_runtime_route() -> None:
     daemon = FakeDaemon()
     daemon.routes[("POST", "/v1/tools:register")] = {"registered": 1}

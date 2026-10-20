@@ -40,6 +40,8 @@ export const SESSION_SCHEMA = "kei.session/v2";
 export const AUTHORIZE_REQUEST_SCHEMA = "kei.authorize-request/v1";
 export const AUTHORIZE_RESPONSE_SCHEMA = "kei.authorize-response/v1";
 export const POLICY_BUNDLE_STATUS_SCHEMA = "kei.policy-bundle-status/v1";
+export const CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1";
+export const CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1";
 export const SESSION_NOT_FOUND = "session_not_found";
 export const DEFAULT_SOCKET_TIMEOUT_MS = 10_000;
 export const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
@@ -100,6 +102,22 @@ export type KeiProxySocketAuthorizeRequest = Pick<
       | "toolArgsDigest"
     >
   >;
+
+/**
+ * Fields for a credential release request. The ``resource`` and
+ * ``connector`` object are always required.
+ */
+export interface KeiProxySocketCredentialReleaseRequest {
+  connectorId: string;
+  capability: string;
+  resource: string;
+  tool?: string;
+  spanId?: string;
+  parentSpan?: string;
+  delegationDepth?: number;
+  framework?: string;
+  toolArgsDigest?: string;
+}
 
 export interface KeiProxySocketAuthorizeClientOptions {
   /** The daemon's socket. Default `$KEI_RUNTIME_SOCKET_PATH`, then `/run/kei-proxy/runtime.sock`. */
@@ -272,6 +290,78 @@ export class KeiProxySocketAuthorizeClient {
     throw new KeiProxySocketError(
       "proxy_error",
       "socket authorize failed closed",
+    );
+  }
+
+  // Credential release -----------------------------------------------------
+
+  /**
+   * Pull a session credential from the daemon after an allow decision.
+   * A deny is returned as an object with ``reason_code``, not rejected.
+   * Transport failures reject with ``KeiProxySocketError``. The credential
+   * value must never be logged or printed.
+   */
+  async releaseCredential(
+    session: KeiProxySocketSession,
+    input: KeiProxySocketCredentialReleaseRequest,
+  ): Promise<JsonObject> {
+    if (!session?.source || !session.externalId || !session.sessionId) {
+      throw new TypeError("socket releaseCredential needs an explicit named session");
+    }
+    const request: JsonObject = {
+      schema: CREDENTIAL_RELEASE_REQUEST_SCHEMA,
+      resource: input.resource,
+      connector: { connector_id: input.connectorId, capability: input.capability },
+    };
+    if (input.tool) request.tool = input.tool;
+    const optional: JsonObject = {
+      span_id: input.spanId,
+      parent_span: input.parentSpan,
+      delegation_depth: input.delegationDepth,
+      framework: input.framework,
+      tool_args_digest: input.toolArgsDigest,
+    };
+    for (const [key, value] of Object.entries(optional))
+      if (value) request[key] = value;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let response: JsonObject;
+      try {
+        response = jsonObject(
+          await this.send("POST", "/v1/credentials:release", {
+            sessionId: session.sessionId,
+            body: request,
+          }),
+        );
+      } catch (error) {
+        if (
+          attempt === 0 &&
+          error instanceof KeiProxySocketError &&
+          error.code === SESSION_NOT_FOUND
+        ) {
+          session = await this.reopen(session);
+          continue;
+        }
+        throw error;
+      }
+      if (
+        response.schema !== CREDENTIAL_RELEASE_RESPONSE_SCHEMA ||
+        typeof response.decision !== "string"
+      ) {
+        throw new KeiProxySocketError(
+          "malformed_response",
+          "the daemon returned an invalid credential release response",
+        );
+      }
+      if (attempt === 0 && response.reason_code === SESSION_NOT_FOUND) {
+        session = await this.reopen(session);
+        continue;
+      }
+      return response;
+    }
+    throw new KeiProxySocketError(
+      "proxy_error",
+      "socket credential release failed closed",
     );
   }
 
@@ -484,6 +574,23 @@ export class KeiProxySocketAuthorizationClient implements KeiProxyAuthorizationC
       externalId: request.userId,
     });
     return this.client.authorize(session, request);
+  }
+
+  async releaseCredential(
+    userId: string,
+    input: Omit<KeiProxySocketCredentialReleaseRequest, "">,
+  ): Promise<JsonObject> {
+    if (!userId) {
+      throw new KeiProxySocketError(
+        "proxy_error",
+        "no invoking subject to open a session for",
+      );
+    }
+    const session = await this.client.openSession({
+      source: this.source,
+      externalId: userId,
+    });
+    return this.client.releaseCredential(session, input);
   }
 }
 
