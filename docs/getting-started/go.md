@@ -31,6 +31,14 @@ In the other terminal, copy the Go snippet into your harness module's `main.go`
 and run it with `KEI_RUNTIME_SOCKET_PATH` set to that socket and
 `KEI_RUNTIME_TOKEN=offline-example-token`. The fake has canned decisions and
 is for local examples only; use a real runtime installation for governed work.
+The complete [minimal harness](../../examples/go/minimal-harness) prints an
+allowed result followed by a deny with its reason code and hint, and confirms
+the denied handler did not run:
+
+```text
+ALLOW tool=echo policy_id=fake-allow-echo result=map[echo:hello harness]
+DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create handler=not_run
+```
 
 ## Authorize a tool
 
