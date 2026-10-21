@@ -8,9 +8,11 @@ Usage:
     python3 fixtures/kei/fake-kei-proxy-socket.py SOCKET_PATH --audit AUDIT_FILE
 
 Canned decisions (matched on the ``tool`` field of the authorize request):
-    echo             -> permit (policy_id fake-allow-echo)
-    delete_everything-> deny  (no_matching_policy + hint)
-    anything else    -> deny  (tool_not_registered + hint)
+    echo                     -> permit (policy_id fake-allow-echo)
+    delete_everything        -> deny  (no_matching_policy + hint)
+    subject_unlinked_tool    -> deny  (subject_unlinked + hint + enrollment)
+    preflight_required_tool  -> deny  (preflight_required + hint)
+    anything else            -> deny  (tool_not_registered + hint)
 
 Every authorize appends one JSON audit line to AUDIT_FILE:
     {"tool": T, "decision": D, "reason_code": C or "", "session": X-Kei-Session}
@@ -161,6 +163,27 @@ class Handler(BaseHTTPRequestHandler):
                     "bundle_state": "fresh",
                 }
                 self._audit(tool, "deny", "no_matching_policy", session)
+            elif tool == "subject_unlinked_tool":
+                answer = {
+                    "schema": AUTHORIZE_SCHEMA,
+                    "decision": "deny",
+                    "reason_code": "subject_unlinked",
+                    "reason": "the subject is not linked to this installation",
+                    "hint": "Link this identity to the installation: open the enrollment link when the response carries one, or link the user on the console Users page.",
+                    "enrollment": {"claim_url": "https://kei.example.test/claim/1"},
+                    "bundle_state": "fresh",
+                }
+                self._audit(tool, "deny", "subject_unlinked", session)
+            elif tool == "preflight_required_tool":
+                answer = {
+                    "schema": AUTHORIZE_SCHEMA,
+                    "decision": "deny",
+                    "reason_code": "preflight_required",
+                    "reason": "no registered tool by this name",
+                    "hint": "Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh.",
+                    "bundle_state": "fresh",
+                }
+                self._audit(tool, "deny", "preflight_required", session)
             else:
                 answer = {
                     "schema": AUTHORIZE_SCHEMA,

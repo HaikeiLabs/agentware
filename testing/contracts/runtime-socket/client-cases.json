@@ -366,6 +366,54 @@
       ]
     },
     {
+      "name": "authorize_returns_a_deny_with_preflight_required",
+      "steps": [
+        {
+          "op": "authorize",
+          "args": {
+            "session": {
+              "source": "openwebui",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue"
+            }
+          },
+          "expect": {
+            "result": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "preflight_required",
+              "hint": "Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh."
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/authorize",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.authorize-request/v1",
+              "tool": "github.get_issue"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.authorize-response/v1",
+              "decision": "deny",
+              "reason_code": "preflight_required",
+              "hint": "Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh."
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "authorize_reopens_once_on_a_session_not_found_deny",
       "steps": [
         {

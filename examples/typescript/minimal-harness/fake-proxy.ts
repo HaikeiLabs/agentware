@@ -39,12 +39,29 @@ export async function startFakeProxy(): Promise<FakeProxy> {
               reason: "no policy permits this tool",
               hint: "Add a policy for this tool: kei policies create",
             }
-          : {
-              schema: "kei.authorize-response/v1",
-              decision: "deny",
-              reason_code: "tool_not_registered",
-              hint: "Register the harness tools: kei harness sync --harness custom --manifest tools.json",
-            };
+          : body.tool === "subject_unlinked_tool"
+            ? {
+                schema: "kei.authorize-response/v1",
+                decision: "deny",
+                reason_code: "subject_unlinked",
+                reason: "the subject is not linked to this installation",
+                hint: "Link this identity to the installation: open the enrollment link when the response carries one, or link the user on the console Users page.",
+                enrollment: { claim_url: "https://kei.example.test/claim/1" },
+              }
+            : body.tool === "preflight_required_tool"
+              ? {
+                  schema: "kei.authorize-response/v1",
+                  decision: "deny",
+                  reason_code: "preflight_required",
+                  reason: "no registered tool by this name",
+                  hint: "Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh.",
+                }
+              : {
+                  schema: "kei.authorize-response/v1",
+                  decision: "deny",
+                  reason_code: "tool_not_registered",
+                  hint: "Register the harness tools: kei harness sync --harness custom --manifest tools.json",
+                };
 
     if (request.url === "/v1/authorize") {
       console.log(`AUDIT ${JSON.stringify({

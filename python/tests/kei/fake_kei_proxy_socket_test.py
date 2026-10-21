@@ -157,3 +157,52 @@ async def test_echo_is_permitted_and_delete_is_denied_with_a_hint(
             "invoking_user": "ada",
         },
     ]
+
+
+async def test_subject_unlinked_and_preflight_required_are_denied_with_correct_hints(
+    fake_daemon: tuple[str, str],
+) -> None:
+    socket_path, audit_path = fake_daemon
+    client = _client(socket_path)
+    session = await client.open_session(KeiProxySocketIdentity("openwebui", "ada"))
+
+    denied = await client.authorize(session, tool="subject_unlinked_tool")
+    assert denied["decision"] == "deny"
+    assert denied["reason_code"] == "subject_unlinked"
+    assert denied["hint"] == (
+        "Link this identity to the installation: open the enrollment link when "
+        "the response carries one, or link the user on the console Users page."
+    )
+    assert denied.get("enrollment") == {"claim_url": "https://kei.example.test/claim/1"}
+
+    denied = await client.authorize(session, tool="preflight_required_tool")
+    assert denied["decision"] == "deny"
+    assert denied["reason_code"] == "preflight_required"
+    assert denied["hint"] == (
+        "Register the tool so the active policy bundle lists it "
+        "(POST /v1/tools:register on the runtime socket, or "
+        "kei harness sync --harness custom --manifest tools.json), "
+        "then wait for the next bundle refresh."
+    )
+
+    await client.close_session(session)
+
+    lines = [json.loads(line) for line in Path(audit_path).read_text().splitlines() if line.strip()]
+    assert lines == [
+        {
+            "tool": "subject_unlinked_tool",
+            "decision": "deny",
+            "reason_code": "subject_unlinked",
+            "session": "fake-session",
+            "harness": "openwebui",
+            "invoking_user": "ada",
+        },
+        {
+            "tool": "preflight_required_tool",
+            "decision": "deny",
+            "reason_code": "preflight_required",
+            "session": "fake-session",
+            "harness": "openwebui",
+            "invoking_user": "ada",
+        },
+    ]

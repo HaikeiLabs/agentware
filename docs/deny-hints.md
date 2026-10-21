@@ -19,7 +19,9 @@ response.
 | `oauth_not_connected` | Connect the provider account on the console Connectors page to enable OAuth-based access. |
 | `oauth_reconnect_required` | Reconnect the provider account on the console Connectors page; the connection needs to be refreshed. |
 | `policy_deny` | Add a permit policy for this subject and connector: kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit |
+| `preflight_required` | Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh. |
 | `subject_missing` | Link the invoking user to this installation on the console Users page so a subject can be resolved. |
+| `subject_unlinked` | Link this identity to the installation: open the enrollment link when the response carries one, or link the user on the console Users page. |
 | `tool_not_registered` | Register the harness tools: kei harness sync --harness custom --manifest tools.json |
 
 A `reason_code` absent from this table gets no hint, and the response omits the
