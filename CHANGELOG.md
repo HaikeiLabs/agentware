@@ -5,6 +5,24 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+## [0.12.0] - 2026-10-22
+
+### Added
+
+- **Go, Python, TypeScript:** release a session credential through the
+  kei-proxy Unix socket after an allow decision.
+- **Python:** rescue Qwen XML tool calls in the response validator.
+- **Go:** minimal harness example demonstrates a governed deny and verifies
+  the denied handler does not run.
+
+### Documentation
+
+- Add a cold-start dry-run runbook and fill runtime setup gaps in the
+  getting-started guides.
+- Explain deny hints and policy bundle refresh after tool registration.
+- Link the README's governed harness guides to the Agentware docs site.
+- Correct ToolSpec examples to use a valid tool manifest source.
+
 ## [0.11.0] - 2026-10-19
 
 ### Breaking
