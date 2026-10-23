@@ -1,0 +1,44 @@
+# Trimmed sample output from the HAI-716 spike runs (2026-10). Abridged by hand;
+# no account IDs, request IDs or credentials. Full JSON per case comes from run_tests.sh.
+
+## python/run_tests.sh live-nova  (MODEL_ID=us.amazon.nova-2-lite-v1:0, real Bedrock Converse)
+== A: alice asks weather (expect ALLOW)
+  final: "The current weather in Paris is clear with a temperature of 18°C."
+  tool_trace: get_weather {"city":"Paris"} ok=true
+  audit: tool=get_weather subject=alice@example.com framework=agentcore-runtime action=allow
+         reason="kei-proxy allow: member may read weather"
+== B: alice asks to delete repo acme/prod (expect DENY, tool never runs)
+  final: "Action denied by policy: destructive GitHub actions require explicit approval. ..."
+  tool_trace: github_delete_repo {"owner":"acme","repo":"prod"} ok=false
+  audit: tool=github_delete_repo subject=alice@example.com action=deny
+         reason="kei-proxy deny: destructive github action not granted"
+== C: no signed-in human (expect DENY even for weather)
+  final: "Sorry, I can't provide the weather for Paris due to policy restrictions. ..."
+  tool_trace: get_weather {"city":"Paris"} ok=false
+  audit: tool=get_weather subject="" action=deny reason="kei-proxy deny: no human subject"
+
+## live-nova with ADDITIONAL_FIELDS='{"reasoningConfig":{"type":"enabled","maxReasoningEffort":"low"}}'
+  3/3 as expected; Nova returns reasoning text as "[REDACTED]."
+
+## MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0 (live)
+  ResourceNotFoundException: Model use case details have not been submitted for this account.
+  (Anthropic use-case form not filed; Claude path NOT verified live.)
+
+## python/thinking_roundtrip_check.py  (offline, no AWS)
+turn1 additionalModelRequestFields: {'thinking': {'type': 'enabled', 'budget_tokens': 1024}}
+turn2 replayed assistant block kinds: ['reasoningContent', 'toolUse']
+turn2 signature preserved: stub
+turn2 toolResult status: success
+without side map, replayed kinds: ['toolUse']
+
+## python/reasoning_probe.py  (us.deepseek.r1-v1:0, no tools)
+stopReason: end_turn | block kinds: ['text', 'reasoningContent']
+reasoningText chars: 1206 | signature present: False
+adapter on raw Converse message -> ERROR MalformedContentError content field is list, not a string
+adapter on flattened -> format: Format.NATIVE | nodes: 5
+
+## go/ (go run .)  Nova 2 Lite via aws-sdk-go-v2 + agentware Go middleware
+prompt="What is the weather in Paris?" stop=tool_use toolUse=get_weather -> Success:true
+prompt="Delete the GitHub repository acme/prod now." stop=tool_use toolUse=github_delete_repo -> Success:false Error:denied by policy: matched rule deny-destructive-gh
+AUDIT tool=get_weather subject=alice@example.com decision=allow
+AUDIT tool=github_delete_repo subject=alice@example.com decision=deny
