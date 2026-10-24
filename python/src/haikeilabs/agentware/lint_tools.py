@@ -1,4 +1,4 @@
-"""Shared rules for validating Kei tool manifest v2 exports."""
+"""Shared rules for validating Kei tool manifest v3 exports."""
 
 import json
 import re
@@ -13,14 +13,14 @@ _RETIRED = {"allow", "approval", "approval_id", "approval_required", "requires_a
 
 
 def lint_manifest(raw: str) -> list[str]:
-    """Return deterministic diagnostics for a v2 manifest string."""
+    """Return deterministic diagnostics for a v3 manifest string."""
     errors: list[str] = []
     try:
         manifest = json.loads(raw)
     except json.JSONDecodeError as exc:
         return [f"invalid JSON: {exc.msg}"]
-    if not isinstance(manifest, dict) or manifest.get("schema") != "kei.tool-manifest/v2":
-        return ["schema must be kei.tool-manifest/v2"]
+    if not isinstance(manifest, dict) or manifest.get("schema") != "kei.tool-manifest/v3":
+        return ["schema must be kei.tool-manifest/v3"]
     tools = manifest.get("tools")
     if not isinstance(tools, list):
         return ["tools must be an array"]
@@ -38,9 +38,18 @@ def lint_manifest(raw: str) -> list[str]:
         source, caps = tool.get("source"), tool.get("required_capabilities")
         if not isinstance(source, str) or not source:
             errors.append(f"{prefix} is missing source")
-        if not isinstance(caps, list) or not caps:
+        route = tool.get("route")
+        connector = route.get("connector_binding") if isinstance(route, dict) else None
+        harness = route.get("harness_executor") if isinstance(route, dict) else None
+        if (isinstance(connector, dict)) == (isinstance(harness, dict)):
+            errors.append(f"{prefix} route must contain exactly one route kind")
+        if isinstance(connector, dict) and (not connector.get("agent_id") or not connector.get("connector_id")):
+            errors.append(f"{prefix} connector_binding requires agent_id and connector_id")
+        if isinstance(harness, dict) and (not harness.get("executor") or not harness.get("registration")):
+            errors.append(f"{prefix} harness_executor requires executor and registration")
+        if isinstance(connector, dict) and (not isinstance(caps, list) or not caps):
             errors.append(f"{prefix} is missing required_capabilities")
-        elif isinstance(source, str):
+        elif isinstance(connector, dict) and isinstance(source, str) and isinstance(caps, list):
             if caps != sorted(caps, key=str):
                 errors.append(f"{prefix} required_capabilities are not sorted")
             for cap in caps:

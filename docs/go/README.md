@@ -223,7 +223,7 @@ eval := evaluator.NewKeiProxyEvaluator(client)
 ```
 
 Register the harness's tools before serving with `toolsync.SyncDocument` (or
-`toolsync.Sync` for JSON text): it `PUT`s the tool manifest v2 to
+`toolsync.Sync` for JSON text): it `PUT`s the tool manifest v3 to
 `$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools` with `KEI_RUNTIME_TOKEN`,
 replacing the installation's tools, so it refuses to send an empty manifest.
 It honours `KEI_PROXY_EGRESS_PROXY` and `KEI_PROXY_NO_PROXY`, and every failure

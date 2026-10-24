@@ -18,8 +18,11 @@ from pathlib import Path
 
 import pytest
 
-from haikeilabs.agentware.kei import KeiProxySocketAuthorizeClient, KeiProxySocketIdentity
-from haikeilabs.agentware.kei import KeiProxySocketError
+from haikeilabs.agentware.kei import (
+    KeiProxySocketAuthorizeClient,
+    KeiProxySocketError,
+    KeiProxySocketIdentity,
+)
 
 TOKEN = "kei_rt_fake-socket-secret-0123456789"
 SCRIPT = Path(__file__).resolve().parents[3] / "fixtures" / "kei" / "fake-kei-proxy-socket.py"
@@ -90,6 +93,17 @@ async def test_tool_manifest_invalid_source_returns_400(
     with pytest.raises(KeiProxySocketError) as excinfo:
         await client.register_tools(manifest)
     assert excinfo.value.code == "invalid_manifest"
+
+
+async def test_tool_manifest_rejects_unsupported_schema(
+    fake_daemon: tuple[str, str],
+) -> None:
+    client = _client(fake_daemon[0])
+    with pytest.raises(KeiProxySocketError) as excinfo:
+        await client.register_tools(
+            {"schema": "kei.tool-manifest/v" + str(2), "tools": []}
+        )
+    assert excinfo.value.code == "invalid_tool_manifest"
 
 
 async def test_tool_manifest_valid_source_registers(

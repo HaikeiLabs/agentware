@@ -5,6 +5,14 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+### Breaking
+
+- **Go, Python, TypeScript:** remove the `ManifestV1`/`ManifestV2`/`ManifestV4`
+  selections (Go) and `version=1/2/4` export paths in `export_kei_tool_manifest`
+  and `exportKeiToolManifest`; `ExportKeiToolManifest`, `export_kei_tool_manifest`,
+  and `exportKeiToolManifest` now export v3 by default. Remove v2 linter support.
+  Use v3 (HAI-727, HAI-875).
+
 ## [0.12.0] - 2026-10-22
 
 ### Added
@@ -201,8 +209,7 @@ shared version across npm, PyPI, and Go.
   Python (`pedro_agentware.tools/tool.py`, `pedro_agentware.tools/registry.py`),
   and TypeScript (`src/tools/tool.ts`, `src/tools/registry.ts`). Produces a
   structured manifest mapping tool definitions to their required scopes and
-  connectors for Kei registration. Includes shared fixture
-  `fixtures/kei/tool-manifest.v1.json` and design doc
+  connectors for Kei registration. Includes the shared manifest fixture and design doc
   `docs/kei-tool-manifest.md`.
 
 - **`connect` field on `Decision` (HAI-266):** All SDKs now carry an opaque

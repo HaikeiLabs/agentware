@@ -303,10 +303,9 @@ def test_put_tools_v3_returns_counts() -> None:
         assert resp.getheader("Content-Type") == "application/json"
         assert resp.getheader("X-Kei-Tool-Manifest-Schema") == "kei.tool-manifest/v3"
         assert resp.getheader("X-Kei-Supported-Tool-Manifest-Schemas") is not None
-        # The supported-schemas header must advertise both v2 and v3
+        # The supported-schemas header advertises the single supported format
         supported = resp.getheader("X-Kei-Supported-Tool-Manifest-Schemas")
-        assert "kei.tool-manifest/v2" in supported
-        assert "kei.tool-manifest/v3" in supported
+        assert supported == "kei.tool-manifest/v3"
 
         assert resp_body.get("added") == 2
         assert resp_body.get("updated") == 0
@@ -359,6 +358,29 @@ def test_put_tools_v3_rejects_missing_schema_field() -> None:
         resp = conn.getresponse()
         resp.read()
         assert resp.status == 400, f"expected 400, got {resp.status}"
+    finally:
+        _stop_stub(proc)
+
+
+def test_put_tools_rejects_unsupported_manifest_schema() -> None:
+    proc, port = _start_stub()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request(
+            "PUT",
+            "/api/v1/runtime/tools",
+            body=json.dumps({"schema": "kei.tool-manifest/v" + str(2), "tools": []}),
+            headers={
+                **_headers_with_token(),
+                "Content-Type": "application/json",
+                "Accept": "application/vnd.kei.tool-manifest.v3+json",
+            },
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read())
+        assert resp.status == 400
+        assert body["error"] == "unsupported_schema"
+        assert body["supported_schemas"] == ["kei.tool-manifest/v3"]
     finally:
         _stop_stub(proc)
 

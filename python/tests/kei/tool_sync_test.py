@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from haikeilabs.agentware.kei import (
-    TOOL_MANIFEST_V2_MEDIA_TYPE,
+    TOOL_MANIFEST_V3_MEDIA_TYPE,
     ToolManifestSyncConfig,
     ToolManifestSyncError,
     manifest_tool_count,
@@ -19,7 +19,7 @@ TOKEN = "kei_rt_sync-secret-token-0123456789"
 URL = "https://kei.example.test/"
 COUNTS = {"upserted": 2, "unchanged": 0, "disabled": 0}
 MANIFEST = {
-    "schema": "kei.tool-manifest/v2",
+    "schema": "kei.tool-manifest/v3",
     "tools": [{"name": "github.get_issue"}, {"name": "github.create_issue"}],
 }
 
@@ -60,8 +60,8 @@ def test_sync_puts_the_manifest_with_the_runtime_token(caplog: pytest.LogCapture
     assert req.method == "PUT"
     assert str(req.url) == "https://kei.example.test/api/v1/runtime/tools"
     assert req.headers["Authorization"] == f"Bearer {TOKEN}"
-    assert req.headers["Content-Type"] == TOOL_MANIFEST_V2_MEDIA_TYPE
-    assert req.headers["Accept"] == TOOL_MANIFEST_V2_MEDIA_TYPE
+    assert req.headers["Content-Type"] == TOOL_MANIFEST_V3_MEDIA_TYPE
+    assert req.headers["Accept"] == TOOL_MANIFEST_V3_MEDIA_TYPE
     assert json.loads(req.content) == MANIFEST
     assert "registered 2 tool(s)" in caplog.text and "upserted=2" in caplog.text
     assert TOKEN not in caplog.text

@@ -7,7 +7,7 @@
  * Kei's policy bundle only allows tools registered in the installation's tool
  * catalog, so a harness registers its tools before it serves:
  * `PUT $KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools` with the
- * `application/vnd.kei.tool-manifest.v2+json` document, authenticated with
+ * `application/vnd.kei.tool-manifest.v3+json` document, authenticated with
  * `KEI_RUNTIME_TOKEN`.
  *
  * - The PUT *replaces* the installation's tools, so a manifest with no tools
@@ -33,8 +33,8 @@ import { connect as tlsConnect } from "node:tls";
 import type { Socket } from "node:net";
 
 export const TOOLS_PATH = "/api/v1/runtime/tools";
-export const TOOL_MANIFEST_V2_MEDIA_TYPE =
-  "application/vnd.kei.tool-manifest.v2+json";
+export const TOOL_MANIFEST_V3_MEDIA_TYPE =
+  "application/vnd.kei.tool-manifest.v3+json";
 export const RUNTIME_CONTROL_PLANE_URL_ENV = "KEI_RUNTIME_CONTROL_PLANE_URL";
 export const EGRESS_PROXY_ENV = "KEI_PROXY_EGRESS_PROXY";
 export const NO_PROXY_ENV = "KEI_PROXY_NO_PROXY";
@@ -200,7 +200,7 @@ export function manifestToolCount(manifest: string | JsonObject): number {
   return Array.isArray(tools) ? tools.length : 0;
 }
 
-/** Register `manifest` (a tool manifest v2, as JSON text or an object) with Kei, replacing its tools. */
+/** Register `manifest` (a tool manifest v3, as JSON text or an object) with Kei, replacing its tools. */
 export async function syncToolManifest(
   manifest: string | JsonObject,
   config: ToolManifestSyncConfig,
@@ -229,8 +229,8 @@ export async function syncToolManifest(
   const body = JSON.stringify(document);
   const headers: OutgoingHttpHeaders = {
     Authorization: `Bearer ${token}`,
-    "Content-Type": TOOL_MANIFEST_V2_MEDIA_TYPE,
-    Accept: TOOL_MANIFEST_V2_MEDIA_TYPE,
+    "Content-Type": TOOL_MANIFEST_V3_MEDIA_TYPE,
+    Accept: TOOL_MANIFEST_V3_MEDIA_TYPE,
     "Content-Length": Buffer.byteLength(body),
   };
   const attempts = Math.max(1, config.attempts);

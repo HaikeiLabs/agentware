@@ -8,15 +8,15 @@
     "path": "/api/v1/runtime/tools",
     "headers": {
       "Authorization": "Bearer kei_rt_contract-canary-0123456789abcdef",
-      "Content-Type": "application/vnd.kei.tool-manifest.v2+json",
-      "Accept": "application/vnd.kei.tool-manifest.v2+json"
+      "Content-Type": "application/vnd.kei.tool-manifest.v3+json",
+      "Accept": "application/vnd.kei.tool-manifest.v3+json"
     }
   },
   "sync_cases": [
     {
       "name": "registers_the_manifest_in_replace_mode",
       "manifest": {
-        "schema": "kei.tool-manifest/v2",
+        "schema": "kei.tool-manifest/v3",
         "tools": [
           {
             "name": "github.get_issue",
@@ -53,7 +53,7 @@
     },
     {
       "name": "accepts_the_manifest_as_json_text",
-      "manifest_text": "{\"schema\": \"kei.tool-manifest/v2\", \"tools\": [{\"name\": \"github.get_issue\", \"connector\": \"github\"}, {\"name\": \"github.list_issues\", \"connector\": \"github\"}]}",
+      "manifest_text": "{\"schema\": \"kei.tool-manifest/v3\", \"tools\": [{\"name\": \"github.get_issue\", \"connector\": \"github\"}, {\"name\": \"github.list_issues\", \"connector\": \"github\"}]}",
       "expect_tools": true,
       "responses": [
         {
@@ -71,7 +71,7 @@
     {
       "name": "refuses_an_empty_manifest_when_tools_are_expected",
       "manifest": {
-        "schema": "kei.tool-manifest/v2",
+        "schema": "kei.tool-manifest/v3",
         "tools": []
       },
       "expect_tools": true,
@@ -85,7 +85,7 @@
     {
       "name": "refuses_a_manifest_without_tools_when_tools_are_expected",
       "manifest": {
-        "schema": "kei.tool-manifest/v2"
+        "schema": "kei.tool-manifest/v3"
       },
       "expect_tools": true,
       "responses": [],
@@ -98,7 +98,7 @@
     {
       "name": "skips_an_empty_manifest_when_no_tools_are_expected",
       "manifest": {
-        "schema": "kei.tool-manifest/v2",
+        "schema": "kei.tool-manifest/v3",
         "tools": []
       },
       "expect_tools": false,
@@ -136,7 +136,7 @@
     {
       "name": "retries_with_exponential_backoff_then_succeeds",
       "manifest": {
-        "schema": "kei.tool-manifest/v2",
+        "schema": "kei.tool-manifest/v3",
         "tools": [
           {
             "name": "github.get_issue",
@@ -182,7 +182,7 @@
     {
       "name": "backoff_is_capped",
       "manifest": {
-        "schema": "kei.tool-manifest/v2",
+        "schema": "kei.tool-manifest/v3",
         "tools": [
           {
             "name": "github.get_issue",
@@ -226,7 +226,7 @@
     {
       "name": "fails_after_the_last_attempt_and_redacts_the_token",
       "manifest": {
-        "schema": "kei.tool-manifest/v2",
+        "schema": "kei.tool-manifest/v3",
         "tools": [
           {
             "name": "github.get_issue",

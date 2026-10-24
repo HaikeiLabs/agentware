@@ -6,7 +6,7 @@
 // Kei's policy bundle only allows tools registered in the installation's tool
 // catalog, so a harness registers its tools before it serves:
 // PUT $KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools with the
-// application/vnd.kei.tool-manifest.v2+json document, authenticated with
+// application/vnd.kei.tool-manifest.v3+json document, authenticated with
 // KEI_RUNTIME_TOKEN, the two variables kei-proxy itself reads.
 //
 //   - The PUT replaces the installation's tools (it is idempotent: a restart
@@ -47,7 +47,7 @@ import (
 // Names and values shared with the Python and TypeScript ports.
 const (
 	ToolsPath          = "/api/v1/runtime/tools"
-	ManifestMediaType  = "application/vnd.kei.tool-manifest.v2+json"
+	ManifestMediaType  = "application/vnd.kei.tool-manifest.v3+json"
 	ControlPlaneURLEnv = "KEI_RUNTIME_CONTROL_PLANE_URL"
 	EgressProxyEnv     = "KEI_PROXY_EGRESS_PROXY"
 	NoProxyEnv         = "KEI_PROXY_NO_PROXY"
@@ -251,7 +251,7 @@ func ManifestToolCount(manifest map[string]any) int {
 	return len(tools)
 }
 
-// Sync registers manifest (tool manifest v2 JSON text) with Kei in replace
+// Sync registers manifest (tool manifest v3 JSON text) with Kei in replace
 // mode. An empty manifest is never sent: with expectTools it is an
 // ErrEmptyManifest error, otherwise Result{Sent: false}.
 func Sync(ctx context.Context, manifest []byte, cfg Config, expectTools bool) (Result, error) {

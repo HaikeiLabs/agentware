@@ -184,7 +184,7 @@ When present, the proxy's `reason_code` and `hint` are available unchanged on
 wording.
 
 Register the harness's tools before serving with `syncToolManifest`: it `PUT`s
-the tool manifest v2 to `$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools`
+the tool manifest v3 to `$KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools`
 with `KEI_RUNTIME_TOKEN`, replacing the installation's tools, so it refuses to
 send an empty manifest. It honours `KEI_PROXY_EGRESS_PROXY` and
 `KEI_PROXY_NO_PROXY`, and otherwise `HTTPS_PROXY` / `NO_PROXY`.

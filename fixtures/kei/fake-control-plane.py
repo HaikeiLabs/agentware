@@ -429,39 +429,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "Content-Type": "application/json",
                     "X-Kei-Tool-Manifest-Schema": "kei.tool-manifest/v3",
                     "X-Kei-Supported-Tool-Manifest-Schemas": (
-                        "kei.tool-manifest/v2, kei.tool-manifest/v3"
-                    ),
-                },
-            )
-            return
-
-        if schema == "kei.tool-manifest/v2":
-            if not self._accepts("application/vnd.kei.tool-manifest.v2+json"):
-                return self._send_json(
-                    400,
-                    {
-                        "error": "missing_protocol_proposal",
-                        "message": (
-                            "Accept header must include the v2 protocol media type: "
-                            "application/vnd.kei.tool-manifest.v2+json"
-                        ),
-                    },
-                )
-            self._send_raw(
-                200,
-                json.dumps(
-                    {
-                        "added": len(tools),
-                        "updated": 0,
-                        "removed": 0,
-                        "unchanged": 0,
-                    }
-                ).encode(),
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Kei-Tool-Manifest-Schema": "kei.tool-manifest/v2",
-                    "X-Kei-Supported-Tool-Manifest-Schemas": (
-                        "kei.tool-manifest/v2, kei.tool-manifest/v3"
+                        "kei.tool-manifest/v3"
                     ),
                 },
             )
@@ -471,10 +439,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             400,
             {
                 "error": "unsupported_schema",
-                "supported_schemas": [
-                    "kei.tool-manifest/v2",
-                    "kei.tool-manifest/v3",
-                ],
+                "supported_schemas": ["kei.tool-manifest/v3"],
                 "message": f"Unrecognized manifest schema: {schema!r}",
             },
         )
