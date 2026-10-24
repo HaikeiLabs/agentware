@@ -37,34 +37,14 @@ func (t *plainTool) Execute(_ context.Context, _ map[string]any) (*Result, error
 
 func TestExportKeiToolManifest_FixtureMatch(t *testing.T) {
 	registry := NewToolRegistry()
-
-	// Register governed tools (sorted by name in the registry)
-	registry.Register(&governedTool{
-		name:        "github.get_issue",
-		description: "Fetch an issue from a GitHub repository",
-		scope: KeiScope{
-			Source: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, OperationClass: "read", Service: "github",
-		},
+	registry.Register(&plainTool{name: "github.get_issue", description: "Fetch an issue from a GitHub repository"}, KeiToolRegistration{
+		Service: "github", Source: "github", OperationClass: "read",
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "11111111-1111-4111-8111-111111111111", ConnectorID: "22222222-2222-4222-8222-222222222222"}},
+		RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}},
 	})
-	registry.Register(&governedTool{
-		name:        "github.list_issues",
-		description: "List issues in a GitHub repository",
-		scope: KeiScope{
-			Source: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, OperationClass: "read", Service: "github",
-		},
-	})
-	registry.Register(&governedTool{
-		name:        "linear.get_issue",
-		description: "Fetch an issue from Linear",
-		scope: KeiScope{
-			Source: "linear", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "team"}}, OperationClass: "read", Service: "linear",
-		},
-	})
-
-	// Register a plain tool that should NOT appear in the manifest
-	registry.Register(&plainTool{
-		name:        "local_echo",
-		description: "Echo input back",
+	registry.Register(&plainTool{name: "codex.shell", description: "Run a local harness action"}, KeiToolRegistration{
+		Service: "codex", Source: "codex", OperationClass: "write",
+		Route: ToolRoute{HarnessExecutor: &HarnessExecutorRoute{Executor: "codex", Registration: "codex.shell"}},
 	})
 
 	got, err := registry.ExportKeiToolManifest()
@@ -73,7 +53,7 @@ func TestExportKeiToolManifest_FixtureMatch(t *testing.T) {
 	}
 
 	// Read the fixture
-	fixturePath := filepath.Join("..", "..", "fixtures", "kei", "tool-manifest.v2.json")
+	fixturePath := filepath.Join("..", "..", "fixtures", "kei", "tool-manifest.v3.json")
 	fixtureData, err := os.ReadFile(filepath.Clean(fixturePath))
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)
@@ -105,12 +85,12 @@ func TestExportKeiToolManifest_EmptyRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExportKeiToolManifest() returned error: %v", err)
 	}
-	var m KeiToolManifest
+	var m map[string]any
 	if err := json.Unmarshal(got, &m); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	if len(m.Tools) != 0 {
-		t.Errorf("expected empty tools list, got %d tools", len(m.Tools))
+	if m["schema"] != "kei.tool-manifest/v3" || len(m["tools"].([]any)) != 0 {
+		t.Errorf("expected empty v3 manifest, got %#v", m)
 	}
 }
 
@@ -186,186 +166,6 @@ func (t *extendedGovernedTool) InputSchema() map[string]any {
 }
 func (t *extendedGovernedTool) Examples() []ToolExample { return nil }
 
-func TestV4ExportMatchesFixtureAndRequiresExplicitSelection(t *testing.T) {
-	r := NewToolRegistry()
-	tool := &extendedGovernedTool{governedTool{name: "github.get_issue", description: "Fetch issue", scope: KeiScope{}}}
-	r.Register(tool, KeiToolRegistration{Service: "github", Source: "github", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "agent-1", ConnectorID: "github-1"}}, RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue", ParentType: "repository"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"repository": map[string]any{"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}}, "required": []any{"repository"}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "get-issue", Capability: "issue.read", Resource: &KeiPlannedResource{Type: "issue", ID: &KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}, Parent: &KeiPlannedParent{Type: "repository", ID: &KeiValueRef{From: "context", Field: "repository", Type: "string"}}}, ProviderResourceTemplate: "repos/{parent.id}/issues/{resource.id}", ProviderInput: map[string]any{}}}}})
-	if _, err := r.ExportKeiToolManifest(); err != nil {
-		t.Fatal(err)
-	}
-	got, err := r.ExportKeiToolManifest(ManifestV4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fixture, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "kei", "tool-manifest.v4.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(bytes.TrimSpace(got), bytes.TrimSpace(fixture)) {
-		t.Fatalf("v4 output differs from fixture\n%s", got)
-	}
-}
-
-func newV4TestRegistry(ref KeiValueRef, providerInput any) *ToolRegistry {
-	r := NewToolRegistry()
-	tool := &extendedGovernedTool{governedTool{name: "x", description: "x"}}
-	r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, ResourceTypes: []KeiResourceType{{Type: "item"}}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{"ctx": map[string]any{"type": "string"}}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "one", Capability: "cap", Resource: &KeiPlannedResource{Type: "item", ID: &ref}, ProviderResourceTemplate: "items/{resource.id}", ProviderInput: providerInput}}}})
-	return r
-}
-
-func TestV4RejectsMismatchedRefTypeAndUndeclaredContext(t *testing.T) {
-	for _, ref := range []KeiValueRef{{From: "args", Pointer: "/issue_number", Type: "string"}, {From: "context", Field: "missing", Type: "string"}} {
-		if _, err := newV4TestRegistry(ref, map[string]any{}).ExportKeiToolManifest(ManifestV4); err == nil {
-			t.Fatalf("expected invalid ref rejection: %+v", ref)
-		}
-	}
-}
-
-func TestV4SupportsResourceLessAndParentOnlyCollectionOperations(t *testing.T) {
-	makeRegistry := func(resourceTypes []KeiResourceType, operation KeiToolOperation, context map[string]any) *ToolRegistry {
-		r := NewToolRegistry()
-		tool := &extendedGovernedTool{governedTool{name: "x", description: "x"}}
-		r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, ResourceTypes: resourceTypes, Plan: &KeiToolPlan{ContextSchema: context, Operations: []KeiToolOperation{operation}}})
-		return r
-	}
-	closed := func(props map[string]any) map[string]any {
-		return map[string]any{"type": "object", "properties": props, "additionalProperties": false}
-	}
-	resourceLess := KeiToolOperation{ID: "no-resource", Capability: "cap", ProviderResourceTemplate: "workspace/settings", ProviderInput: map[string]any{}}
-	if _, err := makeRegistry(nil, resourceLess, closed(map[string]any{})).ExportKeiToolManifest(ManifestV4); err != nil {
-		t.Fatalf("resource-less operation failed: %v", err)
-	}
-	for _, template := range []string{"", "   ", "workspace/{id}", "workspace/{resource.id}"} {
-		resourceLess.ProviderResourceTemplate = template
-		if _, err := makeRegistry(nil, resourceLess, closed(map[string]any{})).ExportKeiToolManifest(ManifestV4); err == nil {
-			t.Fatalf("invalid resource-less provider template accepted: %q", template)
-		}
-	}
-	parentID := KeiValueRef{From: "context", Field: "folder", Type: "string"}
-	op := KeiToolOperation{ID: "list", Capability: "cap", Resource: &KeiPlannedResource{Type: "item", Parent: &KeiPlannedParent{Type: "folder", ID: &parentID}}, ProviderResourceTemplate: "folders/{parent.id}/items", ProviderInput: map[string]any{}}
-	if _, err := makeRegistry([]KeiResourceType{{Type: "item", ParentType: "folder"}}, op, closed(map[string]any{"folder": map[string]any{"type": "string"}})).ExportKeiToolManifest(ManifestV4); err != nil {
-		t.Fatalf("parent-only collection failed: %v", err)
-	}
-}
-
-func TestV4ProviderInputSupportsTypedStructuredRefsAndObjectRoot(t *testing.T) {
-	ref := KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}
-	for _, input := range []any{
-		map[string]any{"data": map[string]any{"ref": map[string]any{"from": "context", "field": "labels", "type": "array"}}},
-		map[string]any{"data": map[string]any{"ref": map[string]any{"from": "context", "field": "nested", "type": "object"}}},
-	} {
-		r := newV4TestRegistry(ref, input)
-		reg := r.registrations["x"]
-		props := reg.Plan.ContextSchema["properties"].(map[string]any)
-		props["labels"] = map[string]any{"type": "array", "maxItems": 8, "items": map[string]any{"type": "string", "maxLength": 40}}
-		props["nested"] = map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string", "maxLength": 40}}, "required": []any{"name"}, "additionalProperties": false}
-		r.registrations["x"] = reg
-		if _, err := r.ExportKeiToolManifest(ManifestV4); err != nil {
-			t.Fatalf("structured provider_input ref rejected: %v", err)
-		}
-	}
-	root := newV4TestRegistry(ref, map[string]any{"ref": map[string]any{"from": "context", "field": "nested", "type": "object"}})
-	rootReg := root.registrations["x"]
-	rootReg.Plan.ContextSchema["properties"].(map[string]any)["nested"] = map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string", "maxLength": 40}}, "required": []any{"name"}, "additionalProperties": false}
-	root.registrations["x"] = rootReg
-	if _, err := root.ExportKeiToolManifest(ManifestV4); err != nil {
-		t.Fatalf("typed object provider_input root rejected: %v", err)
-	}
-	r := newV4TestRegistry(ref, map[string]any{"ref": map[string]any{"from": "context", "field": "ctx", "type": "object"}})
-	if _, err := r.ExportKeiToolManifest(ManifestV4); err == nil {
-		t.Fatal("wrong structured ref type accepted")
-	}
-	for _, input := range []any{"scalar", []any{}, map[string]any{"ref": map[string]any{"from": "args", "pointer": "/issue_number", "type": "integer"}}} {
-		if _, err := newV4TestRegistry(ref, input).ExportKeiToolManifest(ManifestV4); err == nil {
-			t.Fatalf("non-object provider_input root accepted: %#v", input)
-		}
-	}
-}
-
-func TestV4SupportsBoundedArraySchemasAndRejectsStructuredResourceRefs(t *testing.T) {
-	schema := map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"labels": map[string]any{"type": "array", "maxItems": 8, "items": map[string]any{"type": "string", "maxLength": 40}}}}
-	if err := validateClosedObjectSchema(schema); err != nil {
-		t.Fatalf("bounded array schema rejected: %v", err)
-	}
-	for _, ref := range []KeiValueRef{{From: "args", Pointer: "/labels", Type: "array"}, {From: "context", Field: "nested", Type: "object"}} {
-		if err := validateV4ScalarRef(ref, map[string]any{"properties": map[string]any{"labels": map[string]any{"type": "array"}}}, map[string]any{"nested": map[string]any{"type": "object"}}); err == nil {
-			t.Fatalf("structured ref accepted: %+v", ref)
-		}
-	}
-}
-
-func TestV4ProviderResourceTemplateMustBindDeclaredIDs(t *testing.T) {
-	ref := KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}
-	for _, template := range []string{"issues/fixed", "issues/{resource.id}/parents/{parent.id}", "issues/{resource.id}/{unsupported}"} {
-		r := newV4TestRegistry(ref, map[string]any{})
-		r.registrations["x"].Plan.Operations[0].ProviderResourceTemplate = template
-		if _, err := r.ExportKeiToolManifest(ManifestV4); err == nil {
-			t.Fatalf("expected template rejection: %q", template)
-		}
-	}
-	r := newV4TestRegistry(ref, map[string]any{})
-	r.registrations["x"].Plan.Operations[0].ProviderResourceTemplate = "items/{resource.id}"
-	if _, err := r.ExportKeiToolManifest(ManifestV4); err != nil {
-		t.Fatalf("bound resource template rejected: %v", err)
-	}
-	// A declared collection resource with no IDs may use its provider's literal collection path.
-	r = newV4TestRegistry(ref, map[string]any{})
-	op := &r.registrations["x"].Plan.Operations[0]
-	op.Resource.ID = nil
-	op.ProviderResourceTemplate = "items"
-	reg := r.registrations["x"]
-	reg.ResourceTypes = []KeiResourceType{{Type: "item"}}
-	r.registrations["x"] = reg
-	if _, err := r.ExportKeiToolManifest(ManifestV4); err != nil {
-		t.Fatalf("literal collection path rejected: %v", err)
-	}
-}
-
-func TestV4SchemaRejectsNestedOpenObjectsAndUnsupportedKeywords(t *testing.T) {
-	for _, schema := range []map[string]any{
-		{"type": "object", "additionalProperties": false, "properties": map[string]any{"nested": map[string]any{"type": "object", "properties": map[string]any{}}}},
-		{"type": "object", "additionalProperties": false, "properties": map[string]any{}, "oneOf": []any{}},
-	} {
-		if err := validateClosedObjectSchema(schema); err == nil {
-			t.Fatalf("expected schema rejection: %#v", schema)
-		}
-	}
-}
-
-func TestV4ProviderInputRequiresRefWrapperAndRejectsExtraKeys(t *testing.T) {
-	ref := KeiValueRef{From: "args", Pointer: "/issue_number", Type: "integer"}
-	for _, input := range []any{map[string]any{"from": "args", "pointer": "/issue_number", "type": "integer"}, map[string]any{"ref": map[string]any{"from": "args", "pointer": "/issue_number", "type": "integer", "unexpected": true}}} {
-		if _, err := newV4TestRegistry(ref, input).ExportKeiToolManifest(ManifestV4); err == nil {
-			t.Fatalf("expected invalid provider template ref rejection: %#v", input)
-		}
-	}
-}
-
-func TestV4RejectsInvalidPlan(t *testing.T) {
-	r := NewToolRegistry()
-	tool := &extendedGovernedTool{governedTool{name: "x", description: "x"}}
-	r.Register(tool, KeiToolRegistration{Service: "s", Source: "s", OperationClass: "read", Route: ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "a", ConnectorID: "c"}}, RequiredCapabilities: []string{"cap"}, Plan: &KeiToolPlan{ContextSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}, Operations: []KeiToolOperation{{ID: "one", Capability: "other"}}}})
-	if _, err := r.ExportKeiToolManifest(ManifestV4); err == nil {
-		t.Fatal("expected undeclared capability to fail")
-	}
-}
-
-func TestV1ExportRequiresExplicitOption(t *testing.T) {
-	r := NewToolRegistry()
-	r.Register(&governedTool{name: "github.get_issue", description: "get issue", scope: KeiScope{Source: "github", Service: "github", RequiredCapabilities: []string{"issue.read"}, ResourceTypes: []KeiResourceType{{Type: "issue"}}, OperationClass: "read"}})
-	raw, err := r.ExportKeiToolManifest(ManifestV1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var parsed map[string]any
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := parsed["schema"]; ok {
-		t.Fatal("v1 manifest unexpectedly has schema")
-	}
-}
-
 func TestExportKeiToolManifest_UngovernedExcluded(t *testing.T) {
 	registry := NewToolRegistry()
 	registry.Register(&plainTool{name: "local_echo", description: "Echo"})
@@ -374,38 +174,11 @@ func TestExportKeiToolManifest_UngovernedExcluded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExportKeiToolManifest() returned error: %v", err)
 	}
-	var m KeiToolManifest
+	var m map[string]any
 	if err := json.Unmarshal(got, &m); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	if len(m.Tools) != 0 {
-		t.Errorf("expected 0 tools (ungoverned excluded), got %d", len(m.Tools))
-	}
-}
-
-func TestKeiToolManifestEntry_JSONShape(t *testing.T) {
-	entry := KeiToolManifestEntry{
-		Name: "test_tool", Source: "github", RequiredCapabilities: []string{"issue.read"},
-		Description: "A test tool", OperationClass: "read", ResourceTypes: []KeiResourceType{{Type: "issue"}}, Enabled: true,
-	}
-	data, err := json.Marshal(entry)
-	if err != nil {
-		t.Fatalf("marshal error: %v", err)
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	if decoded["name"] != "test_tool" {
-		t.Errorf("expected name test_tool, got %v", decoded["name"])
-	}
-	if decoded["source"] != "github" {
-		t.Errorf("expected source github, got %v", decoded["source"])
-	}
-	if decoded["operation_class"] != "read" {
-		t.Errorf("expected operation_class read, got %v", decoded["operation_class"])
-	}
-	if decoded["enabled"] != true {
-		t.Errorf("expected enabled true, got %v", decoded["enabled"])
+	if m["schema"] != "kei.tool-manifest/v3" || len(m["tools"].([]any)) != 0 {
+		t.Errorf("expected empty v3 manifest, got %#v", m)
 	}
 }

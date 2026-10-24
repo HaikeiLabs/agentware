@@ -13,8 +13,6 @@ export {
 } from "./tool.js";
 export {
   ToolRegistry,
-  KeiToolManifestEntry,
-  KeiToolManifest,
   KeiToolManifestV3,
   KeiToolRegistration,
   KeiToolRoute,

@@ -161,7 +161,7 @@ from .runtime_socket import (
     select_authorization_client,
 )
 from .tool_sync import (
-    TOOL_MANIFEST_V2_MEDIA_TYPE,
+    TOOL_MANIFEST_V3_MEDIA_TYPE,
     TOOLS_PATH,
     ToolManifestSyncConfig,
     ToolManifestSyncError,
@@ -271,7 +271,7 @@ __all__ = [
     "KeiProxySocketIdentity",
     "KeiProxySocketSession",
     "select_authorization_client",
-    "TOOL_MANIFEST_V2_MEDIA_TYPE",
+    "TOOL_MANIFEST_V3_MEDIA_TYPE",
     "TOOLS_PATH",
     "ToolManifestSyncConfig",
     "ToolManifestSyncError",

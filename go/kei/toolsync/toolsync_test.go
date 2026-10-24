@@ -19,7 +19,7 @@ import (
 const testToken = "kei_rt_unit-canary-0123456789abcdef"
 
 var twoTools = map[string]any{
-	"schema": "kei.tool-manifest/v2",
+	"schema": "kei.tool-manifest/v3",
 	"tools":  []any{map[string]any{"name": "a"}, map[string]any{"name": "b"}},
 }
 

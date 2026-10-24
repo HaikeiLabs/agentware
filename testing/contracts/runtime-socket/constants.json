@@ -36,7 +36,7 @@
   ],
   "tool_sync": {
     "path": "/api/v1/runtime/tools",
-    "media_type": "application/vnd.kei.tool-manifest.v2+json",
+    "media_type": "application/vnd.kei.tool-manifest.v3+json",
     "control_plane_url_env": "KEI_RUNTIME_CONTROL_PLANE_URL",
     "token_env": "KEI_RUNTIME_TOKEN",
     "egress_proxy_env": "KEI_PROXY_EGRESS_PROXY",

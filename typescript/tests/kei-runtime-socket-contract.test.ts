@@ -34,7 +34,7 @@ import {
   SESSION_HEADER,
   SESSION_NOT_FOUND,
   SESSION_SCHEMA,
-  TOOL_MANIFEST_V2_MEDIA_TYPE,
+  TOOL_MANIFEST_V3_MEDIA_TYPE,
   TOOLS_PATH,
   ToolManifestSyncConfig,
   ToolManifestSyncError,
@@ -83,7 +83,7 @@ describe("runtime socket constants", () => {
     );
     const t = CONSTANTS.tool_sync;
     expect(TOOLS_PATH).toBe(t.path);
-    expect(TOOL_MANIFEST_V2_MEDIA_TYPE).toBe(t.media_type);
+    expect(TOOL_MANIFEST_V3_MEDIA_TYPE).toBe(t.media_type);
     expect(RUNTIME_CONTROL_PLANE_URL_ENV).toBe(t.control_plane_url_env);
     expect(EGRESS_PROXY_ENV).toBe(t.egress_proxy_env);
     expect(NO_PROXY_ENV).toBe(t.no_proxy_env);

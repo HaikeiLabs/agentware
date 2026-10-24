@@ -10,7 +10,7 @@ const retired = new Set([
 ]);
 const identifier = /^[A-Za-z][A-Za-z0-9_.-]*$/;
 
-/** Validate a tool manifest using the shared v2 linter rules. */
+/** Validate a tool manifest using the shared v3 linter rules. */
 export function lintKeiToolManifest(
   raw: string,
   capabilityFile = "fixtures/kei/connector-capabilities.v0.5.0.json",
@@ -21,8 +21,8 @@ export function lintKeiToolManifest(
   } catch {
     return ["invalid JSON"];
   }
-  if (manifest.schema !== "kei.tool-manifest/v2")
-    return ["schema must be kei.tool-manifest/v2"];
+  if (manifest.schema !== "kei.tool-manifest/v3")
+    return ["schema must be kei.tool-manifest/v3"];
   if (!Array.isArray(manifest.tools)) return ["tools must be an array"];
   let capabilityData: string;
   try {
@@ -47,12 +47,18 @@ export function lintKeiToolManifest(
     seen.add(name);
     const source = typeof tool.source === "string" ? tool.source : "";
     if (!source) errors.push(`${prefix} is missing source`);
-    if (
+    const route = tool.route && typeof tool.route === "object" ? tool.route as JsonObject : {};
+    const connector = route.connector_binding && typeof route.connector_binding === "object" ? route.connector_binding as JsonObject : undefined;
+    const harness = route.harness_executor && typeof route.harness_executor === "object" ? route.harness_executor as JsonObject : undefined;
+    if (!!connector === !!harness) errors.push(`${prefix} route must contain exactly one route kind`);
+    if (connector && (!connector.agent_id || !connector.connector_id)) errors.push(`${prefix} connector_binding requires agent_id and connector_id`);
+    if (harness && (!harness.executor || !harness.registration)) errors.push(`${prefix} harness_executor requires executor and registration`);
+    if (connector && (
       !Array.isArray(tool.required_capabilities) ||
       tool.required_capabilities.length === 0
-    )
+    ))
       errors.push(`${prefix} is missing required_capabilities`);
-    else {
+    else if (connector) {
       const caps = tool.required_capabilities as unknown[];
       if (caps.some((cap, i) => i > 0 && String(caps[i - 1]) > String(cap)))
         errors.push(`${prefix} required_capabilities are not sorted`);
@@ -65,8 +71,8 @@ export function lintKeiToolManifest(
             `${prefix} capability ${JSON.stringify(cap)} is not declared for source ${JSON.stringify(source)}`,
           );
     }
-    if (Array.isArray(tool.resource_types)) {
-      const resources = tool.resource_types as unknown[];
+    if (tool.resource_types === undefined || Array.isArray(tool.resource_types)) {
+      const resources = (tool.resource_types ?? []) as unknown[];
       const keys = resources.map((value) =>
         value && typeof value === "object"
           ? `${(value as JsonObject).type ?? ""}\0${(value as JsonObject).parent_type ?? ""}`

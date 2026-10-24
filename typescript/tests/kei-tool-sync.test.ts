@@ -13,7 +13,7 @@ import {
 } from "../src/index.js";
 
 const TOKEN = "kei_rt_unit-canary-token-0123456789";
-const MANIFEST = { schema: "kei.tool-manifest/v2", tools: [{ name: "github.get_issue" }] };
+const MANIFEST = { schema: "kei.tool-manifest/v3", tools: [{ name: "github.get_issue" }] };
 
 function listen(server: Server): Promise<string> {
   return new Promise((resolve) =>

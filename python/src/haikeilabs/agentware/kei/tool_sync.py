@@ -3,7 +3,7 @@
 Kei's policy bundle only allows tools registered in the installation's tool
 catalog, so a harness registers its tools before it serves:
 ``PUT $KEI_RUNTIME_CONTROL_PLANE_URL/api/v1/runtime/tools`` with the
-``application/vnd.kei.tool-manifest.v2+json`` document, authenticated with
+``application/vnd.kei.tool-manifest.v3+json`` document, authenticated with
 ``KEI_RUNTIME_TOKEN``, the two variables kei-proxy itself reads.
 
 - The PUT *replaces* the installation's tools (it is idempotent: a restart
@@ -40,7 +40,7 @@ from .policy_bundle import RUNTIME_CONTROL_PLANE_URL_ENV, RUNTIME_TOKEN_ENV
 __all__ = [
     "EGRESS_PROXY_ENV",
     "NO_PROXY_ENV",
-    "TOOL_MANIFEST_V2_MEDIA_TYPE",
+    "TOOL_MANIFEST_V3_MEDIA_TYPE",
     "TOOLS_PATH",
     "ToolManifestSyncConfig",
     "ToolManifestSyncError",
@@ -52,7 +52,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 TOOLS_PATH = "/api/v1/runtime/tools"
-TOOL_MANIFEST_V2_MEDIA_TYPE = "application/vnd.kei.tool-manifest.v2+json"
+TOOL_MANIFEST_V3_MEDIA_TYPE = "application/vnd.kei.tool-manifest.v3+json"
 EGRESS_PROXY_ENV = "KEI_PROXY_EGRESS_PROXY"
 NO_PROXY_ENV = "KEI_PROXY_NO_PROXY"
 
@@ -140,7 +140,7 @@ def sync_tool_manifest(
     """Register ``manifest`` with Kei (replace mode).
 
     Args:
-        manifest: The tool manifest v2 document, as JSON text or a mapping.
+        manifest: The tool manifest v3 document, as JSON text or a mapping.
         config: Control plane, token and egress settings.
         expect_tools: Whether this harness is configured with tools. An empty
             manifest is never sent; it raises when tools are expected and
@@ -164,8 +164,8 @@ def sync_tool_manifest(
 
     headers = {
         "Authorization": f"Bearer {config.token}",
-        "Content-Type": TOOL_MANIFEST_V2_MEDIA_TYPE,
-        "Accept": TOOL_MANIFEST_V2_MEDIA_TYPE,
+        "Content-Type": TOOL_MANIFEST_V3_MEDIA_TYPE,
+        "Accept": TOOL_MANIFEST_V3_MEDIA_TYPE,
     }
     body = json.dumps(document).encode()
     attempts = max(1, config.attempts)

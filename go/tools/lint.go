@@ -18,14 +18,14 @@ type lintManifest struct {
 var resourceIdentifier = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.-]*$`)
 var retiredKeys = map[string]bool{"allow": true, "approval": true, "approval_id": true, "approval_required": true, "requires_approval": true}
 
-// LintKeiToolManifest returns the v2 manifest rule diagnostics in stable order.
+// LintKeiToolManifest returns the v3 manifest rule diagnostics in stable order.
 func LintKeiToolManifest(raw []byte, capabilityFile string) []string {
 	var manifest lintManifest
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		return []string{"invalid JSON: " + err.Error()}
 	}
-	if manifest.Schema != "kei.tool-manifest/v2" {
-		return []string{"schema must be kei.tool-manifest/v2"}
+	if manifest.Schema != "kei.tool-manifest/v3" {
+		return []string{"schema must be kei.tool-manifest/v3"}
 	}
 	var caps map[string][]string
 	if capabilityFile == "" {
@@ -56,10 +56,22 @@ func LintKeiToolManifest(raw []byte, capabilityFile string) []string {
 		if source == "" {
 			errors = append(errors, prefix+" is missing source")
 		}
+		route, _ := tool["route"].(map[string]any)
+		connector, hasConnector := route["connector_binding"].(map[string]any)
+		harness, hasHarness := route["harness_executor"].(map[string]any)
+		if hasConnector == hasHarness {
+			errors = append(errors, prefix+" route must contain exactly one route kind")
+		}
+		if hasConnector && (connector["agent_id"] == "" || connector["connector_id"] == "") {
+			errors = append(errors, prefix+" connector_binding requires agent_id and connector_id")
+		}
+		if hasHarness && (harness["executor"] == "" || harness["registration"] == "") {
+			errors = append(errors, prefix+" harness_executor requires executor and registration")
+		}
 		values, ok := tool["required_capabilities"].([]any)
-		if !ok || len(values) == 0 {
+		if hasConnector && (!ok || len(values) == 0) {
 			errors = append(errors, prefix+" is missing required_capabilities")
-		} else {
+		} else if hasConnector {
 			capNames := make([]string, 0, len(values))
 			for _, rawCap := range values {
 				cap, _ := rawCap.(string)
