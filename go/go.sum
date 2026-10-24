@@ -1,3 +1,7 @@
+github.com/HaikeiLabs/kei-connector-contracts v0.10.8-0.20261024025014-1dedf5434a65 h1:P2Gxr1yr0XnaZZvo2J40Hc8JifuYq+JmlxSCq6b23iY=
+github.com/HaikeiLabs/kei-connector-contracts v0.10.8-0.20261024025014-1dedf5434a65/go.mod h1:Y3GI1O5wqRFogqDGPiXcE20wQyEHX8rTGXw2U2VCKQw=
+github.com/HaikeiLabs/kei-connector-contracts v0.10.8-0.20261024221321-dad7a39f22ed h1:3hwcjPqoN45ozJYGHcpBe+F6sAz1UNl9FdLYt9dvE0A=
+github.com/HaikeiLabs/kei-connector-contracts v0.10.8-0.20261024221321-dad7a39f22ed/go.mod h1:Y3GI1O5wqRFogqDGPiXcE20wQyEHX8rTGXw2U2VCKQw=
 github.com/soypete/ontology-go v0.0.0-20260730193222-0c5ba6ae2cd5 h1:4mePEU1WwbXK2MGIAcjOWX4gmNi261Go9QNg3sA6/mA=
 github.com/soypete/ontology-go v0.0.0-20260730193222-0c5ba6ae2cd5/go.mod h1:+BZoiJwLiTKf1T9tzoT37PDtuEXtrOZW6iUuY/CXPjU=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
