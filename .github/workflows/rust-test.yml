@@ -1,0 +1,34 @@
+name: Rust Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust-test.yml'
+      - 'testing/contracts/runtime-socket/**'
+      - 'testing/contracts/runtime-link/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust-test.yml'
+      - 'testing/contracts/runtime-socket/**'
+      - 'testing/contracts/runtime-link/**'
+
+jobs:
+  rust-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+      - name: Run Clippy
+        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+      - name: Run tests
+        run: cargo test --manifest-path rust/Cargo.toml --workspace

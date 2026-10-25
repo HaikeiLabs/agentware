@@ -1,0 +1,14 @@
+[workspace]
+members = ["agentware-kei"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85.0"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
