@@ -1,4 +1,8 @@
-use agentware_kei::{fixture::load_contract, runtimesocket::*};
+use agentware_kei::{
+    evaluator::{Action, CallerContext, KeiProxyEvaluator, RULE},
+    fixture::load_contract,
+    runtimesocket::*,
+};
 use serde_json::{Map, Value, json};
 use std::{
     collections::HashMap,
@@ -473,4 +477,88 @@ fn builds_fixed_argv_for_both_child_processes() {
             .collect::<Vec<_>>(),
         ["collector"]
     );
+}
+#[test]
+fn evaluator_replays_shared_authorize_responses() {
+    let fixture = load_contract("runtime-socket/client-cases.json").unwrap();
+    let cases = fixture["cases"].as_array().unwrap();
+    for (case_name, expected_action, expected_code) in [
+        (
+            "authorize_sends_supported_set_fields_and_returns_the_permit",
+            Action::Allow,
+            None,
+        ),
+        (
+            "authorize_returns_a_deny_with_its_enrollment",
+            Action::Deny,
+            Some("subject_unlinked"),
+        ),
+        (
+            "authorize_returns_a_deny_with_preflight_required",
+            Action::Deny,
+            Some("preflight_required"),
+        ),
+    ] {
+        let case = cases
+            .iter()
+            .find(|c| c["name"] == case_name)
+            .unwrap_or_else(|| panic!("fixture case {case_name} missing"));
+        let path = std::env::temp_dir().join(format!(
+            "kei-evaluator-{}-{}.sock",
+            std::process::id(),
+            case_name.len()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let mut exchanges = vec![json!({
+            "response": {"status": 201, "body": {
+                "schema": SESSION_SCHEMA,
+                "session_id": "sess-1",
+                "user_id": "ada",
+                "status": "linked"
+            }}
+        })];
+        exchanges.extend(case["exchanges"].as_array().unwrap().iter().cloned());
+        let rx = serve(path.clone(), exchanges);
+        let mut client = Client::new(&path);
+        client.env.insert(
+            "KEI_RUNTIME_TOKEN".into(),
+            fixture["token"].as_str().unwrap().into(),
+        );
+        let evaluator = KeiProxyEvaluator::new(client);
+        let decision = evaluator.evaluate(
+            "github.get_issue",
+            &json!({"owner":"acme", "repo":"widgets", "issue_number":7}),
+            &CallerContext {
+                user_id: "ada".into(),
+                invoking_subject: "ada".into(),
+                source: "openwebui".into(),
+                metadata: HashMap::from([("framework".into(), "openwebui".into())]),
+                ..CallerContext::default()
+            },
+        );
+        assert_eq!(decision.action, expected_action, "{case_name}");
+        assert_eq!(
+            decision.reason_code.as_deref(),
+            expected_code,
+            "{case_name}"
+        );
+        assert_eq!(
+            decision.rule,
+            if expected_action == Action::Allow {
+                "p-allow"
+            } else {
+                RULE
+            }
+        );
+        let opened = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert_eq!(opened["method"], "PUT", "{case_name}");
+        assert_eq!(opened["path"], "/v1/session", "{case_name}");
+        for ex in case["exchanges"].as_array().unwrap() {
+            let got = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert_eq!(got["method"], ex["request"]["method"], "{case_name}");
+            assert_eq!(got["path"], ex["request"]["path"], "{case_name}");
+            assert_eq!(got["session"], "sess-1", "{case_name}");
+        }
+        let _ = std::fs::remove_file(path);
+    }
 }
