@@ -1,0 +1,1 @@
+//! Runtime socket integration stub.

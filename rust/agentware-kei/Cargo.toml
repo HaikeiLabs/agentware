@@ -1,0 +1,13 @@
+[package]
+name = "agentware-kei"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Rust SDK integration surface for Kei runtime contracts"
+
+[dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true

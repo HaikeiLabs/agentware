@@ -1,0 +1,1 @@
+//! Runtime link integration stub.
