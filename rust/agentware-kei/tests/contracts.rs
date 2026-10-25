@@ -252,7 +252,6 @@ fn runtime_socket_supported_client_cases_replay() {
 }
 
 use agentware_kei::runtimelink as rl;
-use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 fn obj(value: &Value) -> BTreeMap<String, String> {
