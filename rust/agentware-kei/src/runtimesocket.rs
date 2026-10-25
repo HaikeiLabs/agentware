@@ -24,6 +24,7 @@ pub const AUTHORIZE_RESPONSE_SCHEMA: &str = "kei.authorize-response/v1";
 pub const POLICY_BUNDLE_STATUS_SCHEMA: &str = "kei.policy-bundle-status/v1";
 pub const SESSION_HEADER: &str = "X-Kei-Session";
 pub const SESSION_NOT_FOUND: &str = "session_not_found";
+pub const TOOLS_REGISTER_PATH: &str = "/v1/tools:register";
 
 /// Fail-closed socket refusal class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -318,6 +319,16 @@ impl Client {
         let (status, v) = self.request("GET", "/readyz", "", None)?;
         check_status(status, &v)?;
         Ok(v)
+    }
+    /// Register a v3 tool manifest with kei-proxy. The request carries metadata only.
+    pub fn send_tools(&self, manifest: &[u8]) -> Result<(), SocketError> {
+        let value: Value =
+            serde_json::from_slice(manifest).map_err(|_| err(ErrorKind::InvalidArgument))?;
+        if !value.is_object() {
+            return Err(err(ErrorKind::InvalidArgument));
+        }
+        let (status, answer) = self.request("POST", TOOLS_REGISTER_PATH, "", Some(&value))?;
+        check_status(status, &answer)
     }
 }
 impl Session {
