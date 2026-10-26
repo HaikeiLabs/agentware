@@ -10,7 +10,7 @@ name = "haikeilabs-agentware"
 # the npm package and the Go module; change it with
 # `python3 scripts/release/version.py set X.Y.Z`, never by hand. A release tags
 # agentware-py-v<version>.
-version = "0.12.0"
+version = "0.13.0"
 description = "Policy enforcement and audit middleware for LLM agent tool calls"
 readme = "README.md"
 license = "Apache-2.0"

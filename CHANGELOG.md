@@ -5,6 +5,8 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+## [0.13.0] - 2026-10-26
+
 ### Breaking
 
 - **Go, Python, TypeScript:** remove the `ManifestV1`/`ManifestV2`/`ManifestV4`
