@@ -48,6 +48,8 @@ pub struct Decision {
     pub hint: Option<String>,
     pub enrollment: Option<Value>,
     pub connect: Option<Value>,
+    /// Replacement values applied to tool arguments for a FILTER decision.
+    pub redacted_args: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,6 +214,7 @@ fn response_decision(r: AuthorizeResponse) -> Decision {
             hint: r.hint,
             enrollment: None,
             connect: None,
+            redacted_args: None,
         };
     }
     let (class, detail) = match r.decision.as_str() {
@@ -233,6 +236,7 @@ fn response_decision(r: AuthorizeResponse) -> Decision {
                 hint: r.hint,
                 enrollment: r.enrollment,
                 connect: r.connect,
+                redacted_args: None,
             };
         }
     };
@@ -244,6 +248,7 @@ fn response_decision(r: AuthorizeResponse) -> Decision {
         reason_code: r.reason_code,
         enrollment: r.enrollment,
         connect: r.connect,
+        redacted_args: None,
     }
 }
 
@@ -266,6 +271,7 @@ fn deny(class: &str, detail: &str) -> Decision {
         hint: None,
         enrollment: None,
         connect: None,
+        redacted_args: None,
     }
 }
 fn reason(class: &str, detail: Option<&str>) -> String {
