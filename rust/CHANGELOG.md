@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a generic governed-call example and offline Unix socket end-to-end test.
 - Add fail-closed Rust governed tool middleware with FILTER argument replacement and metadata-only audit digests.
 - Add a fail-closed Rust Kei proxy evaluator with decision metadata, caller context, and deny hints.
 - Add Rust tool-manifest v3 types and Kei runtime registration/sync.
