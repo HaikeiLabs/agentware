@@ -300,8 +300,11 @@ jobs:
             const total = bins.reduce((n, b) => n + b.load, 0);
             // Shard-major, so the runners alternate between the model hosts.
             const profiles = JSON.parse(process.env.EVAL_PROFILES);
+            const profileRunner = Object.fromEntries(profiles.map((p) =>
+              [p, `kei-agent-evals${p === 'qwen3.8-27b' ? '-qwen' : ''}`]));
             const include = bins.flatMap((b, i) => profiles.map((profile) => ({
-              profile, shard: i + 1, shards, repeats: b.repeats, suites: b.suites.sort().join(' ') })));
+              profile, shard: i + 1, shards, repeats: b.repeats, suites: b.suites.sort().join(' '),
+              runner: profileRunner[profile] || 'kei-agent-evals' })));
 
             const suites = selected.join(' ');
             core.setOutput('mode', mode);
@@ -321,7 +324,7 @@ jobs:
       (needs.scope.outputs.mode == 'changed' || needs.scope.outputs.mode == 'all') &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
         github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: kei-agent-evals
+    runs-on: ${{ matrix.runner }}
     # A pull request runs one repeat of the suites it changes, split into
     # shards of about EVAL_SHARD_RUNS runs, so 30 minutes is enough and a stuck
     # job frees its runner soon. The nightly sweep (three repeats of every
