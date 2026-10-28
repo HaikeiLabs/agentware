@@ -818,12 +818,13 @@ def _profiles(tmp_path: Path, body: str) -> Path:
 class TestProfiles:
     def test_canonical_profiles(self) -> None:
         profiles = load_profiles(CANONICAL_PROFILES)
-        assert set(profiles) == {"deepseek-v4-flash", "qwen3.8-27b"}
-        deepseek = profiles["deepseek-v4-flash"]
-        assert deepseek.backend is ModelBackend.VLLM
-        assert deepseek.model == "deepseek-ai/DeepSeek-V4-Flash"
-        assert deepseek.base_url_env == "EVAL_DEEPSEEK_BASE_URL"
-        assert deepseek.concurrency == 4
+        assert set(profiles) == {"glm-5.3-flash", "qwen3.8-27b"}
+        glm = profiles["glm-5.3-flash"]
+        assert glm.backend is ModelBackend.VLLM
+        assert glm.model == "nvidia/GLM-5.3-Flash-FP4-Local"
+        # The variable name is historical: it now points at the GLM server.
+        assert glm.base_url_env == "EVAL_DEEPSEEK_BASE_URL"
+        assert glm.concurrency == 2
         qwen = profiles["qwen3.8-27b"]
         assert qwen.backend is ModelBackend.LLAMACPP
         assert qwen.base_url_env == "EVAL_QWEN_BASE_URL"
@@ -871,10 +872,10 @@ class TestProfiles:
         sampling = {
             name: (p.temperature, p.top_p, p.top_k, p.seed, p.thinking) for name, p in profiles.items()
         }
-        # DeepSeek samples greedily; Qwen loops greedily with thinking on, so
+        # GLM samples greedily; Qwen loops greedily with thinking on, so
         # it uses its recommended thinking-mode sampling.
         assert sampling == {
-            "deepseek-v4-flash": (0.0, None, None, 42, True),
+            "glm-5.3-flash": (0.0, None, None, 42, True),
             "qwen3.8-27b": (0.6, 0.95, 20, 42, True),
         }
 

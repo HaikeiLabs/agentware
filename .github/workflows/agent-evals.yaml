@@ -97,14 +97,17 @@ env:
   # The grader below is pinned, so a pull request that changes python/src/evals
   # is still graded by the pinned runner, not by its own change.
   EVAL_GLOBAL_PATHS: "evals/model-profiles.yaml"
-  # HaikeiLabs/agentware at the HAI-470 runner (agentware#177): the profile's
-  # temperature 0 and seed on every request, --repeats, and a suite score of
-  # passed runs / total runs. Move to its merge commit once it lands.
-  EVAL_RUNNER_REF: "11abdb82d048c14f9196c9fc5598f949d2b79a60"
+  # HaikeiLabs/agentware main at 6b78122 (HAI-896), which holds the HAI-470
+  # runner (#177: the profile's temperature and seed on every request,
+  # --repeats, a suite score of passed runs / total runs) and #181 (thinking on
+  # for every profile, Qwen's thinking-mode sampling). The pin before it, the
+  # #177 head, predates #181. The GLM profile's base_url_env is still
+  # EVAL_DEEPSEEK_BASE_URL: the name is historical and the runner env keeps it.
+  EVAL_RUNNER_REF: "6b78122cbdd3eb5c637fc73d0bd9c9f71d71f0e8"
   # EDIT-END settings
   EVAL_THRESHOLD: "0.95"
   # EV-C1 §3 profile names; each needs its base_url_env set on the runner.
-  EVAL_PROFILES: '["deepseek-v4-flash", "qwen3.8-27b"]'
+  EVAL_PROFILES: '["glm-5.3-flash", "qwen3.8-27b"]'
   # Runs per case (HAI-521, owner decision 2026-10-13): 1 on a pull request,
   # so the gate stays fast; 3 on the nightly sweep, the averaged record. A
   # suite scores passed runs / total runs, the average over repeats, and
@@ -114,7 +117,7 @@ env:
   # shards of about this many runs, one eval job per profile per shard, so each
   # job fits the timeout on model hosts shared with other runs (measured ~0.3
   # to 1 run/min on qwen3.8-27b at 2 slots, ~0.6 to 1.5/min on
-  # deepseek-v4-flash at 4). A suite with more runs than this is split by
+  # glm-5.3-flash at 2). A suite with more runs than this is split by
   # repeats across shards.
   EVAL_SHARD_RUNS: "30"
 
