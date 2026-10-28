@@ -8,7 +8,7 @@ A framework for evaluating LLM agents on tool-calling capabilities. Supports mul
 # Python - table-test suites (canonical; see "Table-test suites" below)
 cd python
 PYTHONPATH=src python3 -m evals.main --suite ../evals/suites \
-  --model-profile deepseek-v4-flash --out /tmp/eval-out --jobs 1
+  --model-profile glm-5.3-flash --out /tmp/eval-out --jobs 1
 
 # Python - legacy case modules against local llama.cpp
 PYTHONPATH=src python3 -m evals.main --all --models qwen3.6-27b-mtp
@@ -33,8 +33,8 @@ cd python && pip install -e ".[evals]"   # PyYAML for model profiles
 export EVAL_DEEPSEEK_BASE_URL=<openai-compatible base URL incl. /v1>
 PYTHONPATH=src python3 -m evals.main \
   --suite ../evals/suites/agentware.beta-tools.json \
-  --model-profile deepseek-v4-flash \
-  --out ../evals-out/$(date +%F)-deepseek-v4-flash \
+  --model-profile glm-5.3-flash \
+  --out ../evals-out/$(date +%F)-glm-5.3-flash \
   --jobs 1 --threshold 0.95
 # or: make evals-suite EVAL_PROFILE=qwen3.8-27b
 ```
@@ -172,12 +172,16 @@ URL, so endpoints, tailnet IPs and hostnames stay out of public repos.
 
 | Profile | Backend | Model | Env | Concurrency |
 |---|---|---|---|---|
-| `deepseek-v4-flash` | vllm | `deepseek-ai/DeepSeek-V4-Flash` | `EVAL_DEEPSEEK_BASE_URL` | 4 |
+| `glm-5.3-flash` | vllm | `nvidia/GLM-5.3-Flash-FP4-Local` | `EVAL_DEEPSEEK_BASE_URL` | 2 |
 | `qwen3.8-27b` | llamacpp | `qwen3.8-27b` | `EVAL_QWEN_BASE_URL` | 1 |
 
+`EVAL_DEEPSEEK_BASE_URL` is a historical name: the shared host that served
+DeepSeek V4 Flash now serves GLM-5.3-Flash at the same URL, and the runner
+environment keeps the variable.
+
 Both set `seed: 42` and `thinking: true` (owner decision 2026-10-13: with
-thinking off, DeepSeek fell to 44-72% on several skills). DeepSeek samples at
-`temperature: 0`. Qwen uses its recommended thinking-mode sampling,
+thinking off, DeepSeek, the former gate model, fell to 44-72% on several
+skills). GLM samples at `temperature: 0`. Qwen uses its recommended thinking-mode sampling,
 `temperature: 0.6`, `top_p: 0.95` and `top_k: 20`, because greedy sampling
 makes it loop with thinking on. A profile without these fields samples at
 temperature 0, sends no seed, `top_p` or `top_k`, and leaves thinking at the
@@ -197,7 +201,7 @@ workers, so use `--jobs 1` unless you hold the host.
 
 ```json
 {"schema": "haikei.eval-benchmark.v1", "harness": "agentware",
- "model_profile": "deepseek-v4-flash", "model": "...", "created_at": "ISO", "git_sha": "...",
+ "model_profile": "glm-5.3-flash", "model": "...", "created_at": "ISO", "git_sha": "...",
  "results": [{"suite": "...", "kind": "agent", "passed": 0, "failed": 0, "errors": 0,
               "total": 0, "pass_rate": 0.0, "cases": [{"id": "...", "passed": true, "reason": "", "duration_ms": 0}]}]}
 ```

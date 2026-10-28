@@ -13,20 +13,23 @@
 # model the same way; repeats then measure the variance that is left.
 # thinking: true or false switches reasoning through the chat template on
 # every request. Owner decision 2026-10-13: thinking on for every model (with
-# it off, DeepSeek fell to 44-72% on several skills); Qwen samples as its docs
+# it off, DeepSeek, the former gate model, fell to 44-72% on several skills); Qwen samples as its docs
 # recommend for thinking mode, because greedy sampling makes it loop.
 # opencode_model is read by the skills runner only; the qwen entry's opencode
 # provider is a local name, so it lives in each developer's opencode config.
 profiles:
-  deepseek-v4-flash:
+  glm-5.3-flash:
     backend: vllm
-    model: deepseek-ai/DeepSeek-V4-Flash
+    model: nvidia/GLM-5.3-Flash-FP4-Local
+    # Historical name: EVAL_DEEPSEEK_BASE_URL now points at the GLM server
+    # (DeepSeek V4 Flash was removed). Renaming the variable is a runner-env
+    # change outside this repository.
     base_url_env: EVAL_DEEPSEEK_BASE_URL
-    concurrency: 4
+    concurrency: 2
     temperature: 0
     seed: 42
     thinking: true
-    opencode_model: ray/deepseek-ai/DeepSeek-V4-Flash
+    opencode_model: eval/nvidia/GLM-5.3-Flash-FP4-Local
   qwen3.8-27b:
     backend: llamacpp
     model: qwen3.8-27b

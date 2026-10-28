@@ -84,7 +84,7 @@ evals-beta-tools:
 # EV-C1 table-test suites (agentware.eval-suite.v1) on one model profile.
 # The profile's base_url_env (e.g. EVAL_DEEPSEEK_BASE_URL) must be set.
 # Exit 0 = all suites >= EVAL_THRESHOLD, 1 = below, 2 = blocked (not scored).
-EVAL_PROFILE ?= deepseek-v4-flash
+EVAL_PROFILE ?= glm-5.3-flash
 EVAL_SUITE ?= evals/suites
 EVAL_JOBS ?= 1
 EVAL_THRESHOLD ?= 0.95
@@ -97,8 +97,8 @@ evals-suite:
 		--jobs $(EVAL_JOBS) --threshold $(EVAL_THRESHOLD)
 
 evals-suite-all-profiles:
-	-$(MAKE) evals-suite EVAL_PROFILE=deepseek-v4-flash \
-		EVAL_OUT=evals/results/$(shell date +%Y-%m-%d)-deepseek-v4-flash
+	-$(MAKE) evals-suite EVAL_PROFILE=glm-5.3-flash \
+		EVAL_OUT=evals/results/$(shell date +%Y-%m-%d)-glm-5.3-flash
 	$(MAKE) evals-suite EVAL_PROFILE=qwen3.8-27b \
 		EVAL_OUT=evals/results/$(shell date +%Y-%m-%d)-qwen3.8-27b
 
