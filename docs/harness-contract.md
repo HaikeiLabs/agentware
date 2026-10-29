@@ -36,8 +36,9 @@ Do not infer identity from prompt text or an agent-supplied environment value.
 
 ## Authorize every governed tool call
 
-Send each governed tool call to `kei-proxy authorize` through the local Unix
-socket before executing it. The proxy is the connector/provider runtime and
+Authorize each governed tool call with kei-proxy before executing it: over
+the `kei-proxy serve` Unix socket (`POST /v1/authorize`, recommended), or with
+the one-shot `kei-proxy authorize` command when no daemon runs. The proxy is the connector/provider runtime and
 policy enforcement point. Treat the result as `allow` or `deny`; execute the
 tool only for an explicit allow/permit decision. Deny on an unknown or missing
 decision, an unreachable proxy, a missing credential, or an expired token.
@@ -53,6 +54,11 @@ The reason and hint wording contract lives in
 Record each authorization outcome with its harness/framework and the invoking
 user preserved through delegation. Keep the decision and its reason available
 for audit. Do not log the runtime token or other credentials.
+
+Agentware records every call in its in-process `Auditor`; Kei sees only the
+decision kei-proxy records at authorize time, once a collector ships it. The
+one-shot `kei-proxy authorize` path writes that record only when
+`KEI_PROXY_AUDIT` is set. See [`audit-visibility.md`](audit-visibility.md).
 
 The harness and agentware run on the tenant side. Kei is a metadata-only
 control plane: provider payloads and results, customer content, credentials,

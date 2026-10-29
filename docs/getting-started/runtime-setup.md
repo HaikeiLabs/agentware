@@ -295,7 +295,9 @@ In the Kei console, open **Audit Logs**. Find the records by the `echo` and
 `delete_everything` action names; each row shows its timestamp, user, agent,
 harness, action, result (`permit` or `deny`), and policy. The public [Audit
 logs](https://docs.haikeilabs.com/content/kei/audit/logs.html) page describes
-the recent activity view and recorded fields.
+the recent activity view and recorded fields. Select the runtime installation's
+workspace and leave the Harness, Agent and Decision filters on **All**; see
+[Seeing governed tool calls in Kei](../audit-visibility.md) if a record is missing.
 
 ## Understand a denial
 

@@ -38,7 +38,11 @@ subject, the delegation chain (`parent_span`, `delegation_depth`), the originati
 framework, a SHA-256 digest of the arguments rather than the arguments themselves,
 the resources touched, the policy decision and the rule that made it, token counts,
 and latency. Metrics are rollups over these records; there is no second
-instrumentation path.
+instrumentation path. The record goes to the client's `Auditor` (the in-process
+`InMemoryAuditor` by default; nothing is exported). With `KeiProxyEvaluator`,
+kei-proxy separately records the authorization **decision** and ships it to Kei;
+outcome fields (success, latency, tokens, error) stay local. See
+[docs/audit-visibility.md](docs/audit-visibility.md).
 
 **Framework adapters.** The same tool definition renders to a valid call format for
 each target framework, and produces the same audit row shape under each. Adapters
@@ -221,6 +225,9 @@ default_deny: false
 on behalf of user Y" answerable. Tool-name logging is what everyone does;
 resource-level lineage is what makes the question tractable.
 
+This table is the in-process record. Kei receives only kei-proxy's decision
+record; see [docs/audit-visibility.md](docs/audit-visibility.md).
+
 ## Layout
 
 | Path | Contents |
@@ -235,6 +242,7 @@ resource-level lineage is what makes the question tractable.
 | `docs/engineering-design.md` | Architecture |
 | `docs/tenant-proxy-reference.md` | Canonical tenant-side proxy architecture and metadata-only control-plane boundary |
 | `docs/harness-contract.md` | Contract for third-party agent builders |
+| `docs/audit-visibility.md` | What is audited locally vs in Kei, and how to see one governed call |
 | `docs/runtime-link-integration.md` | RuntimeLink public API and usage boundaries for harness authors |
 | `docs/build-history/` | Archived build-loop working files |
 
