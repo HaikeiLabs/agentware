@@ -1,0 +1,124 @@
+name: Conformance
+
+# Tier 1 of docs/testing.md: every language runs the shared fixture
+# conformance suites (toolformat, reasoning, toolspec and manifest-v3) on
+# every PR, and the gate job fails when a language skips a case that
+# fixtures/EXCLUSIONS.md does not list. No path filter: the gate is meant to
+# be a required check, and a required check must report on every PR.
+#
+# Public repo, GitHub-hosted runners only. PR code never runs on self-hosted
+# runners and this workflow never uses pull_request_target or secrets.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fixtures:
+    name: Fixtures (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, python, typescript, rust]
+    env:
+      AGENTWARE_CONFORMANCE_LOG: ${{ github.workspace }}/conformance/${{ matrix.language }}.jsonl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start the case log
+        run: mkdir -p conformance && touch "$AGENTWARE_CONFORMANCE_LOG"
+
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - if: matrix.language == 'go'
+        name: Go fixture tests
+        working-directory: go
+        # -count=1: a cached test result would skip the run and record nothing.
+        run: go test -count=1 ./toolformat/... ./toolspec/... ./reasoning/...
+
+      - if: matrix.language == 'python'
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: python/pyproject.toml
+      - if: matrix.language == 'python'
+        name: Python fixture tests
+        working-directory: python
+        run: uv run --extra dev pytest -q -k "toolformat or reasoning or toolspec or manifest" tests/
+
+      - if: matrix.language == 'typescript'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.18'
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - if: matrix.language == 'typescript'
+        name: TypeScript fixture tests
+        working-directory: typescript
+        run: |
+          npm ci
+          node --experimental-vm-modules node_modules/jest/bin/jest.js toolspec toolformat reasoning manifest
+
+      - if: matrix.language == 'rust'
+        name: Install the pinned Rust toolchain
+        working-directory: rust
+        # Installs the channel in rust/rust-toolchain.toml.
+        run: rustup toolchain install
+      - if: matrix.language == 'rust'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust
+      - if: matrix.language == 'rust'
+        name: Rust fixture tests
+        run: cargo test --manifest-path rust/Cargo.toml --workspace
+
+      - name: Report case counts
+        run: python3 scripts/conformance/gate.py report --language "${{ matrix.language }}" --log "$AGENTWARE_CONFORMANCE_LOG"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformance-${{ matrix.language }}
+          path: conformance/${{ matrix.language }}.jsonl
+          if-no-files-found: error
+          retention-days: 7
+
+  gate:
+    name: Conformance gate
+    needs: fixtures
+    # always(): a skipped required check counts as passing, so the gate runs
+    # and fails when a leg failed or was cancelled.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every leg passed
+        if: needs.fixtures.result != 'success'
+        run: |
+          echo "fixture legs result: ${{ needs.fixtures.result }}"
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: conformance-*
+          path: conformance
+          merge-multiple: true
+      - name: Equal coverage across languages
+        run: python3 scripts/conformance/gate.py check --logs conformance

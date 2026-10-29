@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/haikeilabs/agentware/go/internal/conformance"
 	"github.com/haikeilabs/agentware/go/tools"
 	"github.com/haikeilabs/agentware/go/toolspec"
 )
@@ -660,6 +661,7 @@ func TestToolformatFixtureParseCalls(t *testing.T) {
 	}
 	for flavor, formatter := range formatters {
 		for _, tc := range fixture.ParseCalls {
+			conformance.Record(t, "toolformat/glm-cases.json", "parse_calls", tc.Name)
 			calls, err := formatter.ParseToolCalls(tc.Input)
 			if err != nil {
 				t.Fatalf("%s/%s: unexpected error: %v", flavor, tc.Name, err)
@@ -679,6 +681,7 @@ func TestToolformatFixtureParseCalls(t *testing.T) {
 			}
 		}
 		for _, tc := range fixture.ValidateFormat {
+			conformance.Record(t, "toolformat/glm-cases.json", "validate_format", tc.Name)
 			err := formatter.ValidateFormat(tc.Input)
 			if tc.Valid && err != nil {
 				t.Errorf("%s/%s: expected valid, got error: %v", flavor, tc.Name, err)

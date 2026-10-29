@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/haikeilabs/agentware/go/internal/conformance"
 	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
@@ -42,6 +43,7 @@ func TestManifestV3LoaderFixtures(t *testing.T) {
 
 	for _, tc := range index.Valid {
 		t.Run("valid/"+tc.Name, func(t *testing.T) {
+			conformance.Record(t, "toolspec/manifest-v3/index.json", "valid", tc.Name)
 			specs, err := toolspec.LoadManifestV3(filepath.Join(manifestV3Fixtures, tc.Input))
 			if err != nil {
 				t.Fatalf("LoadManifestV3: %v", err)
@@ -74,6 +76,7 @@ func TestManifestV3LoaderFixtures(t *testing.T) {
 
 	for _, tc := range index.Invalid {
 		t.Run("invalid/"+tc.Name, func(t *testing.T) {
+			conformance.Record(t, "toolspec/manifest-v3/index.json", "invalid", tc.Name)
 			data, err := os.ReadFile(filepath.Join(manifestV3Fixtures, tc.Input))
 			if err != nil {
 				t.Fatal(err)

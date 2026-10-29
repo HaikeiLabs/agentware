@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conformance import record
 
 from haikeilabs.agentware.toolformat import (
     AnthropicFormatter,
@@ -49,6 +50,7 @@ def test_cases_v1_replay_wire_and_json_toolformat() -> None:
         if "expected_error" in case:
             with pytest.raises(ValueError, match=f"^{case['expected_error']}$"):
                 serialize_tool_specs([spec])
+        record("toolspec/cases.v1.json", "cases", case["name"])
 
 
 def test_tool_spec_converts_to_legacy_definition() -> None:
