@@ -1,0 +1,55 @@
+{
+  "tools": [
+    {
+      "name": "local.greet",
+      "description": "Grüße, café, naïve façade — résumé",
+      "parameters": {},
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.greet"
+        }
+      },
+      "required_capabilities": [],
+      "resource_types": [],
+      "enabled": true
+    },
+    {
+      "name": "local.rtl",
+      "description": "مرحبا بالعالم · שלום עולם · é (combining)",
+      "parameters": {},
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.rtl"
+        }
+      },
+      "required_capabilities": [],
+      "resource_types": [],
+      "enabled": true
+    },
+    {
+      "name": "local.translate",
+      "description": "翻訳する: 日本語と中文 🚀✨",
+      "parameters": {},
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.translate"
+        }
+      },
+      "required_capabilities": [],
+      "resource_types": [],
+      "enabled": true
+    }
+  ]
+}

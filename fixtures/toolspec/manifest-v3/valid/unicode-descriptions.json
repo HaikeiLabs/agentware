@@ -1,0 +1,47 @@
+{
+  "schema": "kei.tool-manifest/v3",
+  "tools": [
+    {
+      "name": "local.greet",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.greet"
+        }
+      },
+      "description": "Grüße, café, naïve façade — résumé",
+      "enabled": true
+    },
+    {
+      "name": "local.rtl",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.rtl"
+        }
+      },
+      "description": "مرحبا بالعالم · שלום עולם · é (combining)",
+      "enabled": true
+    },
+    {
+      "name": "local.translate",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.translate"
+        }
+      },
+      "description": "翻訳する: 日本語と中文 🚀✨",
+      "enabled": true
+    }
+  ]
+}

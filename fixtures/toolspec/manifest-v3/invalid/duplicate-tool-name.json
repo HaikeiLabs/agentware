@@ -1,0 +1,33 @@
+{
+  "schema": "kei.tool-manifest/v3",
+  "tools": [
+    {
+      "name": "codex.shell",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "codex.shell"
+        }
+      },
+      "description": "Run a local harness action",
+      "enabled": true
+    },
+    {
+      "name": "codex.shell",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "codex.shell"
+        }
+      },
+      "description": "Second registration",
+      "enabled": true
+    }
+  ]
+}

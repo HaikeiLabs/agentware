@@ -1,0 +1,19 @@
+{
+  "schema": "kei.tool-manifest/v3",
+  "tools": [
+    {
+      "name": "local.echo",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "local.echo"
+        }
+      },
+      "description": "Echo text back",
+      "enabled": true
+    }
+  ]
+}
