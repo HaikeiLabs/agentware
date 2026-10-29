@@ -60,6 +60,9 @@
     "minimatch": "10.2.3",
     "zod": "^4.6.7"
   },
+  "overrides": {
+    "deepmerge": "4.1.2"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
