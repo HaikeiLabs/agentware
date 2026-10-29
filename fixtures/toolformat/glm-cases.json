@@ -1,6 +1,6 @@
 {
   "family": "glm",
-  "description": "GLM-4 uses standard OpenAI-compatible JSON function-calling format",
+  "description": "GLM-4 uses standard OpenAI-compatible JSON function-calling format. GLM-5.3-Flash on vLLM (verified 2026-10-29) uses the same shape: function.arguments is a JSON string and tool-call ids are chatcmpl-tool-<hex>; the glm-5.3 cases are those calls flattened to {id, name, arguments}.",
   "format_definitions": [
     {
       "name": "two tools",
@@ -19,6 +19,13 @@
       "name": "empty response",
       "input": "",
       "expected": []
+    },
+    {
+      "name": "glm-5.3 single call, arguments as JSON string",
+      "input": "[{\"id\":\"chatcmpl-tool-b740f94d8f903c3d\",\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"Tokyo\\\"}\"}]",
+      "expected": [
+        {"id": "chatcmpl-tool-b740f94d8f903c3d", "name": "get_weather", "args": {"location": "Tokyo"}}
+      ]
     }
   ],
   "format_result": [
@@ -39,6 +46,7 @@
     {"name": "valid", "input": "[{\"id\":\"c1\",\"name\":\"get_weather\",\"arguments\":{\"loc\":\"NYC\"}}]", "valid": true},
     {"name": "empty", "input": "", "valid": true},
     {"name": "invalid JSON", "input": "bad", "valid": false},
-    {"name": "missing name", "input": "[{\"id\":\"c1\",\"arguments\":{\"loc\":\"NYC\"}}]", "valid": false}
+    {"name": "missing name", "input": "[{\"id\":\"c1\",\"arguments\":{\"loc\":\"NYC\"}}]", "valid": false},
+    {"name": "glm-5.3 arguments as JSON string", "input": "[{\"id\":\"chatcmpl-tool-b740f94d8f903c3d\",\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"Tokyo\\\"}\"}]", "valid": true}
   ]
 }
