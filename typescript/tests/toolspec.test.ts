@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getFormatter } from "../src/toolformat/index.js";
 import {
@@ -6,6 +6,15 @@ import {
   toolSpecToToolDefinition,
   type ToolSpec,
 } from "../src/toolspec/index.js";
+
+// Records a passing shared fixture case for the equal-coverage gate
+// (scripts/conformance/gate.py, docs/testing.md); a no-op unless
+// AGENTWARE_CONFORMANCE_LOG is set.
+function record(fixture: string, section: string, name: string): void {
+  const log = process.env.AGENTWARE_CONFORMANCE_LOG;
+  if (!log) return;
+  appendFileSync(log, `${JSON.stringify({ language: "typescript", fixture, section, case: name })}\n`);
+}
 
 interface Case {
   name: string;
@@ -27,6 +36,7 @@ describe("ToolSpec shared fixtures", () => {
     test(testCase.name, () => {
       if (testCase.expected_error) {
         expect(() => serializeToolSpecs([testCase.spec])).toThrow(testCase.expected_error);
+        record("toolspec/cases.v1.json", "cases", testCase.name);
         return;
       }
       if (testCase.expected_wire) {
@@ -40,6 +50,7 @@ describe("ToolSpec shared fixtures", () => {
           expect(JSON.parse(actual)).toEqual(JSON.parse(expected));
         }
       }
+      record("toolspec/cases.v1.json", "cases", testCase.name);
     });
   }
 

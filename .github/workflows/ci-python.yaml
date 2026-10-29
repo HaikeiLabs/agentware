@@ -10,11 +10,13 @@ on:
     paths:
       - "python/**"
       - ".github/workflows/ci-python.yaml"
+      - "fixtures/**"
   pull_request:
     branches: [main]
     paths:
       - "python/**"
       - ".github/workflows/ci-python.yaml"
+      - "fixtures/**"
 
 permissions:
   contents: read

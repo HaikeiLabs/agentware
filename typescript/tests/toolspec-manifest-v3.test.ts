@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   loadManifestV3,
@@ -7,6 +7,15 @@ import {
   serializeToolSpecs,
   type ToolSpec,
 } from "../src/toolspec/index.js";
+
+// Records a passing shared fixture case for the equal-coverage gate
+// (scripts/conformance/gate.py, docs/testing.md); a no-op unless
+// AGENTWARE_CONFORMANCE_LOG is set.
+function record(fixture: string, section: string, name: string): void {
+  const log = process.env.AGENTWARE_CONFORMANCE_LOG;
+  if (!log) return;
+  appendFileSync(log, `${JSON.stringify({ language: "typescript", fixture, section, case: name })}\n`);
+}
 
 const root = resolve(process.cwd(), "../fixtures/toolspec/manifest-v3");
 const index = JSON.parse(readFileSync(resolve(root, "index.json"), "utf8")) as {
@@ -49,6 +58,7 @@ describe("kei.tool-manifest/v3 shared fixtures", () => {
       expect(normalize(specs)).toEqual(readJson(testCase.expected));
       expect(serializeToolSpecs(specs)).toEqual(readJson(testCase.canonical));
       expect(loadManifestV3(resolve(root, testCase.input))).toEqual(specs);
+      record("toolspec/manifest-v3/index.json", "valid", testCase.name);
     },
   );
 
@@ -61,5 +71,6 @@ describe("kei.tool-manifest/v3 shared fixtures", () => {
       expect(error).toBeInstanceOf(ManifestV3Error);
       expect((error as ManifestV3Error).code).toBe(testCase.error);
     }
+    record("toolspec/manifest-v3/index.json", "invalid", testCase.name);
   });
 });

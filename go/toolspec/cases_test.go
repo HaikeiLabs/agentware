@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/haikeilabs/agentware/go/internal/conformance"
 	"github.com/haikeilabs/agentware/go/toolformat"
 	"github.com/haikeilabs/agentware/go/toolspec"
 )
@@ -87,6 +88,7 @@ func TestMarshalManifestV3UsesContractCases(t *testing.T) {
 	}
 	var input struct {
 		Cases []struct {
+			Name          string            `json:"name"`
 			Spec          toolspec.ToolSpec `json:"spec"`
 			ExpectedWire  json.RawMessage   `json:"expected_wire"`
 			ExpectedError string            `json:"expected_error"`
@@ -96,6 +98,7 @@ func TestMarshalManifestV3UsesContractCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range input.Cases {
+		conformance.Record(t, "toolspec/cases.v1.json", "cases", tc.Name)
 		if tc.ExpectedError != "" {
 			_, err := toolspec.MarshalManifestV3([]toolspec.ToolSpec{tc.Spec})
 			if err == nil || !strings.Contains(err.Error(), tc.ExpectedError) {
