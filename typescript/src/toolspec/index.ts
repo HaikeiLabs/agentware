@@ -29,6 +29,8 @@ export type ToolResourceType = ResourceType;
 /** The runtime v3 manifest schema identifier. */
 export const MANIFEST_SCHEMA_V3 = "kei.tool-manifest/v3" as const;
 
+export { ManifestV3Error, loadManifestV3, parseManifestV3 } from "./manifest-v3.js";
+
 export interface ToolManifestV3 {
   schema: "kei.tool-manifest/v3";
   tools: ToolManifestV3Entry[];
