@@ -45,6 +45,25 @@ func (f *GenericFormatter) formatToolDefinitions(toolsList []formatTool) string 
 	return string(b)
 }
 
+// decodeToolCallArgs decodes a tool call's `arguments` value. OpenAI-style
+// APIs (including GLM-5.3-Flash on vLLM) emit it either as a JSON object or
+// as a JSON string containing the object; anything else is an error so a
+// malformed call is never silently dropped.
+func decodeToolCallArgs(raw json.RawMessage) (map[string]any, error) {
+	var args map[string]any
+	if err := json.Unmarshal(raw, &args); err == nil {
+		return args, nil
+	}
+	var encoded string
+	if err := json.Unmarshal(raw, &encoded); err != nil {
+		return nil, fmt.Errorf("arguments must be an object or a string containing one: %w", err)
+	}
+	if err := json.Unmarshal([]byte(encoded), &args); err != nil {
+		return nil, fmt.Errorf("arguments string is not a JSON object: %w", err)
+	}
+	return args, nil
+}
+
 func (f *GenericFormatter) ParseToolCalls(response string) ([]ParsedToolCall, error) {
 	if response == "" {
 		return nil, nil
@@ -62,9 +81,9 @@ func (f *GenericFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 
 	result := make([]ParsedToolCall, 0, len(calls))
 	for _, c := range calls {
-		var args map[string]any
-		if err := json.Unmarshal(c.Args, &args); err != nil {
-			continue
+		args, err := decodeToolCallArgs(c.Args)
+		if err != nil {
+			return nil, fmt.Errorf("tool call %q: %w", c.Name, err)
 		}
 		result = append(result, ParsedToolCall{
 			ID:   c.ID,

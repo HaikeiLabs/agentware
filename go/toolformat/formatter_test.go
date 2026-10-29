@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -565,6 +566,128 @@ func (t toolSpecLegacyEquivalent) InputSchema() map[string]any { return t.spec.P
 func (toolSpecLegacyEquivalent) Examples() []tools.ToolExample { return nil }
 func (toolSpecLegacyEquivalent) Execute(context.Context, map[string]any) (*tools.Result, error) {
 	return &tools.Result{Success: true}, nil
+}
+
+// jsonCallFormatters returns the formatters whose tool calls arrive as JSON
+// with an `arguments` field (object or string-encoded object). GLM, DeepSeek
+// and OpenAI share GenericFormatter's implementation; Nemotron duplicates it.
+func jsonCallFormatters() []ToolFormatter {
+	return []ToolFormatter{
+		&GenericFormatter{}, &GLMFormatter{}, &DeepSeekFormatter{}, &OpenAIFOrmatter{}, &NemotronFormatter{},
+	}
+}
+
+// TestParseToolCallsDecodesStringArguments pins the GLM-5.3-Flash shape seen
+// on vLLM (fixtures/toolformat/glm-cases.json): function.arguments may arrive
+// as a JSON string containing the object, and must be decoded instead of
+// silently dropping the call.
+func TestParseToolCallsDecodesStringArguments(t *testing.T) {
+	response := `[{"id":"chatcmpl-tool-b740f94d8f903c3d","name":"get_weather","arguments":"{\"location\": \"Tokyo\"}"}]`
+	wantArgs := map[string]any{"location": "Tokyo"}
+
+	for _, formatter := range jsonCallFormatters() {
+		calls, err := formatter.ParseToolCalls(response)
+		if err != nil {
+			t.Fatalf("%T: unexpected error: %v", formatter, err)
+		}
+		if len(calls) != 1 {
+			t.Fatalf("%T: expected 1 call, got %d", formatter, len(calls))
+		}
+		got := calls[0]
+		if got.ID != "chatcmpl-tool-b740f94d8f903c3d" || got.Name != "get_weather" {
+			t.Errorf("%T: got id=%q name=%q", formatter, got.ID, got.Name)
+		}
+		if !reflect.DeepEqual(got.Args, wantArgs) {
+			t.Errorf("%T: args = %#v, want %#v", formatter, got.Args, wantArgs)
+		}
+	}
+}
+
+// TestParseToolCallsMalformedArgumentsStringReturnsError asserts fail-closed
+// behaviour: an arguments value that is neither a JSON object nor a JSON
+// string containing one must surface as an error, never a silently empty
+// call list.
+func TestParseToolCallsMalformedArgumentsStringReturnsError(t *testing.T) {
+	responses := []string{
+		`[{"id":"c1","name":"get_weather","arguments":"{not json"}]`,
+		`[{"id":"c1","name":"get_weather","arguments":"[1,2]"}]`,
+	}
+	for _, formatter := range jsonCallFormatters() {
+		for _, response := range responses {
+			calls, err := formatter.ParseToolCalls(response)
+			if err == nil {
+				t.Errorf("%T: expected error for %q, got calls %v", formatter, response, calls)
+			}
+		}
+	}
+}
+
+// TestToolformatFixtureParseCalls replays the shared GLM toolformat fixture
+// (fixtures/toolformat/glm-cases.json) through the Go formatters so the
+// language implementations stay in parity.
+func TestToolformatFixtureParseCalls(t *testing.T) {
+	data, err := os.ReadFile("../../fixtures/toolformat/glm-cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Family     string `json:"family"`
+		ParseCalls []struct {
+			Name     string `json:"name"`
+			Input    string `json:"input"`
+			Expected []struct {
+				ID   string         `json:"id"`
+				Name string         `json:"name"`
+				Args map[string]any `json:"args"`
+			} `json:"expected"`
+		} `json:"parse_calls"`
+		ValidateFormat []struct {
+			Name  string `json:"name"`
+			Input string `json:"input"`
+			Valid bool   `json:"valid"`
+		} `json:"validate_format"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.Family != "glm" {
+		t.Fatalf("expected glm fixture, got family %q", fixture.Family)
+	}
+
+	formatters := map[string]ToolFormatter{
+		"generic": &GenericFormatter{},
+		"glm":     &GLMFormatter{},
+	}
+	for flavor, formatter := range formatters {
+		for _, tc := range fixture.ParseCalls {
+			calls, err := formatter.ParseToolCalls(tc.Input)
+			if err != nil {
+				t.Fatalf("%s/%s: unexpected error: %v", flavor, tc.Name, err)
+			}
+			if len(calls) != len(tc.Expected) {
+				t.Errorf("%s/%s: got %d calls, want %d", flavor, tc.Name, len(calls), len(tc.Expected))
+				continue
+			}
+			for i, want := range tc.Expected {
+				got := calls[i]
+				if got.ID != want.ID || got.Name != want.Name {
+					t.Errorf("%s/%s call %d: got id=%q name=%q, want id=%q name=%q", flavor, tc.Name, i, got.ID, got.Name, want.ID, want.Name)
+				}
+				if !reflect.DeepEqual(got.Args, want.Args) {
+					t.Errorf("%s/%s call %d: args = %#v, want %#v", flavor, tc.Name, i, got.Args, want.Args)
+				}
+			}
+		}
+		for _, tc := range fixture.ValidateFormat {
+			err := formatter.ValidateFormat(tc.Input)
+			if tc.Valid && err != nil {
+				t.Errorf("%s/%s: expected valid, got error: %v", flavor, tc.Name, err)
+			}
+			if !tc.Valid && err == nil {
+				t.Errorf("%s/%s: expected invalid, got no error", flavor, tc.Name)
+			}
+		}
+	}
 }
 
 func TestToolSpecFormattingMatchesLegacyToolDefinitionForEveryFlavor(t *testing.T) {
