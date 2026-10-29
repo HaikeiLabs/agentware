@@ -31,6 +31,7 @@ import {
 import { request as httpsRequest } from "node:https";
 import { connect as tlsConnect } from "node:tls";
 import type { Socket } from "node:net";
+import { serializeToolSpecs, type ToolSpec } from "../toolspec/index.js";
 
 export const TOOLS_PATH = "/api/v1/runtime/tools";
 export const TOOL_MANIFEST_V3_MEDIA_TYPE =
@@ -270,6 +271,19 @@ export async function syncToolManifest(
   }
   throw new ToolManifestSyncError(
     `PUT ${TOOLS_PATH} failed after ${attempts} attempt(s): ${last}`,
+  );
+}
+
+/** Serialize and sync typed ToolSpecs using the same v3 request as syncToolManifest. */
+export function syncToolSpecs(
+  specs: readonly ToolSpec[],
+  config: ToolManifestSyncConfig,
+  options: SyncToolManifestOptions = {},
+): Promise<ToolManifestSyncResult> {
+  return syncToolManifest(
+    JSON.stringify(serializeToolSpecs(specs)),
+    config,
+    options,
   );
 }
 
