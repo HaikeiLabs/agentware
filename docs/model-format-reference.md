@@ -14,7 +14,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Anthropic** | JSON function array (Generic) | XML: `<invoke tool="name">JSON</invoke>` | XML: `<result tool="name">` | `thinking` (content block) | none |
 | **Qwen** | XML: `<tool_description><tool_name>` | XML: `<tool_call><tool name="name">JSON</tool>` | XML: `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>` |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
-| **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | none |
+| **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | none |
 
 ---
 
@@ -148,9 +148,9 @@ Based on data, Tokyo is 22°C.
 | **Parse format** | JSON array of `{id, name, arguments}` (same as OpenAI) |
 | **Result format** | JSON-encoded string of result data |
 | **Validate** | Validates JSON array, requires `name` on each entry |
-| **Reasoning field** | `reasoning_content` — native field on the choice message |
+| **Reasoning field** | `reasoning_content` on GLM-4. GLM-5.3-Flash on vLLM uses `reasoning` (see below) |
 | **Inline tags** | None. GLM models do not use inline thinking tags. |
-| **Adapter** | `reasoning_content` is in the known field set; no registration needed. |
+| **Adapter** | `reasoning_content` and `reasoning` are both in the known field set; no registration needed. |
 
 **Example response:**
 ```json
@@ -168,6 +168,48 @@ Based on data, Tokyo is 22°C.
   }]
 }
 ```
+
+#### GLM-5.3-Flash (verified 2026-10-29)
+
+Captured from `nvidia/GLM-5.3-Flash-FP4-Local` served by vLLM on the Spark
+cluster, using `/v1/chat/completions` with and without streaming. The
+`glm-5.3` cases in `fixtures/toolformat/glm-cases.json` and
+`fixtures/reasoning/glm-cases.json` come from these responses.
+
+| | Same as GLM-4? | GLM-5.3-Flash |
+|---|---|---|
+| Tool calls | Yes | `message.tool_calls[]` with `type: "function"`; `function.arguments` is a JSON **string** |
+| Tool-call ids | Format only | `chatcmpl-tool-<16 hex>` |
+| `finish_reason` | Yes | `tool_calls` after a tool call, `stop` otherwise |
+| Reasoning | **No** | `message.reasoning`, and `delta.reasoning` when streaming. `reasoning_content` is absent |
+| Thinking disabled | — | With `chat_template_kwargs: {"enable_thinking": false}`, `reasoning` is `null`, and the reasoning text can show up untagged in `content`. The adapter cannot separate it |
+| Streaming tool calls | — | The first `tool_calls` delta carries `id`, `type`, `name` and the start of `arguments`; later deltas carry only `index` and argument fragments. The last fragment arrives in the same chunk as `finish_reason` |
+
+**Example response (non-streaming):**
+```json
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "reasoning": "The user wants to know the weather in Tokyo. I have a get_weather tool available. Let me call it with location \"Tokyo\".",
+      "tool_calls": [{
+        "id": "chatcmpl-tool-b740f94d8f903c3d",
+        "type": "function",
+        "function": {"name": "get_weather", "arguments": "{\"location\": \"Tokyo\"}"}
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }]
+}
+```
+
+The adapter already finds `reasoning` (priority 4 in the known field set), so
+no registration is needed. To parse these tool calls with `ParseToolCalls`,
+flatten them to `{id, name, arguments}`, which leaves `arguments` as a string.
+Python and TypeScript decode that string. Go's `GenericFormatter.ParseToolCalls`
+currently drops such a call without an error (case "glm-5.3 single call,
+arguments as JSON string").
 
 ---
 

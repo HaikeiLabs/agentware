@@ -3,7 +3,11 @@
   "description": "GLM/ChatGLM reasoning model response format",
   "reasoning_field": "reasoning_content",
   "thinking_tags": null,
-  "notes": "GLM-4 and ChatGLM models use 'reasoning_content' as the native field for chain-of-thought reasoning, following the same pattern as OpenAI and DeepSeek. No inline thinking tags are used; reasoning is always in the structured field.",
+  "notes": "GLM-4 and ChatGLM models use 'reasoning_content' as the native field for chain-of-thought reasoning, following the same pattern as OpenAI and DeepSeek. No inline thinking tags are used; reasoning is always in the structured field. GLM-5.3-Flash served by vLLM (nvidia/GLM-5.3-Flash-FP4-Local, verified 2026-10-29) puts reasoning in 'reasoning' instead (message.reasoning, and delta.reasoning when streaming); 'reasoning_content' is absent. With thinking disabled (chat_template_kwargs.enable_thinking=false) 'reasoning' is null and the model's reasoning text can appear untagged in 'content', so it cannot be separated.",
+  "reasoning_field_by_model": {
+    "glm-4": "reasoning_content",
+    "glm-5.3-flash (vLLM)": "reasoning"
+  },
   "examples": [
     {
       "name": "reasoning_content field with tool calls",
@@ -49,6 +53,70 @@
       },
       "expected_extracted_reasoning": "Checking weather data for Tokyo... Data retrieved. Formatting response.",
       "expected_clean_content": "The weather in Tokyo is 22°C and sunny."
+    },
+    {
+      "name": "glm-5.3 reasoning field with tool calls",
+      "raw_response": {
+        "id": "chatcmpl-855033f156fd7bfe",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "chatcmpl-tool-b740f94d8f903c3d",
+                  "type": "function",
+                  "function": { "name": "get_weather", "arguments": "{\"location\": \"Tokyo\"}" }
+                }
+              ],
+              "reasoning": "The user wants to know the weather in Tokyo. I have a get_weather tool available. Let me call it with location \"Tokyo\"."
+            },
+            "finish_reason": "tool_calls"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "The user wants to know the weather in Tokyo. I have a get_weather tool available. Let me call it with location \"Tokyo\".",
+      "expected_clean_content": null
+    },
+    {
+      "name": "glm-5.3 reasoning field with text content",
+      "raw_response": {
+        "id": "chatcmpl-glm53-002",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "391",
+              "reasoning": "17 * 23 = 391\n\nLet me verify: 17 * 23 = 17 * 20 + 17 * 3 = 340 + 51 = 391"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "17 * 23 = 391\n\nLet me verify: 17 * 23 = 17 * 20 + 17 * 3 = 340 + 51 = 391",
+      "expected_clean_content": "391"
+    },
+    {
+      "name": "glm-5.3 thinking disabled, untagged reasoning in content",
+      "raw_response": {
+        "id": "chatcmpl-glm53-003",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "17 * 23 = 391\n\nLet me verify: 17 * 23 = 17 * 20 + 17 * 3 = 340 + 51 = 391391",
+              "reasoning": null
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "",
+      "expected_clean_content": "17 * 23 = 391\n\nLet me verify: 17 * 23 = 17 * 20 + 17 * 3 = 340 + 51 = 391391"
     },
     {
       "name": "no reasoning field",
