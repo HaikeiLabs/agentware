@@ -1,0 +1,302 @@
+{
+  "schema": "agentware.manifest-v3-loader-cases/v1",
+  "$comment": "Shared kei.tool-manifest/v3 loader fixtures. See README.md for the loader contract. Paths are relative to this file.",
+  "valid": [
+    {
+      "name": "minimal",
+      "description": "One harness tool with only the required fields; enabled is omitted and defaults to true.",
+      "input": "valid/minimal.json",
+      "expected": "expected/minimal.json",
+      "canonical": "canonical/minimal.json"
+    },
+    {
+      "name": "full",
+      "description": "One connector tool with every field set, including model parameters and resource types with and without parent_type.",
+      "input": "valid/full.json",
+      "expected": "expected/full.json",
+      "canonical": "canonical/full.json"
+    },
+    {
+      "name": "multiple-tools",
+      "description": "Three tools sorted by name, mixing both route kinds; one is disabled.",
+      "input": "valid/multiple-tools.json",
+      "expected": "expected/multiple-tools.json",
+      "canonical": "valid/multiple-tools.json"
+    },
+    {
+      "name": "operation-class-read",
+      "description": "operation_class read on a connector route.",
+      "input": "valid/operation-class-read.json",
+      "expected": "expected/operation-class-read.json",
+      "canonical": "valid/operation-class-read.json"
+    },
+    {
+      "name": "operation-class-write",
+      "description": "operation_class write on a connector route.",
+      "input": "valid/operation-class-write.json",
+      "expected": "expected/operation-class-write.json",
+      "canonical": "valid/operation-class-write.json"
+    },
+    {
+      "name": "harness-executor-routes",
+      "description": "harness_executor routes for several executors, read and write, no connector-only fields.",
+      "input": "valid/harness-executor-routes.json",
+      "expected": "expected/harness-executor-routes.json",
+      "canonical": "valid/harness-executor-routes.json"
+    },
+    {
+      "name": "unicode-descriptions",
+      "description": "Non-ASCII descriptions (accents, CJK, emoji, right-to-left, combining marks) load and round-trip unchanged.",
+      "input": "valid/unicode-descriptions.json",
+      "expected": "expected/unicode-descriptions.json",
+      "canonical": "valid/unicode-descriptions.json"
+    },
+    {
+      "name": "empty-tools",
+      "description": "A manifest with no tools loads as an empty list.",
+      "input": "valid/empty-tools.json",
+      "expected": "expected/empty-tools.json",
+      "canonical": "valid/empty-tools.json"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "not-json",
+      "input": "invalid/not-json.json",
+      "error": "invalid_json",
+      "path": "",
+      "defect": "The file is not valid JSON."
+    },
+    {
+      "name": "trailing-content",
+      "input": "invalid/trailing-content.json",
+      "error": "invalid_json",
+      "path": "",
+      "defect": "A second JSON value follows the manifest object."
+    },
+    {
+      "name": "top-level-array",
+      "input": "invalid/top-level-array.json",
+      "error": "invalid_type",
+      "path": "",
+      "defect": "The document is a JSON array, not an object."
+    },
+    {
+      "name": "wrong-schema-id",
+      "input": "invalid/wrong-schema-id.json",
+      "error": "unsupported_schema",
+      "path": "/schema",
+      "defect": "schema is kei.tool-manifest/v2."
+    },
+    {
+      "name": "missing-schema",
+      "input": "invalid/missing-schema.json",
+      "error": "unsupported_schema",
+      "path": "/schema",
+      "defect": "The schema field is absent."
+    },
+    {
+      "name": "unknown-top-level-field",
+      "input": "invalid/unknown-top-level-field.json",
+      "error": "unknown_field",
+      "path": "/version",
+      "defect": "The manifest object has a field outside the contract."
+    },
+    {
+      "name": "unknown-tool-field",
+      "input": "invalid/unknown-tool-field.json",
+      "error": "unknown_field",
+      "path": "/tools/0/input_schema",
+      "defect": "A tool has a field outside the contract (input_schema; the wire name is parameters)."
+    },
+    {
+      "name": "legacy-tool-field",
+      "input": "invalid/legacy-tool-field.json",
+      "error": "unknown_field",
+      "path": "/tools/0/permission",
+      "defect": "A tool has the legacy permission field, which kei-proxy still tolerates but this contract rejects."
+    },
+    {
+      "name": "unknown-route-kind",
+      "input": "invalid/unknown-route-kind.json",
+      "error": "unknown_field",
+      "path": "/tools/0/route/mcp_server",
+      "defect": "The route names a kind other than harness_executor or connector_binding."
+    },
+    {
+      "name": "missing-tools",
+      "input": "invalid/missing-tools.json",
+      "error": "missing_field",
+      "path": "/tools",
+      "defect": "The tools field is absent."
+    },
+    {
+      "name": "tools-not-array",
+      "input": "invalid/tools-not-array.json",
+      "error": "invalid_type",
+      "path": "/tools",
+      "defect": "tools is an object, not an array."
+    },
+    {
+      "name": "missing-name",
+      "input": "invalid/missing-name.json",
+      "error": "missing_field",
+      "path": "/tools/0/name",
+      "defect": "A tool has no name."
+    },
+    {
+      "name": "empty-name",
+      "input": "invalid/empty-name.json",
+      "error": "missing_field",
+      "path": "/tools/0/name",
+      "defect": "A tool name is the empty string."
+    },
+    {
+      "name": "name-not-string",
+      "input": "invalid/name-not-string.json",
+      "error": "invalid_type",
+      "path": "/tools/0/name",
+      "defect": "A tool name is a number."
+    },
+    {
+      "name": "missing-description",
+      "input": "invalid/missing-description.json",
+      "error": "missing_field",
+      "path": "/tools/0/description",
+      "defect": "A tool has no description."
+    },
+    {
+      "name": "missing-service",
+      "input": "invalid/missing-service.json",
+      "error": "missing_field",
+      "path": "/tools/0/service",
+      "defect": "A tool has no service."
+    },
+    {
+      "name": "missing-source",
+      "input": "invalid/missing-source.json",
+      "error": "missing_field",
+      "path": "/tools/0/source",
+      "defect": "A tool has no source."
+    },
+    {
+      "name": "missing-operation-class",
+      "input": "invalid/missing-operation-class.json",
+      "error": "missing_field",
+      "path": "/tools/0/operation_class",
+      "defect": "A tool has no operation_class."
+    },
+    {
+      "name": "bad-operation-class",
+      "input": "invalid/bad-operation-class.json",
+      "error": "invalid_operation_class",
+      "path": "/tools/0/operation_class",
+      "defect": "operation_class is delete; only read and write are allowed."
+    },
+    {
+      "name": "operation-class-wrong-case",
+      "input": "invalid/operation-class-wrong-case.json",
+      "error": "invalid_operation_class",
+      "path": "/tools/0/operation_class",
+      "defect": "operation_class is Read; values are case-sensitive."
+    },
+    {
+      "name": "duplicate-tool-name",
+      "input": "invalid/duplicate-tool-name.json",
+      "error": "duplicate_tool_name",
+      "path": "/tools/1/name",
+      "defect": "Two tools share the name codex.shell."
+    },
+    {
+      "name": "missing-route",
+      "input": "invalid/missing-route.json",
+      "error": "missing_field",
+      "path": "/tools/0/route",
+      "defect": "A tool has no route."
+    },
+    {
+      "name": "route-not-object",
+      "input": "invalid/route-not-object.json",
+      "error": "invalid_type",
+      "path": "/tools/0/route",
+      "defect": "route is a string."
+    },
+    {
+      "name": "route-empty",
+      "input": "invalid/route-empty.json",
+      "error": "invalid_route",
+      "path": "/tools/0/route",
+      "defect": "route has no route kind."
+    },
+    {
+      "name": "route-both-kinds",
+      "input": "invalid/route-both-kinds.json",
+      "error": "invalid_route",
+      "path": "/tools/0/route",
+      "defect": "route has both harness_executor and connector_binding."
+    },
+    {
+      "name": "harness-missing-registration",
+      "input": "invalid/harness-missing-registration.json",
+      "error": "invalid_route",
+      "path": "/tools/0/route/harness_executor",
+      "defect": "harness_executor has an empty registration."
+    },
+    {
+      "name": "harness-with-connector-fields",
+      "input": "invalid/harness-with-connector-fields.json",
+      "error": "invalid_route",
+      "path": "/tools/0/required_capabilities",
+      "defect": "A harness_executor tool carries the connector-only required_capabilities field."
+    },
+    {
+      "name": "connector-missing-agent-id",
+      "input": "invalid/connector-missing-agent-id.json",
+      "error": "invalid_route",
+      "path": "/tools/0/route/connector_binding",
+      "defect": "connector_binding has an empty agent_id."
+    },
+    {
+      "name": "connector-missing-capabilities",
+      "input": "invalid/connector-missing-capabilities.json",
+      "error": "invalid_route",
+      "path": "/tools/0/required_capabilities",
+      "defect": "A connector_binding tool has no required_capabilities."
+    },
+    {
+      "name": "connector-empty-resource-types",
+      "input": "invalid/connector-empty-resource-types.json",
+      "error": "invalid_route",
+      "path": "/tools/0/resource_types",
+      "defect": "A connector_binding tool has resource_types present but empty."
+    },
+    {
+      "name": "resource-type-missing-type",
+      "input": "invalid/resource-type-missing-type.json",
+      "error": "missing_field",
+      "path": "/tools/0/resource_types/0/type",
+      "defect": "A resource type entry has no type."
+    },
+    {
+      "name": "parameters-not-object",
+      "input": "invalid/parameters-not-object.json",
+      "error": "invalid_type",
+      "path": "/tools/0/parameters",
+      "defect": "parameters (the model input schema) is a string, not a JSON object."
+    },
+    {
+      "name": "parameters-array",
+      "input": "invalid/parameters-array.json",
+      "error": "invalid_type",
+      "path": "/tools/0/parameters",
+      "defect": "parameters (the model input schema) is an array, not a JSON object."
+    },
+    {
+      "name": "enabled-not-bool",
+      "input": "invalid/enabled-not-bool.json",
+      "error": "invalid_type",
+      "path": "/tools/0/enabled",
+      "defect": "enabled is the string \"true\"."
+    }
+  ]
+}

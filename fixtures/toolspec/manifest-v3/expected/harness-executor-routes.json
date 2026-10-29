@@ -1,0 +1,55 @@
+{
+  "tools": [
+    {
+      "name": "claude_code.bash",
+      "description": "Run a shell command in Claude Code",
+      "parameters": {},
+      "service": "claude_code",
+      "source": "claude_code",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "claude_code",
+          "registration": "claude_code.bash"
+        }
+      },
+      "required_capabilities": [],
+      "resource_types": [],
+      "enabled": true
+    },
+    {
+      "name": "codex.read_file",
+      "description": "Read a file in the workspace",
+      "parameters": {},
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "codex.read_file"
+        }
+      },
+      "required_capabilities": [],
+      "resource_types": [],
+      "enabled": true
+    },
+    {
+      "name": "opencode.edit",
+      "description": "Edit a file in the workspace",
+      "parameters": {},
+      "service": "opencode",
+      "source": "opencode",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "opencode",
+          "registration": "opencode.edit"
+        }
+      },
+      "required_capabilities": [],
+      "resource_types": [],
+      "enabled": true
+    }
+  ]
+}

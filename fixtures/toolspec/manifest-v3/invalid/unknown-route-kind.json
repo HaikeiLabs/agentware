@@ -1,0 +1,18 @@
+{
+  "schema": "kei.tool-manifest/v3",
+  "tools": [
+    {
+      "name": "codex.shell",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "write",
+      "route": {
+        "mcp_server": {
+          "server": "x"
+        }
+      },
+      "description": "Run a local harness action",
+      "enabled": true
+    }
+  ]
+}

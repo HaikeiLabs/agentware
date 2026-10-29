@@ -1,0 +1,47 @@
+{
+  "schema": "kei.tool-manifest/v3",
+  "tools": [
+    {
+      "name": "claude_code.bash",
+      "service": "claude_code",
+      "source": "claude_code",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "claude_code",
+          "registration": "claude_code.bash"
+        }
+      },
+      "description": "Run a shell command in Claude Code",
+      "enabled": true
+    },
+    {
+      "name": "codex.read_file",
+      "service": "codex",
+      "source": "codex",
+      "operation_class": "read",
+      "route": {
+        "harness_executor": {
+          "executor": "codex",
+          "registration": "codex.read_file"
+        }
+      },
+      "description": "Read a file in the workspace",
+      "enabled": true
+    },
+    {
+      "name": "opencode.edit",
+      "service": "opencode",
+      "source": "opencode",
+      "operation_class": "write",
+      "route": {
+        "harness_executor": {
+          "executor": "opencode",
+          "registration": "opencode.edit"
+        }
+      },
+      "description": "Edit a file in the workspace",
+      "enabled": true
+    }
+  ]
+}
