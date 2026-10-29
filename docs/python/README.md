@@ -133,6 +133,8 @@ for entry in records:
     print(f"Decision: {entry.decision.action.value}, Tool: {entry.tool_name}")
 ```
 
+`InMemoryAuditor` is process-local; see [Seeing governed tool calls in Kei](../audit-visibility.md).
+
 ## Condition Operators
 
 | Operator | Description |

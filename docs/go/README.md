@@ -134,6 +134,8 @@ for _, entry := range records {
 }
 ```
 
+`InMemoryAuditor` is process-local; see [Seeing governed tool calls in Kei](../audit-visibility.md).
+
 ### Audited Tool Client
 
 ```go

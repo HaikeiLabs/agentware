@@ -65,6 +65,9 @@ When an agent delegates to a subagent, `CallerContext.delegate()` carries the
 invoking subject unchanged and records the parent span and delegation depth,
 so the audit trail always leads back to the human who authorized the request.
 
+Audit records stay in process (`InMemoryAuditor`); Kei sees only kei-proxy's
+decision record. See [Seeing governed tool calls in Kei](https://github.com/HaikeiLabs/agentware/blob/main/docs/audit-visibility.md).
+
 ## What's in the package
 
 - `haikeilabs.agentware.middleware`: the policy evaluator, rules and conditions,

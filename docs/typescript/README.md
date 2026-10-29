@@ -113,6 +113,8 @@ for (const entry of records) {
 }
 ```
 
+`InMemoryAuditor` is process-local; see [Seeing governed tool calls in Kei](../audit-visibility.md).
+
 ## Condition Operators
 
 | Operator | Description |

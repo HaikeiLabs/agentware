@@ -113,6 +113,9 @@ evaluator cannot be passed to `MiddlewareImpl.withPolicy`. Use
 record the decision in one audited call. The behavior matches the Python and
 Go ports case for case; see `docs/kei-proxy-evaluator-parity.md`.
 
+Audit records stay in process (`InMemoryAuditor`); Kei sees only kei-proxy's
+decision record. See [Seeing governed tool calls in Kei](https://github.com/HaikeiLabs/agentware/blob/main/docs/audit-visibility.md).
+
 ## MCP route client
 
 Use `Client` from `@haikeilabs/agentware` to call a connector through the local
