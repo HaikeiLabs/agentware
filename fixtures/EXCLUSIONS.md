@@ -27,15 +27,6 @@ and `#`.
 
 | Language | Cases | Reason | Removed by |
 |---|---|---|---|
-| go | `reasoning/deepseek-cases.json#examples/text mode with THINK tags` | Go trims extracted reasoning and keeps the surrounding whitespace; the fixture expects untrimmed reasoning | unassigned (align Go thinking-tag whitespace, or amend the fixture) |
-| go | `reasoning/qwen-cases.json#examples/reasoning_content with thinking tags` | Go strips thinking tags from content even when a native reasoning field is present; the fixture expects the content as-is | unassigned (align Go thinking-tag stripping, or amend the fixture) |
-| go | `reasoning/qwen-cases.json#examples/text response with thinking tags` | Go strips thinking tags from content even when a native reasoning field is present; the fixture expects the content as-is | unassigned (align Go thinking-tag stripping, or amend the fixture) |
-| python | `reasoning/deepseek-cases.json#examples/text mode with THINK tags` | The fixture expects the extracted reasoning untrimmed; all implementations trim it (Go, TS, Python) | unassigned (T4 follow-up) |
-| python | `reasoning/qwen-cases.json#examples/reasoning_content with thinking tags` | The fixture expects the inline `<thinking>` tags to remain in the clean content; all implementations strip them when a native reasoning field is present | unassigned (T4 follow-up) |
-| python | `reasoning/qwen-cases.json#examples/text response with thinking tags` | as above | unassigned (T4 follow-up) |
-| typescript | `reasoning/deepseek-cases.json#examples/text mode with THINK tags` | The shared input combines a leading-space THINK-tag block with trailing content; the TypeScript adapter returns different leading whitespace | aw-ts-fx |
-| typescript | `reasoning/qwen-cases.json#examples/reasoning_content with thinking tags` | With both a native reasoning field and inline thinking tags, the TypeScript adapter strips tags from clean content while this fixture expects them retained | aw-ts-fx |
-| typescript | `reasoning/qwen-cases.json#examples/text response with thinking tags` | The TypeScript adapter strips inline thinking tags from clean content while this fixture expects them retained | aw-ts-fx |
 | rust | `toolformat/*-cases.json#*` | Rust has no toolformat module yet | T3a, `feat/parity-8-rust-toolformat` (aw-rs-tf), PR not open yet |
 | rust | `reasoning/*-cases.json#*` | Rust has no reasoning adapter yet | T3b Rust reasoning, not started |
 | rust | `toolspec/cases.v1.json#*` | No Rust runner for the ToolSpec contract cases | unassigned (T4 follow-up) |

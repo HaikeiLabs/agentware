@@ -65,10 +65,6 @@ describe("shared reasoning fixtures", () => {
     const fixturePath = `reasoning/${file}`;
     const data = JSON.parse(readFileSync(resolve(reasoningRoot, file), "utf8")) as Record<string, any>;
     for (const c of data.examples) {
-      // These inputs combine explicit reasoning fields with inline THINK tags;
-      // the adapter currently preserves the tag-stripped content differently.
-      if ((file === "deepseek-cases.json" && c.name === "text mode with THINK tags") ||
-          (file === "qwen-cases.json" && ["reasoning_content with thinking tags", "text response with thinking tags"].includes(c.name))) continue;
       const adapter = new ReasoningAdapter();
       const raw = c.raw_response;
       if (c.expected_extracted_reasoning === null) {

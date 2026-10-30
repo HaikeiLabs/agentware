@@ -30,18 +30,8 @@ from haikeilabs.agentware.reasoning import (
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 
 # Cases the Python adapter cannot run, mirrored from fixtures/EXCLUSIONS.md
-# (python rows for the reasoning family).
-EXCLUDED = {
-    # The fixture expects the extracted reasoning untrimmed (leading and
-    # trailing newlines); all implementations trim it. Its expected clean
-    # also drops the leading space the raw response carries before [THINK].
-    "deepseek-cases.json#text mode with THINK tags",
-    # The fixture expects the inline <thinking> tags to remain in the clean
-    # content; all implementations strip them when a native reasoning field
-    # is present.
-    "qwen-cases.json#reasoning_content with thinking tags",
-    "qwen-cases.json#text response with thinking tags",
-}
+# (python rows for the reasoning family). Empty: every case runs.
+EXCLUDED: set[str] = set()
 
 
 def _reasoning_fixtures() -> list[tuple[str, dict]]:

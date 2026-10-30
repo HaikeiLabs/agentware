@@ -25,16 +25,9 @@ type reasoningFixture struct {
 }
 
 // excludedReasoningCases lists reasoning fixture cases (keyed by
-// "<family>/<case name>") that the Go adapter does not match, with the reason.
-// The same cases are listed in fixtures/EXCLUSIONS.md. Go's adapter strips
-// embedded thinking tags from content even when a native reasoning field is
-// present, and trims extracted reasoning; these cases expect the content left
-// as-is (tags intact) and untrimmed reasoning.
-var excludedReasoningCases = map[string]string{
-	"deepseek/text mode with THINK tags":        "Go trims extracted reasoning and keeps surrounding whitespace; fixture expects untrimmed reasoning",
-	"qwen/reasoning_content with thinking tags": "Go strips thinking tags from content when a native reasoning field is present; fixture expects content as-is",
-	"qwen/text response with thinking tags":     "Go strips thinking tags from content when a native reasoning field is present; fixture expects content as-is",
-}
+// "<family>/<case name>") that the Go adapter does not match, with the
+// reason. The same cases are listed in fixtures/EXCLUSIONS.md.
+var excludedReasoningCases = map[string]string{}
 
 // TestReasoningFixtures replays every case in every shared reasoning fixture
 // through the Go adapter's analysis and records each case for the

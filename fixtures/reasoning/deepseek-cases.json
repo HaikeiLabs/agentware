@@ -27,8 +27,8 @@
     {
       "name": "text mode with THINK tags",
       "raw_response": " [THINK]\nThe user wants weather for Tokyo. I'll look up coordinates first.\n[/THINK]\n{\"tool\": \"search_web\", \"args\": {\"query\": \"Tokyo weather\"}}",
-      "expected_extracted_reasoning": "\nThe user wants weather for Tokyo. I'll look up coordinates first.\n",
-      "expected_clean_content": "\n{\"tool\": \"search_web\", \"args\": {\"query\": \"Tokyo weather\"}}"
+      "expected_extracted_reasoning": "The user wants weather for Tokyo. I'll look up coordinates first.",
+      "expected_clean_content": " \n{\"tool\": \"search_web\", \"args\": {\"query\": \"Tokyo weather\"}}"
     },
     {
       "name": "unbalanced THINK tag (fail-closed)",
