@@ -69,10 +69,7 @@ func (f *MistralFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 			name := tm[1]
 			argsRaw := tm[2]
 
-			var args map[string]any
-			if err := json.Unmarshal([]byte(argsRaw), &args); err != nil {
-				args = map[string]any{"_raw": argsRaw}
-			}
+			args := decodeLooseArgs(argsRaw)
 
 			result = append(result, ParsedToolCall{
 				Name: name,

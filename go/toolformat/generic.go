@@ -51,7 +51,7 @@ func (f *GenericFormatter) formatToolDefinitions(toolsList []formatTool) string 
 // malformed call is never silently dropped.
 func decodeToolCallArgs(raw json.RawMessage) (map[string]any, error) {
 	var args map[string]any
-	if err := json.Unmarshal(raw, &args); err == nil {
+	if err := json.Unmarshal(raw, &args); err == nil && args != nil {
 		return args, nil
 	}
 	var encoded string
@@ -61,7 +61,23 @@ func decodeToolCallArgs(raw json.RawMessage) (map[string]any, error) {
 	if err := json.Unmarshal([]byte(encoded), &args); err != nil {
 		return nil, fmt.Errorf("arguments string is not a JSON object: %w", err)
 	}
+	if args == nil {
+		return nil, fmt.Errorf("arguments string is not a JSON object")
+	}
 	return args, nil
+}
+
+// decodeLooseArgs decodes the argument payload of a tagged tool call. The
+// tagged families tolerate payloads that are not JSON objects: the payload is
+// carried verbatim under a "_raw" key so a malformed call stays visible
+// instead of being silently dropped. JSON null decodes to a nil map, so it is
+// carried the same way.
+func decodeLooseArgs(argsRaw string) map[string]any {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(argsRaw), &args); err == nil && args != nil {
+		return args
+	}
+	return map[string]any{"_raw": argsRaw}
 }
 
 func (f *GenericFormatter) ParseToolCalls(response string) ([]ParsedToolCall, error) {
@@ -81,6 +97,9 @@ func (f *GenericFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 
 	result := make([]ParsedToolCall, 0, len(calls))
 	for _, c := range calls {
+		if c.Name == "" {
+			return nil, fmt.Errorf("tool call missing 'name' field")
+		}
 		args, err := decodeToolCallArgs(c.Args)
 		if err != nil {
 			return nil, fmt.Errorf("tool call %q: %w", c.Name, err)

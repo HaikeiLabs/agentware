@@ -62,6 +62,9 @@ func (f *NemotronFormatter) ParseToolCalls(response string) ([]ParsedToolCall, e
 
 	result := make([]ParsedToolCall, 0, len(calls))
 	for _, c := range calls {
+		if c.Name == "" {
+			return nil, fmt.Errorf("tool call missing 'name' field")
+		}
 		args, err := decodeToolCallArgs(c.Args)
 		if err != nil {
 			return nil, fmt.Errorf("tool call %q: %w", c.Name, err)

@@ -59,12 +59,12 @@ func (f *MiniMaxFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 					continue
 				}
 				name := strings.TrimSpace(m[1])
+				if name == "" {
+					continue
+				}
 				argsRaw := strings.TrimSpace(m[2])
 
-				var args map[string]any
-				if err := json.Unmarshal([]byte(argsRaw), &args); err != nil {
-					args = map[string]any{"_raw": argsRaw}
-				}
+				args := decodeLooseArgs(argsRaw)
 
 				result = append(result, ParsedToolCall{
 					Name: name,
@@ -87,10 +87,7 @@ func (f *MiniMaxFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 				name := strings.TrimSpace(m[1])
 				argsRaw := strings.TrimSpace(m[2])
 
-				var args map[string]any
-				if err := json.Unmarshal([]byte(argsRaw), &args); err != nil {
-					args = map[string]any{"_raw": argsRaw}
-				}
+				args := decodeLooseArgs(argsRaw)
 
 				result = append(result, ParsedToolCall{
 					Name: name,
@@ -112,7 +109,7 @@ func (f *MiniMaxFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 		result := make([]ParsedToolCall, 0, len(toolCalls))
 		for _, c := range toolCalls {
 			var args map[string]any
-			if err := json.Unmarshal(c.Args, &args); err != nil {
+			if err := json.Unmarshal(c.Args, &args); err != nil || args == nil {
 				continue
 			}
 			result = append(result, ParsedToolCall{
