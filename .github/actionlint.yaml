@@ -1,0 +1,7 @@
+# actionlint configuration. The self-hosted runner labels used by the
+# workflows: the EKS eval runners that reach the model servers on the tailnet
+# (runner group "Agent evals", see docs/testing.md).
+self-hosted-runner:
+  labels:
+    - kei-agent-evals
+    - kei-agent-evals-qwen

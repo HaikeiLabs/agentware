@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -275,6 +276,68 @@ def test_policy_bundle_not_modified() -> None:
         resp2 = conn2.getresponse()
         resp2.read()
         assert resp2.status == 304, f"expected 304, got {resp2.status}"
+    finally:
+        _stop_stub(proc)
+
+
+def _flush(port: int, body: bytes, headers: dict[str, str] | None = None) -> tuple[int, dict]:
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.request(
+        "POST",
+        "/api/v1/runtime/audit:flush",
+        body=body,
+        headers={"Content-Type": "application/json", **(headers or {})},
+    )
+    resp = conn.getresponse()
+    return resp.status, json.loads(resp.read())
+
+
+def test_audit_flush_stores_records_and_returns_exact_counts(tmp_path: Path) -> None:
+    """POST audit:flush answers upserted/received/skipped only and logs records."""
+    log = tmp_path / "audit.jsonl"
+    proc, port = _start_stub({"FAKE_CONTROL_PLANE_AUDIT_LOG": str(log)})
+    try:
+        records = [
+            {"span_id": "s1", "tool_name": "echo", "decision": "allow", "invoking_subject": "user:u-1"},
+            {"span_id": "s2", "tool_name": "rm", "decision": "deny", "invoking_subject": "user:u-1"},
+        ]
+        status, body = _flush(port, json.dumps({"records": records}).encode(), _headers_with_token())
+        assert status == 200
+        # kei-proxy's collector rejects a response with any other field.
+        assert body == {"upserted": 2, "received": 2, "skipped": 0}
+        stored = [json.loads(line) for line in log.read_text().splitlines()]
+        assert stored == records
+    finally:
+        _stop_stub(proc)
+
+
+def test_audit_flush_skips_records_with_no_invoking_subject(tmp_path: Path) -> None:
+    """A record with an empty invoking_subject is skipped, as the catalog does (HAI-928)."""
+    log = tmp_path / "audit.jsonl"
+    proc, port = _start_stub({"FAKE_CONTROL_PLANE_AUDIT_LOG": str(log)})
+    try:
+        records = [
+            {"span_id": "s1", "invoking_subject": ""},
+            {"span_id": "s2"},
+            {"span_id": "s3", "invoking_subject": "user:u-1"},
+        ]
+        status, body = _flush(port, json.dumps({"records": records}).encode(), _headers_with_token())
+        assert status == 200
+        assert body == {"upserted": 1, "received": 3, "skipped": 2}
+        assert [json.loads(line)["span_id"] for line in log.read_text().splitlines()] == ["s3"]
+    finally:
+        _stop_stub(proc)
+
+
+def test_audit_flush_rejects_missing_token_and_bad_json() -> None:
+    proc, port = _start_stub()
+    try:
+        status, _ = _flush(port, b'{"records": []}')
+        assert status == 401
+        status, body = _flush(port, b"not json", _headers_with_token())
+        assert status == 400 and body["error"] == "invalid_json"
+        status, body = _flush(port, b'{"records": {}}', _headers_with_token())
+        assert status == 400
     finally:
         _stop_stub(proc)
 
@@ -890,13 +953,14 @@ def _recv_raw_response(s: socket.socket) -> _RawResponse:
 # ---------------------------------------------------------------------------
 
 
-def _start_stub() -> tuple[subprocess.Popen, int]:
+def _start_stub(env: dict[str, str] | None = None) -> tuple[subprocess.Popen, int]:
     """Start fake-control-plane.py on an ephemeral port, return (proc, port)."""
     proc = subprocess.Popen(
         [sys.executable, str(STUB)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env={**os.environ, **(env or {})},
     )
     assert proc.stdout is not None
     line = proc.stdout.readline()

@@ -1,0 +1,122 @@
+name: Live model captures
+
+# Tier 2 of docs/testing.md: a cross-language drift detector over real model
+# output. Weekly and on demand, each live model profile in
+# evals/model-profiles.yaml gets the fixed prompts in
+# scripts/live-captures/prompts.json; the raw responses become candidate
+# fixtures in the shape of fixtures/toolformat and fixtures/reasoning. Go,
+# the reference implementation, fills in the expected values, and the run
+# fails if the Python, TypeScript or Rust fixture tests disagree with Go on
+# any captured response. Captures are uploaded as artifacts and never
+# committed; adopting one as a fixture is a reviewed PR.
+#
+# Runner placement (owner decision 2026-10-29): only the capture job needs the
+# model servers, so only it runs on the self-hosted kei-agent-evals runners,
+# which reach them through Tailscale egress Services. The compare job needs no
+# network and runs GitHub-hosted. Trusted triggers only: there is no
+# pull_request trigger, so PR code (and fork PRs) never reach the
+# self-hosted runners. Never pull_request_target.
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'  # weekly Monday 05:23 UTC, before the 09:00 nightly evals
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-captures
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Capture (${{ matrix.profile }})
+    if: github.repository == 'HaikeiLabs/agentware'
+    runs-on: ${{ matrix.runner }}
+    # Five prompts, one request at a time, on hosts shared with the evals.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # The runner that reaches each profile's server, as in agent-evals.yaml.
+        include:
+          - profile: glm-5.3-flash
+            runner: kei-agent-evals
+          - profile: qwen3.8-27b
+            runner: kei-agent-evals-qwen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Exit 2 is "model unreachable", never drift; the job fails either way
+      # and the compare job still checks the profiles that answered.
+      - name: Capture responses
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          uv run --no-project --python 3.11 --with 'pyyaml==6.0.2' \
+            python scripts/live-captures/capture.py capture \
+              --profile "$PROFILE" --out "$RUNNER_TEMP/captures"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: live-captures-${{ matrix.profile }}
+          path: ${{ runner.temp }}/captures
+          if-no-files-found: warn
+          retention-days: 30
+
+  compare:
+    name: Compare SDKs against Go
+    needs: capture
+    if: ${{ !cancelled() && github.repository == 'HaikeiLabs/agentware' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: live-captures-*
+          path: _captures
+          merge-multiple: true
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: python/pyproject.toml
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.18'
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - name: Install TypeScript dependencies
+        working-directory: typescript
+        run: npm ci
+      - name: Install the pinned Rust toolchain
+        working-directory: rust
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust
+
+      - name: Fill from Go and replay in every SDK
+        run: python3 scripts/live-captures/capture.py compare --captures _captures
+
+      # The filled candidates, report.json, summary.md and per-language logs.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: live-captures-compared
+          path: _captures
+          if-no-files-found: warn
+          retention-days: 30
