@@ -38,5 +38,4 @@ and `#`.
 | typescript | `reasoning/qwen-cases.json#examples/text response with thinking tags` | The TypeScript adapter strips inline thinking tags from clean content while this fixture expects them retained | aw-ts-fx |
 | rust | `toolformat/*-cases.json#*` | Rust has no toolformat module yet | T3a, `feat/parity-8-rust-toolformat` (aw-rs-tf), PR not open yet |
 | rust | `reasoning/*-cases.json#*` | Rust has no reasoning adapter yet | T3b Rust reasoning, not started |
-| rust | `toolspec/manifest-v3/index.json#*` | Rust manifest-v3 loader not written yet | T2e Rust loader, not started |
 | rust | `toolspec/cases.v1.json#*` | No Rust runner for the ToolSpec contract cases | unassigned (T4 follow-up) |

@@ -69,8 +69,9 @@ test and only if it passed), `python/tests/conformance.py`
 (`record(fixture, section, case)`, called after the case's assertions), and
 a small `record()` function at the top of each TypeScript fixture test (ts-jest
 compiles tests against `rootDir: src`, so tests cannot share a helper module).
-Rust has no fixture runner yet; its first one should append the same JSON
-line, with `"language": "rust"`, when the variable is set.
+The Rust recorder is the small `record()` function at the top of
+`rust/agentware-kei/tests/manifest_v3_fixtures.rs` (appending the same JSON
+line, with `"language": "rust"`, when the variable is set).
 
 Run it locally the way CI does:
 
