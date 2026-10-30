@@ -34,6 +34,10 @@ AUTHORIZE_FIELDS = {
     "schema", "tool", "action", "resource", "connector", "span_id",
     "parent_span", "delegation_depth", "framework", "tool_args_digest", "shell_command",
 }  # fmt: skip
+CREDENTIAL_RELEASE_FIELDS = {
+    "schema", "tool", "resource", "connector", "span_id", "parent_span",
+    "delegation_depth", "framework", "tool_args_digest",
+}  # fmt: skip
 SESSION_FIELDS = {"schema", "user_id", "email", "status", "enrollment", "source", "external_id"}
 LINKED = {("openwebui", "ada"): "user-ada"}
 DENIED_TOOLS = {"github.delete_repo"}
@@ -133,6 +137,29 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 answer |= {"decision": "permit", "policy_id": "p-allow"}
             return self._send(200, answer)
+        if route == ("POST", "/v1/credentials:release"):
+            connector = (body or {}).get("connector")
+            if (
+                body is None
+                or set(body) - CREDENTIAL_RELEASE_FIELDS
+                or body.get("schema") != "kei.credential-release-request/v1"
+                or not body.get("resource")
+                or not isinstance(connector, dict)
+                or set(connector) != {"connector_id", "capability"}
+                or not connector.get("connector_id")
+                or not connector.get("capability")
+            ):
+                return self._error(400, "invalid_request")
+            if session not in self.daemon.sessions:
+                return self._error(404, "session_not_found")
+            return self._send(
+                200,
+                {
+                    "schema": "kei.credential-release-response/v1",
+                    "decision": "permit",
+                    "credential": {"access_token": "contract-secret", "token_type": "Bearer"},
+                },
+            )
         if route == ("GET", "/v1/models"):
             return self._send(200, {"object": "list", "data": [{"id": "gpt-4.1", "object": "model"}]})
         if route == ("POST", "/v1/chat/completions"):
@@ -246,6 +273,38 @@ async def test_exact_target_authorize_contract(daemon: tuple[Daemon, str]) -> No
         "resource": "repos/owner/name",
     }
     assert "user_id" not in body and "agent_id" not in body
+
+
+async def test_credential_release_contract_uses_named_session_without_logging_secret(
+    daemon: tuple[Daemon, str],
+) -> None:
+    state, path = daemon
+    c = client(path)
+    session = await c.open_session(ADA)
+
+    response = await c.release_credential(
+        session,
+        connector_id="conn-fixture-1",
+        capability="repository.read",
+        resource="repos/owner/name",
+        tool="github.read_repo",
+        span_id="span-1",
+    )
+
+    assert response == {
+        "schema": "kei.credential-release-response/v1",
+        "decision": "permit",
+        "credential": {"access_token": "contract-secret", "token_type": "Bearer"},
+    }
+    [release] = [entry for entry in state.log if entry[:2] == ("POST", "/v1/credentials:release")]
+    assert release[2] == {
+        "schema": "kei.credential-release-request/v1",
+        "connector": {"connector_id": "conn-fixture-1", "capability": "repository.read"},
+        "resource": "repos/owner/name",
+        "tool": "github.read_repo",
+        "span_id": "span-1",
+    }
+    assert "contract-secret" not in repr(state.log)
 
 
 async def test_an_unlinked_subject_is_a_deny_with_its_enrollment(daemon: tuple[Daemon, str]) -> None:

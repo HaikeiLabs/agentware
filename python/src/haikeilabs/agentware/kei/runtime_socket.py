@@ -11,6 +11,7 @@ harness needs:
   The daemon resolves the Kei user from that identity; requests in the
   session carry ``X-Kei-Session`` and never name the user themselves.
 - ``POST /v1/authorize``: one ``kei.authorize-request/v1`` decision.
+- ``POST /v1/credentials:release``: a credential release in a named session.
 - ``GET /v1/models`` and ``POST /v1/chat/completions``: the model routes,
   each call made inside a session so the daemon authorizes and audits
   ``model.invoke`` for the session's user.
@@ -70,6 +71,8 @@ SESSION_HEADER = "X-Kei-Session"
 SESSION_SCHEMA = "kei.session/v2"
 AUTHORIZE_REQUEST_SCHEMA = "kei.authorize-request/v1"
 AUTHORIZE_RESPONSE_SCHEMA = "kei.authorize-response/v1"
+CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
+CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
 POLICY_BUNDLE_STATUS_SCHEMA = "kei.policy-bundle-status/v1"
 CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
 CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
