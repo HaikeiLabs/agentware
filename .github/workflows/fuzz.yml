@@ -1,0 +1,107 @@
+name: Go Fuzz
+
+# T6 of docs/testing.md: the native Go fuzz targets for the parsers. PRs that
+# touch a fuzzed package or the fixtures (the seed corpora) fuzz each target
+# for 30s; the nightly schedule and workflow_dispatch fuzz each for 10m. A
+# failing input is uploaded as an artifact and the job summary says how to
+# replay it locally.
+#
+# Public repo, GitHub-hosted runners only: fuzzing needs no secrets or live
+# model, so the long run stays on hosted runners too. Never pull_request_target.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'go/toolformat/**'
+      - 'go/toolspec/**'
+      - 'go/reasoning/**'
+      - 'fixtures/**'
+      - '.github/workflows/fuzz.yml'
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: 'Fuzz time per target (Go duration, e.g. 10m, 1h)'
+        required: false
+        default: '10m'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    # Covers a workflow_dispatch fuzztime up to ~5h; the hosted job limit is 6h.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 15 || 330 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: FuzzParseToolCalls
+            package: toolformat
+          - target: FuzzParseManifestV3
+            package: toolspec
+          - target: FuzzAdapter
+            package: reasoning
+    env:
+      FUZZTIME: ${{ github.event_name == 'pull_request' && '30s' || inputs.fuzztime || '10m' }}
+      CORPUS: go/${{ matrix.package }}/testdata/fuzz/${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Fuzz ${{ matrix.target }} for ${{ env.FUZZTIME }}
+        working-directory: go
+        run: go test -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime="$FUZZTIME" "./${{ matrix.package }}/"
+
+      # go test writes a failing input to testdata/fuzz/<Target>/. Keep only
+      # the new files, not the committed regression seeds.
+      - name: Collect new crashers
+        id: crashers
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/crashers"
+          git ls-files --others --exclude-standard -- "$CORPUS" > "$RUNNER_TEMP/new-files"
+          while read -r file; do
+            cp "$file" "$RUNNER_TEMP/crashers/"
+          done < "$RUNNER_TEMP/new-files"
+          {
+            echo "### ${{ matrix.target }} failed"
+            echo
+            if [ -s "$RUNNER_TEMP/new-files" ]; then
+              echo "Download the \`fuzz-crashers-${{ matrix.target }}\` artifact into \`$CORPUS/\` and replay each input:"
+              echo
+              echo '```sh'
+              echo "cd go"
+              while read -r file; do
+                echo "go test -run='${{ matrix.target }}/$(basename "$file")' ./${{ matrix.package }}/"
+              done < "$RUNNER_TEMP/new-files"
+              echo '```'
+              echo
+              echo "Fix the parser, then commit the input under \`$CORPUS/\` as a regression seed."
+            else
+              echo "No new input was written to \`$CORPUS/\`; see the job log (build error or timeout)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -s "$RUNNER_TEMP/new-files" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; fi
+
+      - if: failure() && steps.crashers.outputs.found == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crashers-${{ matrix.target }}
+          path: ${{ runner.temp }}/crashers/
+          if-no-files-found: error
+          retention-days: 30

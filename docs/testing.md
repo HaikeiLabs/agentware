@@ -23,11 +23,16 @@ to full commit SHAs.
   `rust-test.yml`: each language's full test, lint and build suite. They are
   path-filtered to their own directory and also run on any change under
   `fixtures/**`, so a fixtures-only PR runs every language.
+- `fuzz.yml`: the Go fuzz targets, 30 seconds each, on PRs that touch
+  `go/toolformat`, `go/toolspec`, `go/reasoning` or `fixtures/**`. The same
+  workflow runs each target for 10 minutes nightly and on
+  `workflow_dispatch`. That long run needs no secrets or model, so it stays
+  on hosted runners (see [Fuzzing](#fuzzing)).
 
 **Tier 2: trusted events only, self-hosted EKS runners.** Work that needs a
 live model, the real `kei-proxy`, or more time than a PR should wait for:
 live model re-captures (opening a PR when a model's output drifts from the
-fixtures), long fuzz runs, the real-proxy integration with a governed-call
+fixtures), the real-proxy integration with a governed-call
 audit assertion, and the agent evals. These jobs run on `schedule`,
 `workflow_dispatch` or `push` to `main`, never on fork PRs and never through
 `pull_request_target`. They are not part of this page's gate; see
@@ -85,6 +90,34 @@ python3 scripts/conformance/gate.py check --logs "$log"
 ```
 
 Go needs `-count=1`: a cached test result skips the run and records nothing.
+
+## Fuzzing
+
+The Go parsers have native fuzz targets, seeded from the shared fixtures:
+
+| Target | Package |
+|---|---|
+| `FuzzParseToolCalls` | `go/toolformat` |
+| `FuzzParseManifestV3` | `go/toolspec` |
+| `FuzzAdapter` | `go/reasoning` |
+
+Run one locally from `go/` (`-run='^$'` skips the unit tests):
+
+```sh
+go test -run='^$' -fuzz='^FuzzParseToolCalls$' -fuzztime=30s ./toolformat/
+```
+
+A failing input is written to `<package>/testdata/fuzz/<Target>/<file>`. In
+CI the job fails, uploads the new files as the `fuzz-crashers-<Target>`
+artifact and prints the replay command in the job summary. To reproduce,
+put the file in that directory and run:
+
+```sh
+go test -run='FuzzParseToolCalls/<file>' ./toolformat/
+```
+
+Fix the parser and commit the input as a regression seed: plain `go test`
+replays every file under `testdata/fuzz`, so the case stays covered.
 
 ## Adding a fixture case
 
