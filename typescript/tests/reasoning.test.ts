@@ -24,6 +24,33 @@ function fixedClock(): Date {
 }
 
 describe("strip", () => {
+  it("accepts a bare OpenAI message", () => {
+    const adapter = new ReasoningAdapter();
+    expect(
+      adapter.strip({ role: "assistant", content: "answer", reasoning_content: "thought" })
+    ).toBe("answer");
+  });
+
+  it("unwraps choices[0].message from a full OpenAI response", () => {
+    const adapter = new ReasoningAdapter();
+    expect(
+      adapter.strip({
+        choices: [{ message: { role: "assistant", content: "answer", reasoning_content: "thought" } }],
+      })
+    ).toBe("answer");
+  });
+
+  it("extracts Anthropic typed content parts", () => {
+    const adapter = new ReasoningAdapter();
+    const raw = { role: "assistant", content: [
+      { type: "thinking", thinking: "first thought" },
+      { type: "tool_use", name: "search", input: {} },
+      { type: "text", text: "answer" },
+    ] };
+    expect(adapter.strip(raw)).toBe("answer");
+    expect(adapter.extract(raw).nodes.map((node) => node.summary)).toEqual(["first thought"]);
+  });
+
   it("handles native reasoning_content", () => {
     const adapter = new ReasoningAdapter();
     const raw = {
@@ -74,6 +101,11 @@ describe("fail-closed", () => {
   it("rejects a non-string content field", () => {
     const adapter = new ReasoningAdapter();
     expect(() => adapter.strip({ content: ["parts"] })).toThrow(MalformedContentError);
+  });
+
+  it("rejects malformed Anthropic content parts", () => {
+    const adapter = new ReasoningAdapter();
+    expect(() => adapter.strip({ content: ["not an object"] })).toThrow(MalformedContentError);
   });
 
   it("rejects unbalanced thinking tags", () => {
