@@ -33,7 +33,6 @@ and `#`.
 | go | `reasoning/*-cases.json#*` | No Go runner for the reasoning fixtures | unassigned (T4 follow-up) |
 | python | `toolformat/*-cases.json#*` | No Python runner for the toolformat fixtures (`tests/toolformat_test.py` uses inline cases) | unassigned (T4 follow-up) |
 | python | `reasoning/*-cases.json#*` | No Python runner for the reasoning fixtures (`tests/reasoning_test.py` uses inline cases) | unassigned (T4 follow-up) |
-| python | `toolspec/manifest-v3/index.json#*` | Python manifest-v3 loader not merged yet | T2c, `feat/parity-5-py-manifest-loader` (aw-ld-py2), PR not open yet |
 | typescript | `reasoning/deepseek-cases.json#examples/text mode with THINK tags` | The shared input combines a leading-space THINK-tag block with trailing content; the TypeScript adapter returns different leading whitespace | aw-ts-fx |
 | typescript | `reasoning/qwen-cases.json#examples/reasoning_content with thinking tags` | With both a native reasoning field and inline thinking tags, the TypeScript adapter strips tags from clean content while this fixture expects them retained | aw-ts-fx |
 | typescript | `reasoning/qwen-cases.json#examples/text response with thinking tags` | The TypeScript adapter strips inline thinking tags from clean content while this fixture expects them retained | aw-ts-fx |

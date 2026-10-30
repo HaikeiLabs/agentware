@@ -167,7 +167,9 @@ from .tool_sync import (
     ToolManifestSyncError,
     ToolManifestSyncResult,
     manifest_tool_count,
+    sync_manifest_path,
     sync_tool_manifest,
+    sync_tool_specs,
 )
 
 __all__ = [
@@ -277,7 +279,9 @@ __all__ = [
     "ToolManifestSyncError",
     "ToolManifestSyncResult",
     "manifest_tool_count",
+    "sync_manifest_path",
     "sync_tool_manifest",
+    "sync_tool_specs",
     "Client",
     "CODE_DENIED",
     "CODE_HEADER_MISMATCH",

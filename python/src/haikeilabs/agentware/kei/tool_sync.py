@@ -19,6 +19,9 @@ catalog, so a harness registers its tools before it serves:
   ignored. The proxy is set on this client only, never exported.
 - The token goes in the ``Authorization`` header and nowhere else: not in a
   log line, an error message or the config's repr.
+- Callers hold the manifest as JSON text, a mapping, typed
+  :class:`~haikeilabs.agentware.toolspec.ToolSpec` values, or a file path;
+  every entry point sends the same PUT for the same tools.
 
 This is the Python home of kei-openwebui's ``tool_sync.py``.
 """
@@ -27,13 +30,16 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 from urllib.request import proxy_bypass_environment  # type: ignore[attr-defined]  # not in typeshed
 
 import httpx
+
+from haikeilabs.agentware.toolspec import ToolSpec, load_manifest_v3, serialize_tool_specs
 
 from .policy_bundle import RUNTIME_CONTROL_PLANE_URL_ENV, RUNTIME_TOKEN_ENV
 
@@ -46,7 +52,9 @@ __all__ = [
     "ToolManifestSyncError",
     "ToolManifestSyncResult",
     "manifest_tool_count",
+    "sync_manifest_path",
     "sync_tool_manifest",
+    "sync_tool_specs",
 ]
 
 logger = logging.getLogger(__name__)
@@ -78,6 +86,7 @@ class ToolManifestSyncConfig:
     attempts: int = DEFAULT_ATTEMPTS
     backoff_seconds: float = DEFAULT_BACKOFF_SECONDS
     timeout: float = DEFAULT_TIMEOUT_SECONDS
+    expect_tools: bool = True
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "ToolManifestSyncConfig":
@@ -133,7 +142,7 @@ def sync_tool_manifest(
     manifest: str | Mapping[str, Any],
     config: ToolManifestSyncConfig,
     *,
-    expect_tools: bool = True,
+    expect_tools: bool | None = None,
     transport: httpx.BaseTransport | None = None,
     sleep: Callable[[float], Any] = time.sleep,
 ) -> ToolManifestSyncResult:
@@ -142,7 +151,8 @@ def sync_tool_manifest(
     Args:
         manifest: The tool manifest v3 document, as JSON text or a mapping.
         config: Control plane, token and egress settings.
-        expect_tools: Whether this harness is configured with tools. An empty
+        expect_tools: Whether this harness is configured with tools; ``None``
+            (the default) takes it from ``config.expect_tools``. An empty
             manifest is never sent; it raises when tools are expected and
             returns ``sent=False`` when they are not.
         transport: Replaces the HTTP transport (tests).
@@ -154,6 +164,8 @@ def sync_tool_manifest(
     """
     document = _document(manifest)
     count = manifest_tool_count(document)
+    if expect_tools is None:
+        expect_tools = config.expect_tools
     if count == 0:
         if expect_tools:
             raise ToolManifestSyncError(
@@ -200,6 +212,69 @@ def sync_tool_manifest(
                 )
                 sleep(delay)
     raise ToolManifestSyncError(f"PUT {TOOLS_PATH} failed after {attempts} attempt(s): {last}")
+
+
+def sync_tool_specs(
+    specs: Sequence[ToolSpec],
+    config: ToolManifestSyncConfig,
+    *,
+    expect_tools: bool | None = None,
+    transport: httpx.BaseTransport | None = None,
+    sleep: Callable[[float], Any] = time.sleep,
+) -> ToolManifestSyncResult:
+    """Serialize typed specs and register them with Kei (replace mode).
+
+    Sends exactly what :func:`sync_tool_manifest` sends for the same
+    manifest, so the str/Mapping callers keep their behaviour.
+
+    Args:
+        specs: The typed tool declarations, in registration order.
+        config, expect_tools, transport, sleep: As in :func:`sync_tool_manifest`.
+
+    Raises:
+        ValueError: A spec lacks the runtime routing metadata ``to_wire``
+            requires (checked before anything is sent).
+        ToolManifestSyncError: As in :func:`sync_tool_manifest`.
+    """
+    return sync_tool_manifest(
+        serialize_tool_specs(list(specs)),
+        config,
+        expect_tools=expect_tools,
+        transport=transport,
+        sleep=sleep,
+    )
+
+
+def sync_manifest_path(
+    path: str | Path,
+    config: ToolManifestSyncConfig,
+    *,
+    expect_tools: bool | None = None,
+    transport: httpx.BaseTransport | None = None,
+    sleep: Callable[[float], Any] = time.sleep,
+) -> ToolManifestSyncResult:
+    """Load a kei.tool-manifest/v3 file and register its tools (replace mode).
+
+    The file is parsed with :func:`load_manifest_v3` and the typed specs are
+    re-serialized, so what is sent is the marshalled form of what was loaded:
+    a bad document raises :class:`ManifestV3Error` and nothing is sent.
+
+    Args:
+        path: Path to the ``application/vnd.kei.tool-manifest.v3+json`` file.
+        config, expect_tools, transport, sleep: As in :func:`sync_tool_manifest`.
+
+    Raises:
+        ManifestV3Error: The document violates the manifest contract.
+        OSError: The file is missing or unreadable.
+        ToolManifestSyncError: As in :func:`sync_tool_manifest`.
+    """
+    return sync_tool_specs(
+        load_manifest_v3(path),
+        config,
+        expect_tools=expect_tools,
+        transport=transport,
+        sleep=sleep,
+    )
 
 
 def _document(manifest: str | Mapping[str, Any]) -> dict[str, Any]:
