@@ -210,7 +210,11 @@ class ReasoningAdapter:
         trimmed = raw.strip()
         if trimmed and trimmed[0:1] in (b"{", b"["):
             try:
-                parsed = json.loads(trimmed)
+                # Decode before parsing, coercing invalid UTF-8 to U+FFFD the
+                # way Go's json.Unmarshal does, so undecodable input fails
+                # closed as MalformedJSONError instead of leaking
+                # UnicodeDecodeError.
+                parsed = json.loads(trimmed.decode("utf-8", errors="replace"))
             except json.JSONDecodeError as e:
                 raise MalformedJSONError(str(e)) from e
             if isinstance(parsed, dict) and self._has_recognized_key(parsed):
@@ -391,9 +395,7 @@ def _extract_content_parts(parts: list[Any]) -> tuple[str, str, ReasoningError |
         elif part_type == "thinking":
             thinking = part.get("thinking")
             if not isinstance(thinking, str):
-                return "", "", MalformedReasoningFieldError(
-                    "thinking part has no string thinking"
-                )
+                return "", "", MalformedReasoningFieldError("thinking part has no string thinking")
             thinking_parts.append(thinking)
     return "\n".join(text_parts), "\n".join(thinking_parts), None
 

@@ -7,8 +7,10 @@ name: Fuzz
 # replay it locally.
 #
 # The nightly and workflow_dispatch runs also run the TypeScript parser
-# property tests (fast-check) at a high run count. PRs already run them at the
-# default ~200 runs in typescript-test.yml, so that job never runs on PRs.
+# property tests (fast-check) and the Python parser property tests
+# (Hypothesis) at a high run count. PRs already run them at the default
+# ~200-example profile in typescript-test.yml and python-test.yml, so those
+# jobs never run on PRs.
 #
 # Public repo, GitHub-hosted runners only: fuzzing needs no secrets or live
 # model, so the long run stays on hosted runners too. Never pull_request_target.
@@ -163,6 +165,50 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Python Hypothesis nightly goes here (later PR): a python-properties job,
-  # same `if: github.event_name != 'pull_request'`, running the property tests
-  # with HYPOTHESIS_PROFILE=nightly.
+  # The Python twin of typescript-properties: the Hypothesis property tests
+  # (python/tests/parser_fuzz_test.py) at the nightly run count. PRs already
+  # run them at the default profile in python-test.yml, so this job never
+  # runs on PRs.
+  python-properties:
+    name: Property tests (Python)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HYPOTHESIS_PROFILE: nightly
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: python/pyproject.toml
+
+      # Hypothesis prints the falsifying example and a @reproduce_failure
+      # blob, which pytest shows in the log; the log is kept to copy them
+      # into the summary.
+      - name: Run parser property tests (HYPOTHESIS_PROFILE=nightly)
+        working-directory: python
+        run: |
+          set -o pipefail
+          uv run --extra dev pytest -q tests/parser_fuzz_test.py 2>&1 | tee "$RUNNER_TEMP/parser-fuzz.log"
+
+      - name: Report the failing example
+        if: failure()
+        run: |
+          {
+            echo "### Python property tests failed"
+            echo
+            if grep -q 'Falsifying example' "$RUNNER_TEMP/parser-fuzz.log"; then
+              echo "Hypothesis reported a falsifying example; replay it with the \`@reproduce_failure\` blob it suggests:"
+              echo
+              echo '```'
+              grep -B1 -A25 'Falsifying example' "$RUNNER_TEMP/parser-fuzz.log" | head -60
+              echo '```'
+            else
+              echo "No falsifying example in the log; see the job log (install error or timeout)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
