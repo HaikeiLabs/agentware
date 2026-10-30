@@ -51,6 +51,21 @@ pub fn register(client: &Client, specs: &[ToolSpec]) -> Result<(), RegisterError
     let manifest = marshal_manifest_v3(specs).map_err(RegisterError::InvalidManifest)?;
     client.send_tools(&manifest).map_err(RegisterError::Socket)
 }
+
+/// Register typed ToolSpecs, serialized as manifest v3. Sends exactly what
+/// `sync` sends for the same manifest; specs that cannot serialize are an
+/// `invalid_manifest` error before anything is sent.
+pub fn sync_specs(
+    specs: &[ToolSpec],
+    config: &Config,
+    expect_tools: bool,
+) -> Result<SyncResult, SyncError> {
+    let manifest =
+        marshal_manifest_v3(specs).map_err(|error| failure("invalid_manifest", error))?;
+    let text = String::from_utf8(manifest)
+        .map_err(|_| failure("invalid_manifest", "the tool manifest is not UTF-8"))?;
+    sync(&text, config, expect_tools)
+}
 #[derive(Debug)]
 pub enum RegisterError {
     EmptyManifest,
