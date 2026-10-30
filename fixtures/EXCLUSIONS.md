@@ -28,5 +28,4 @@ and `#`.
 | Language | Cases | Reason | Removed by |
 |---|---|---|---|
 | rust | `toolformat/*-cases.json#*` | Rust has no toolformat module yet | T3a, `feat/parity-8-rust-toolformat` (aw-rs-tf), PR not open yet |
-| rust | `reasoning/*-cases.json#*` | Rust has no reasoning adapter yet | T3b Rust reasoning, not started |
 | rust | `toolspec/cases.v1.json#*` | No Rust runner for the ToolSpec contract cases | unassigned (T4 follow-up) |
