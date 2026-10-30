@@ -208,21 +208,35 @@ func (a *Adapter) analyzeBytes(b []byte, model string) (*analysis, error) {
 }
 
 // analyzeStructured inspects a decoded JSON object. It descends into a
-// "message" key (OpenAI-style) and looks for reasoning fields, then for the
-// clean content.
+// "message" key (OpenAI-style, including the choices[0].message nesting of a
+// full OpenAI-compatible response) and looks for reasoning fields, then for
+// the clean content. Content may be a string, null, or (Anthropic Messages
+// API) a list of typed parts.
 func (a *Adapter) analyzeStructured(m map[string]any, model string) (*analysis, error) {
 	if msg, ok := m["message"].(map[string]any); ok {
 		return a.analyzeStructured(msg, model)
 	}
+	if msg := firstChoiceMessage(m); msg != nil {
+		return a.analyzeStructured(msg, model)
+	}
 
-	// Content first: fail closed on a non-string content value.
+	// Content first: a string, null, or a list of typed parts. Fail closed on
+	// any other shape.
 	var content string
+	var partReasoning string
 	if c, ok := m["content"]; ok {
-		if c == nil {
+		switch v := c.(type) {
+		case nil:
 			content = ""
-		} else if cs, ok := c.(string); ok {
-			content = cs
-		} else {
+		case string:
+			content = v
+		case []any:
+			var err error
+			content, partReasoning, err = extractContentParts(v)
+			if err != nil {
+				return nil, err
+			}
+		default:
 			return nil, fmt.Errorf("%w: got %T", ErrMalformedContent, c)
 		}
 	}
@@ -230,6 +244,11 @@ func (a *Adapter) analyzeStructured(m map[string]any, model string) (*analysis, 
 	reasoning, format, err := a.extractReasoningField(m, model)
 	if err != nil {
 		return nil, err
+	}
+	// A native reasoning field takes priority; otherwise use the reasoning
+	// carried by Anthropic-style thinking parts.
+	if reasoning == "" && partReasoning != "" {
+		reasoning, format = partReasoning, FormatNative
 	}
 
 	// A native reasoning field means the content is already clean, but
@@ -251,6 +270,54 @@ func (a *Adapter) analyzeStructured(m map[string]any, model string) (*analysis, 
 		return &analysis{reasoning: tags, clean: clean, format: FormatThinking}, nil
 	}
 	return &analysis{reasoning: "", clean: content, format: FormatNone}, nil
+}
+
+// firstChoiceMessage returns the message object of the first choice of a
+// full OpenAI-compatible response ({choices: [{message: {...}}]}), or nil
+// when m is not shaped that way.
+func firstChoiceMessage(m map[string]any) map[string]any {
+	choices, ok := m["choices"].([]any)
+	if !ok || len(choices) == 0 {
+		return nil
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		return nil
+	}
+	msg, ok := choice["message"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return msg
+}
+
+// extractContentParts splits an Anthropic Messages API content list into the
+// clean text (joined "text" parts) and the reasoning (joined "thinking"
+// parts). Other part types (tool_use, tool_result, ...) are ignored: they
+// carry neither clean text nor reasoning.
+func extractContentParts(parts []any) (content, reasoning string, err error) {
+	var textParts, thinkingParts []string
+	for _, p := range parts {
+		part, ok := p.(map[string]any)
+		if !ok {
+			return "", "", fmt.Errorf("%w: content part is not an object", ErrMalformedContent)
+		}
+		switch part["type"] {
+		case "text":
+			text, ok := part["text"].(string)
+			if !ok {
+				return "", "", fmt.Errorf("%w: text part has no string text", ErrMalformedContent)
+			}
+			textParts = append(textParts, text)
+		case "thinking":
+			thinking, ok := part["thinking"].(string)
+			if !ok {
+				return "", "", fmt.Errorf("%w: thinking part has no string thinking", ErrMalformedReasoningField)
+			}
+			thinkingParts = append(thinkingParts, thinking)
+		}
+	}
+	return strings.Join(textParts, "\n"), strings.Join(thinkingParts, "\n"), nil
 }
 
 // extractReasoningField pulls the reasoning text out of a structured object,
