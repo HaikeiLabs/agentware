@@ -11,6 +11,7 @@ harness needs:
   The daemon resolves the Kei user from that identity; requests in the
   session carry ``X-Kei-Session`` and never name the user themselves.
 - ``POST /v1/authorize``: one ``kei.authorize-request/v1`` decision.
+- ``POST /v1/credentials:release``: a credential release in a named session.
 - ``GET /v1/models`` and ``POST /v1/chat/completions``: the model routes,
   each call made inside a session so the daemon authorizes and audits
   ``model.invoke`` for the session's user.
@@ -70,6 +71,8 @@ SESSION_HEADER = "X-Kei-Session"
 SESSION_SCHEMA = "kei.session/v2"
 AUTHORIZE_REQUEST_SCHEMA = "kei.authorize-request/v1"
 AUTHORIZE_RESPONSE_SCHEMA = "kei.authorize-response/v1"
+CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
+CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
 POLICY_BUNDLE_STATUS_SCHEMA = "kei.policy-bundle-status/v1"
 CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
 CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
@@ -226,6 +229,8 @@ class KeiProxySocketAuthorizeClient:
         delegation_depth: int = 0,
         framework: str = "",
         tool_args_digest: str = "",
+        connector_id: str = "",
+        capability: str = "",
     ) -> dict[str, Any]:
         """Ask the daemon for one decision in ``session``.
 
@@ -233,11 +238,24 @@ class KeiProxySocketAuthorizeClient:
         ``reason_code``, ``reason``, ``policy_id``, ``enrollment`` ...). Only
         ``permit``/``allow`` is an allow; a ``deny`` is returned, not raised.
         The request names no user or agent: the daemon decides identity from
-        the authenticated session.
+        the authenticated session. Optionally, ``connector_id`` and
+        ``capability`` together with a non-empty ``resource`` request an
+        exact connector target using the daemon's strict ``connector`` object.
         """
         if not session.source or not session.external_id or not session.session_id:
             raise ValueError("socket authorize needs an explicit named session")
+        if not isinstance(connector_id, str) or not isinstance(capability, str):
+            raise ValueError("connector_id and capability must be strings")
+        if bool(connector_id) != bool(capability):
+            raise ValueError("connector_id and capability must be provided together")
+        if connector_id and (not connector_id.strip() or not capability.strip()):
+            raise ValueError("connector_id and capability must be non-empty")
+        if connector_id and (not isinstance(resource, str) or not resource.strip()):
+            raise ValueError("an exact connector target requires a non-empty resource")
+
         request: dict[str, Any] = {"schema": AUTHORIZE_REQUEST_SCHEMA, "tool": tool}
+        if connector_id:
+            request["connector"] = {"connector_id": connector_id, "capability": capability}
         optional: dict[str, Any] = {
             "action": action,
             "resource": resource,
@@ -501,7 +519,10 @@ class KeiProxySocketAuthorizationClient:
 
     ``invoking_subject``, ``resources`` and ``workspace_id`` are accepted and
     not sent: the daemon takes the subject from the session, derives workspace
-    scope from the runtime token, and rejects unknown request fields.
+    scope from the runtime token, and rejects unknown request fields. Optional
+    ``connector_id`` and ``capability`` parameters are forwarded with the
+    non-empty ``resource`` as an exact target; they never supply user or agent
+    authority.
     """
 
     def __init__(self, source: str, client: KeiProxySocketAuthorizeClient | None = None) -> None:
@@ -542,6 +563,8 @@ class KeiProxySocketAuthorizationClient:
         tool_args_digest: str = "",
         resources: list[str] | None = None,
         workspace_id: str = "",
+        connector_id: str = "",
+        capability: str = "",
     ) -> dict[str, Any]:
         """Authorize one call for ``user_id`` over the socket."""
         if not user_id:
@@ -560,6 +583,8 @@ class KeiProxySocketAuthorizationClient:
                 delegation_depth=delegation_depth,
                 framework=framework,
                 tool_args_digest=tool_args_digest,
+                connector_id=connector_id,
+                capability=capability,
             )
 
         return _run_blocking(run)

@@ -11,6 +11,8 @@ tagged `agentware-py-v<version>`.
 
 ### Changed
 
+- Python Unix-socket clients support credential release in a named session,
+  alongside exact-target authorize using `connector{connector_id, capability}`.
 - **Breaking:** removed caller-provided `agent_id` from Kei authorize client
   APIs. Authorization identity is derived from the runtime token (HAI-557).
 
