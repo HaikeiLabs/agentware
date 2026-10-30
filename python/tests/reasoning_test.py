@@ -70,6 +70,126 @@ class TestStrip:
         assert adapter.strip(raw) == raw
 
 
+class TestStructuredShapes:
+    """Bare message, full choices[0] response, and Anthropic typed parts
+    (mirrors the go/reasoning shapes)."""
+
+    def test_bare_message(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "role": "assistant",
+            "content": "hello",
+            "reasoning_content": "thinking first",
+        }
+        assert adapter.strip(raw) == "hello"
+
+    def test_choices_response(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "id": "chatcmpl-1",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "22°C and sunny.",
+                        "reasoning_content": "Checking weather data...",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+        }
+        assert adapter.strip(raw) == "22°C and sunny."
+        tree = adapter.extract(raw, "glm-4", "test")
+        assert tree.format == Format.NATIVE
+        assert not tree.empty()
+
+    def test_choices_response_not_shaped(self):
+        adapter = ReasoningAdapter()
+        # Empty choices / non-dict choice / messageless choice: no descent.
+        assert adapter.strip({"choices": []}) == ""
+        assert adapter.strip({"choices": ["nope"]}) == ""
+        assert adapter.strip({"choices": [{"finish_reason": "stop"}]}) == ""
+
+    def test_anthropic_thinking_and_text_parts(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "id": "msg_02",
+            "content": [
+                {
+                    "type": "thinking",
+                    "thinking": "The user just said hello.",
+                    "signature": "sig",
+                },
+                {"type": "text", "text": "Hello! How can I help you today?"},
+            ],
+            "role": "assistant",
+        }
+        analysis = adapter._analyze(raw, "")
+        assert analysis.reasoning == "The user just said hello."
+        assert analysis.clean == "Hello! How can I help you today?"
+        assert analysis.format == Format.NATIVE
+
+    def test_anthropic_thinking_and_tool_use_parts(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "id": "msg_01",
+            "content": [
+                {"type": "thinking", "thinking": "Need the weather tool."},
+                {
+                    "type": "tool_use",
+                    "name": "get_weather",
+                    "input": {"location": "Tokyo"},
+                    "id": "toolu_1",
+                },
+            ],
+            "role": "assistant",
+        }
+        analysis = adapter._analyze(raw, "")
+        assert analysis.reasoning == "Need the weather tool."
+        assert analysis.clean == ""
+        assert analysis.format == Format.NATIVE
+
+    def test_anthropic_text_parts_joined(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "content": [
+                {"type": "text", "text": "part one"},
+                {"type": "text", "text": "part two"},
+            ]
+        }
+        analysis = adapter._analyze(raw, "")
+        assert analysis.reasoning == ""
+        assert analysis.clean == "part one\npart two"
+        assert analysis.format == Format.NONE
+
+    def test_anthropic_ignored_part_types(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "content": [
+                {"type": "tool_use", "id": "toolu_1", "name": "t", "input": {}},
+                {"type": "text", "text": "answer"},
+            ]
+        }
+        analysis = adapter._analyze(raw, "")
+        assert analysis.clean == "answer"
+        assert analysis.reasoning == ""
+
+    def test_native_field_beats_thinking_parts(self):
+        adapter = ReasoningAdapter()
+        raw = {
+            "content": [{"type": "thinking", "thinking": "part reasoning"}],
+            "reasoning_content": "native reasoning",
+        }
+        analysis = adapter._analyze(raw, "")
+        assert analysis.reasoning == "native reasoning"
+        assert analysis.clean == ""
+
+    def test_content_null(self):
+        adapter = ReasoningAdapter()
+        assert adapter.strip({"content": None}) == ""
+
+
 class TestFailClosed:
     def test_non_string_reasoning_field(self):
         adapter = ReasoningAdapter()
@@ -80,6 +200,26 @@ class TestFailClosed:
         adapter = ReasoningAdapter()
         with pytest.raises(MalformedContentError):
             adapter.strip({"content": ["parts"]})
+
+    def test_content_invalid_shape(self):
+        adapter = ReasoningAdapter()
+        with pytest.raises(MalformedContentError):
+            adapter.strip({"content": 42})
+
+    def test_content_part_not_an_object(self):
+        adapter = ReasoningAdapter()
+        with pytest.raises(MalformedContentError):
+            adapter.strip({"content": [42]})
+
+    def test_text_part_has_no_string_text(self):
+        adapter = ReasoningAdapter()
+        with pytest.raises(MalformedContentError):
+            adapter.strip({"content": [{"type": "text", "text": 42}]})
+
+    def test_thinking_part_has_no_string_thinking(self):
+        adapter = ReasoningAdapter()
+        with pytest.raises(MalformedReasoningFieldError):
+            adapter.strip({"content": [{"type": "thinking", "thinking": ["x"]}]})
 
     def test_unbalanced_thinking_tag(self):
         adapter = ReasoningAdapter()

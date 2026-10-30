@@ -20,7 +20,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from conformance import record
 
 from haikeilabs.agentware.reasoning import (
@@ -33,11 +32,6 @@ FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 # Cases the Python adapter cannot run, mirrored from fixtures/EXCLUSIONS.md
 # (python rows for the reasoning family).
 EXCLUDED = {
-    # The adapter takes a flat message dict or text; an Anthropic response
-    # (content is a list of blocks) raises MalformedContentError, fail-closed.
-    "anthropic-cases.json#thinking with tool use",
-    "anthropic-cases.json#thinking with text response",
-    "anthropic-cases.json#no thinking (standard mode)",
     # The fixture expects the extracted reasoning untrimmed (leading and
     # trailing newlines); all implementations trim it. Its expected clean
     # also drops the leading space the raw response carries before [THINK].
@@ -57,15 +51,6 @@ def _reasoning_fixtures() -> list[tuple[str, dict]]:
     )
 
 
-def _reasoning_input(raw: object) -> object:
-    """Unwrap an OpenAI-style chat envelope down to the message object."""
-    if isinstance(raw, dict) and isinstance(raw.get("choices"), list) and raw["choices"]:
-        choice = raw["choices"][0]
-        if isinstance(choice, dict) and isinstance(choice.get("message"), dict):
-            return choice["message"]
-    return raw
-
-
 @pytest.mark.parametrize(
     "fixture, data",
     _reasoning_fixtures(),
@@ -78,7 +63,7 @@ def test_reasoning_fixtures(fixture: str, data: dict) -> None:
         if f"{fixture}#{case['name']}" in EXCLUDED:
             continue
 
-        raw = _reasoning_input(case["raw_response"])
+        raw = case["raw_response"]
         expected_reasoning = case["expected_extracted_reasoning"]
         expected_clean = case["expected_clean_content"]
 

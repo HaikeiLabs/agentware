@@ -221,20 +221,35 @@ class ReasoningAdapter:
         message = m.get("message")
         if isinstance(message, dict):
             return self._analyze_structured(message, model)
+        choice_message = _first_choice_message(m)
+        if choice_message is not None:
+            return self._analyze_structured(choice_message, model)
 
+        # Content first: a string, null, or a list of typed parts. Fail closed
+        # on any other shape.
         content = ""
+        part_reasoning = ""
         if "content" in m:
             value = m["content"]
             if value is None:
                 content = ""
             elif isinstance(value, str):
                 content = value
+            elif isinstance(value, list):
+                content, part_reasoning, err = _extract_content_parts(value)
+                if err is not None:
+                    raise err
             else:
                 raise MalformedContentError(
                     f"content field is {type(value).__name__}, not a string"
                 )
 
         reasoning, fmt = self._extract_reasoning_field(m, model)
+
+        # A native reasoning field takes priority; otherwise use the reasoning
+        # carried by Anthropic-style thinking parts.
+        if not reasoning and part_reasoning:
+            reasoning, fmt = part_reasoning, Format.NATIVE
 
         if reasoning:
             clean, _, err = split_thinking_tags(content)
@@ -336,6 +351,51 @@ class _Analysis:
     reasoning: str
     clean: str
     format: Format
+
+
+def _first_choice_message(m: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the message object of the first choice of a full
+    OpenAI-compatible response (``{choices: [{message: {...}}]}``), or ``None``
+    when ``m`` is not shaped that way."""
+    choices = m.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        return None
+    msg = choice.get("message")
+    if not isinstance(msg, dict):
+        return None
+    return msg
+
+
+def _extract_content_parts(parts: list[Any]) -> tuple[str, str, ReasoningError | None]:
+    """Split an Anthropic Messages API content list into the clean text
+    (joined "text" parts) and the reasoning (joined "thinking" parts).
+
+    Other part types (tool_use, tool_result, ...) are ignored: they carry
+    neither clean text nor reasoning. Returns ``(content, reasoning, err)``
+    and fails closed on malformed parts.
+    """
+    text_parts: list[str] = []
+    thinking_parts: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict):
+            return "", "", MalformedContentError("content part is not an object")
+        part_type = part.get("type")
+        if part_type == "text":
+            text = part.get("text")
+            if not isinstance(text, str):
+                return "", "", MalformedContentError("text part has no string text")
+            text_parts.append(text)
+        elif part_type == "thinking":
+            thinking = part.get("thinking")
+            if not isinstance(thinking, str):
+                return "", "", MalformedReasoningFieldError(
+                    "thinking part has no string thinking"
+                )
+            thinking_parts.append(thinking)
+    return "\n".join(text_parts), "\n".join(thinking_parts), None
 
 
 def split_thinking_tags(text: str) -> tuple[str, str, ReasoningError | None]:
