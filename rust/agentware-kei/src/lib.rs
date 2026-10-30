@@ -3,6 +3,7 @@
 pub mod evaluator;
 pub mod fixture;
 pub mod middleware;
+pub mod reasoning;
 pub mod runtimelink;
 pub mod runtimesocket;
 pub mod toolformat;
