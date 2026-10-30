@@ -101,6 +101,7 @@ with each SDK release:
 <!-- compat:begin -->
 | agentware SDK | kei-proxy (minimum) | kei-cli (minimum) |
 | --- | --- | --- |
+| 0.15.0 | v0.6.5 | 0.3.6 |
 | 0.14.0 | v0.3.0 | 0.2.0 |
 | 0.13.0 | v0.3.0 | 0.2.0 |
 | 0.12.0 | v0.3.0 | 0.2.0 |
@@ -111,7 +112,9 @@ with each SDK release:
 
 `KEI_PROXY_VERSION` pins the kei-proxy entry for the current release, and CI
 (`make compat-check`) fails if the table disagrees with it or has no row for
-the version in `VERSION`. Earlier feature floors still apply to older proxies:
+the version in `VERSION`. Agentware 0.15.0 exact connector-target authorization
+requires kei-proxy v0.6.5 or later; kei-cli v0.3.6 or later bundles that proxy
+release. Earlier feature floors still apply to older proxies:
 runtime agent identity needs kei-proxy 0.1.11 or later, and the runtime-link
 heartbeat flags need 0.1.12 or later. kei-proxy releases older than the
 minimum above are not tested against this SDK release. ToolSpec registration
