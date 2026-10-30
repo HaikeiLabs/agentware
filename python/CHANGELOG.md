@@ -2,17 +2,24 @@
 
 All notable changes to the `haikeilabs-agentware` Python package (import
 `haikeilabs.agentware`) are recorded here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the package uses
-[semantic versioning](https://semver.org/) in its PEP 440 spelling. The Python
-package is versioned independently of the TypeScript SDK; a Python release is
-tagged `agentware-py-v<version>`.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Python shares the
+repository's semantic version with Go and TypeScript; Python releases use the
+`agentware-py-v<version>` tag.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-30
+
+### Added
+
+- Python Unix-socket authorize accepts an optional exact connector target
+  (`connector_id` and `capability`).
+- Python Unix-socket clients support credential release in a named session.
+- Load and validate `kei.tool-manifest/v3` into Python ToolSpecs (#270).
+- Parse OpenAI Responses and Anthropic content-part reasoning formats (#276).
+
 ### Changed
 
-- Python Unix-socket clients support credential release in a named session,
-  alongside exact-target authorize using `connector{connector_id, capability}`.
 - **Breaking:** removed caller-provided `agent_id` from Kei authorize client
   APIs. Authorization identity is derived from the runtime token (HAI-557).
 
@@ -61,5 +68,6 @@ repository only, as `pedro-agentware`.
 - PyPI package page (`python/README.md`), project URLs, classifiers and a
   `py.typed` marker.
 
-[Unreleased]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.1.0...HEAD
+[Unreleased]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.15.0...HEAD
+[0.15.0]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.14.0...agentware-py-v0.15.0
 [0.1.0]: https://github.com/HaikeiLabs/agentware/releases/tag/agentware-py-v0.1.0

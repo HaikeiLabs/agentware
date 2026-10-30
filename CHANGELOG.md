@@ -5,6 +5,14 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+## [0.15.0] - 2026-10-30
+
+### Added
+
+- **Python:** exact connector-target authorization for Unix-socket requests and named-session credential release.
+- **Python:** load and validate `kei.tool-manifest/v3` into ToolSpecs (#270).
+- **Python, TypeScript:** reasoning adapters accept OpenAI Responses and Anthropic content parts (#275, #276).
+
 ## [0.14.0] - 2026-10-29
 
 ### Added

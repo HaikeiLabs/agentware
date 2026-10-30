@@ -854,7 +854,7 @@ CRASHLOOP_THRESHOLD = 5
 CRASHLOOP_WINDOW = 900.0
 """Sliding window for crashloop detection (seconds)."""
 
-SDK_VERSION = "0.14.0"
+SDK_VERSION = "0.15.0"
 """Set at build time or inferred from package metadata."""
 
 
