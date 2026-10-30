@@ -11,6 +11,16 @@ import {
 import { ReasoningAdapter } from "../src/reasoning/index.js";
 
 const numRuns = Number.parseInt(process.env.FC_NUM_RUNS ?? "200", 10);
+// Replays a failure: FC_SEED and FC_PATH are the seed and path fast-check
+// prints. Pick the failing property with `-t`; the path is per property.
+const params = {
+  numRuns,
+  ...(process.env.FC_SEED !== undefined && {
+    seed: Number.parseInt(process.env.FC_SEED, 10),
+    path: process.env.FC_PATH,
+    endOnFailure: true,
+  }),
+};
 const familyModels: Record<string, string> = {
   openai: "gpt-4o",
   glm: "glm-4",
@@ -139,7 +149,7 @@ describe("parser property fuzzing", () => {
           expect(() => JSON.stringify(call.args)).not.toThrow();
         }
       }),
-      { numRuns },
+      params,
     );
   });
 
@@ -159,7 +169,7 @@ describe("parser property fuzzing", () => {
           items.map(({ parameters: _parameters, ...item }) => item);
         expect(stripParameters(reparsed)).toEqual(stripParameters(specs));
       }),
-      { numRuns },
+      params,
     );
   });
 
@@ -216,7 +226,7 @@ describe("parser property fuzzing", () => {
           );
         }
       }),
-      { numRuns },
+      params,
     );
   });
 });

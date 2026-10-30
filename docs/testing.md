@@ -26,8 +26,9 @@ to full commit SHAs.
 - `fuzz.yml`: the Go fuzz targets, 30 seconds each, on PRs that touch
   `go/toolformat`, `go/toolspec`, `go/reasoning` or `fixtures/**`. The same
   workflow runs each target for 10 minutes nightly and on
-  `workflow_dispatch`. That long run needs no secrets or model, so it stays
-  on hosted runners (see [Fuzzing](#fuzzing)).
+  `workflow_dispatch`, and the nightly run also runs the TypeScript parser
+  property tests at 20,000 runs. That long run needs no secrets or model, so
+  it stays on hosted runners (see [Fuzzing](#fuzzing)).
 
 **Tier 2: trusted events only.** Work that needs a live model, the real
 `kei-proxy`, or more time than a PR should wait for: the live model captures,
@@ -127,6 +128,32 @@ go test -run='FuzzParseToolCalls/<file>' ./toolformat/
 
 Fix the parser and commit the input as a regression seed: plain `go test`
 replays every file under `testdata/fuzz`, so the case stays covered.
+
+The TypeScript SDK runs the same three properties with fast-check in
+`typescript/tests/parser-fuzz.test.ts`. `typescript-test.yml` runs them at
+the default 200 runs on every PR; the nightly and `workflow_dispatch` runs of
+`fuzz.yml` run them at `FC_NUM_RUNS=20000`. Run that locally from
+`typescript/`:
+
+```sh
+FC_NUM_RUNS=20000 npm test -- --runInBand tests/parser-fuzz.test.ts
+```
+
+On a failure, fast-check prints the shrunk counterexample with the seed and
+path that produced it, for example
+`{ seed: -1473514491, path: "2:1:0:0", endOnFailure: true }`. The job log has
+it, and the job summary copies it next to the failing property's name. Replay
+it from `typescript/` by passing both back, with `-t` picking the property
+(the path only means something for the property that printed it):
+
+```sh
+FC_SEED=-1473514491 FC_PATH='2:1:0:0' \
+  npm test -- --runInBand tests/parser-fuzz.test.ts -t 'manifest parser'
+```
+
+The replay goes straight to the counterexample, so it fails on the first
+run. Fix the parser, then add the counterexample to the property's seed list
+or to the shared fixtures so the default run covers it.
 
 ## Live model captures
 

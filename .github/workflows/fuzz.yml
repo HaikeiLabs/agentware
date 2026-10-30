@@ -1,10 +1,14 @@
-name: Go Fuzz
+name: Fuzz
 
 # T6 of docs/testing.md: the native Go fuzz targets for the parsers. PRs that
 # touch a fuzzed package or the fixtures (the seed corpora) fuzz each target
 # for 30s; the nightly schedule and workflow_dispatch fuzz each for 10m. A
 # failing input is uploaded as an artifact and the job summary says how to
 # replay it locally.
+#
+# The nightly and workflow_dispatch runs also run the TypeScript parser
+# property tests (fast-check) at a high run count. PRs already run them at the
+# default ~200 runs in typescript-test.yml, so that job never runs on PRs.
 #
 # Public repo, GitHub-hosted runners only: fuzzing needs no secrets or live
 # model, so the long run stays on hosted runners too. Never pull_request_target.
@@ -105,3 +109,60 @@ jobs:
           path: ${{ runner.temp }}/crashers/
           if-no-files-found: error
           retention-days: 30
+
+  typescript-properties:
+    name: Property tests (TypeScript)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FC_NUM_RUNS: '20000'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.18'
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Install dependencies
+        working-directory: typescript
+        run: npm ci
+
+      # fast-check puts the seed, path and shrunk counterexample in the failure
+      # message, which jest prints; the log is kept to copy them into the summary.
+      - name: Run parser property tests (${{ env.FC_NUM_RUNS }} runs)
+        working-directory: typescript
+        run: |
+          set -o pipefail
+          npm test -- --runInBand tests/parser-fuzz.test.ts 2>&1 | tee "$RUNNER_TEMP/parser-fuzz.log"
+
+      - name: Report the failing seed
+        if: failure()
+        run: |
+          {
+            echo "### TypeScript property tests failed"
+            echo
+            if grep -qE '^ *\{ seed: -?[0-9]+, path: ' "$RUNNER_TEMP/parser-fuzz.log"; then
+              echo "fast-check reported (failing property, seed/path, counterexample):"
+              echo
+              echo '```'
+              grep -E '^ *● |^ *\{ seed: -?[0-9]+, path: |^ *Counterexample: ' "$RUNNER_TEMP/parser-fuzz.log"
+              echo '```'
+              echo
+              echo "Replay from \`typescript/\` with the seed and path above:"
+              echo
+              echo '```sh'
+              echo "FC_SEED=<seed> FC_PATH='<path>' npm test -- --runInBand tests/parser-fuzz.test.ts -t '<property name>'"
+              echo '```'
+            else
+              echo "No fast-check seed in the log; see the job log (install error or timeout)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Python Hypothesis nightly goes here (later PR): a python-properties job,
+  # same `if: github.event_name != 'pull_request'`, running the property tests
+  # with HYPOTHESIS_PROFILE=nightly.
