@@ -10,7 +10,12 @@ pub mod anthropic;
 pub mod deepseek;
 pub mod generic;
 pub mod glm;
+pub mod llama;
+pub mod minimax;
+pub mod mistral;
+pub mod nemotron;
 pub mod openai;
+pub mod qwen;
 
 use serde_json::{Map, Value};
 
@@ -18,7 +23,12 @@ pub use anthropic::AnthropicFormatter;
 pub use deepseek::DeepSeekFormatter;
 pub use generic::GenericFormatter;
 pub use glm::GLMFormatter;
+pub use llama::LlamaFormatter;
+pub use minimax::MiniMaxFormatter;
+pub use mistral::MistralFormatter;
+pub use nemotron::NemotronFormatter;
 pub use openai::OpenAIFormatter;
+pub use qwen::QwenFormatter;
 
 /// A tool definition as the model sees it (mirrors Go `tools.Tool`:
 /// name, description, JSON input schema).
@@ -93,7 +103,15 @@ pub trait Formatter {
 /// through to the generic default.
 pub fn for_model(model_name: &str) -> Box<dyn Formatter> {
     let lower = model_name.to_lowercase();
-    if lower.contains("anthropic") || lower.contains("claude") {
+    if lower.contains("nemotron") {
+        Box::new(NemotronFormatter)
+    } else if lower.contains("qwen") || lower.contains("qwq") {
+        Box::new(QwenFormatter)
+    } else if lower.contains("llama") {
+        Box::new(LlamaFormatter)
+    } else if lower.contains("mistral") {
+        Box::new(MistralFormatter)
+    } else if lower.contains("anthropic") || lower.contains("claude") {
         Box::new(AnthropicFormatter)
     } else if lower.contains("deepseek") {
         Box::new(DeepSeekFormatter)
