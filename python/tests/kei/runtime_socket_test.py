@@ -376,6 +376,75 @@ async def test_authorize_sends_the_request_schema_in_the_session_and_no_user() -
     assert b"ada" not in request.content
 
 
+async def test_authorize_serializes_an_exact_connector_target() -> None:
+    daemon = FakeDaemon()
+    client = daemon.client()
+    session = await client.open_session(ADA)
+
+    await client.authorize(
+        session,
+        tool="github.read_repo",
+        resource="repos/owner/name",
+        connector_id="connector-1",
+        capability="repository.read",
+    )
+
+    [request] = [r for r in daemon.requests if r.url.path == "/v1/authorize"]
+    assert json.loads(request.content) == {
+        "schema": "kei.authorize-request/v1",
+        "tool": "github.read_repo",
+        "connector": {"connector_id": "connector-1", "capability": "repository.read"},
+        "resource": "repos/owner/name",
+    }
+    assert request.headers["X-Kei-Session"] == session.session_id
+    assert "user_id" not in json.loads(request.content)
+    assert "agent_id" not in json.loads(request.content)
+
+
+@pytest.mark.parametrize(
+    ("target", "resource"),
+    [
+        ({"connector_id": "connector-1"}, "repos/owner/name"),
+        ({"capability": "repository.read"}, "repos/owner/name"),
+        ({"connector_id": "connector-1", "capability": " "}, "repos/owner/name"),
+        ({"connector_id": "connector-1", "capability": "repository.read"}, ""),
+    ],
+)
+async def test_authorize_rejects_malformed_or_partial_targets(
+    target: dict[str, str], resource: str
+) -> None:
+    daemon = FakeDaemon()
+    client = daemon.client()
+    session = await client.open_session(ADA)
+
+    with pytest.raises(ValueError):
+        await client.authorize(session, tool="github.read_repo", resource=resource, **target)
+    assert not [r for r in daemon.requests if r.url.path == "/v1/authorize"]
+
+
+async def test_synchronous_socket_adapter_forwards_an_exact_target() -> None:
+    daemon = FakeDaemon()
+    adapter = KeiProxySocketAuthorizationClient("openwebui", daemon.client())
+
+    adapter.authorize(
+        "ada",
+        "github.read_repo",
+        "execute",
+        "repos/owner/name",
+        connector_id="connector-1",
+        capability="repository.read",
+    )
+
+    [request] = [r for r in daemon.requests if r.url.path == "/v1/authorize"]
+    body = json.loads(request.content)
+    assert body["connector"] == {
+        "connector_id": "connector-1",
+        "capability": "repository.read",
+    }
+    assert body["resource"] == "repos/owner/name"
+    assert "user_id" not in body and "agent_id" not in body
+
+
 async def test_a_deny_is_returned_not_raised() -> None:
     daemon = FakeDaemon()
     daemon.authorize = [

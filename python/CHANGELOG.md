@@ -11,6 +11,8 @@ tagged `agentware-py-v<version>`.
 
 ### Changed
 
+- Python Unix-socket authorize clients can optionally send the exact
+  `connector{connector_id, capability}` target with a non-empty `resource`.
 - **Breaking:** removed caller-provided `agent_id` from Kei authorize client
   APIs. Authorization identity is derived from the runtime token (HAI-557).
 

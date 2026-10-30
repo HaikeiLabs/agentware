@@ -201,12 +201,51 @@ async def test_session_authorize_and_close(daemon: tuple[Daemon, str]) -> None:
         tool_args_digest="a" * 64,
     )
     assert allowed["decision"] == "permit" and allowed["policy_id"] == "p-allow"
+    [default_body] = [entry[2] for entry in state.log if entry[:2] == ("POST", "/v1/authorize")]
+    assert default_body == {
+        "schema": "kei.authorize-request/v1",
+        "tool": "github.get_issue",
+        "action": "execute",
+        "resource": "github:issue:1",
+        "span_id": "s-1",
+        "parent_span": "p-0",
+        "delegation_depth": 1,
+        "framework": "openwebui",
+        "tool_args_digest": "a" * 64,
+    }
     denied = await c.authorize(session, tool="github.delete_repo")
     assert (denied["decision"], denied["reason_code"]) == ("deny", "policy_deny")
     await c.close_session(session)
     assert state.sessions == {}
     # Closing again is idempotent.
     await c.close_session(session)
+
+
+async def test_exact_target_authorize_contract(daemon: tuple[Daemon, str]) -> None:
+    state, path = daemon
+    c = client(path)
+    session = await c.open_session(ADA)
+
+    answer = await c.authorize(
+        session,
+        tool="github.read_repo",
+        connector_id="conn-fixture-1",
+        capability="repository.read",
+        resource="repos/owner/name",
+    )
+
+    assert answer["decision"] == "permit"
+    [body] = [entry[2] for entry in state.log if entry[:2] == ("POST", "/v1/authorize")]
+    assert body == {
+        "schema": "kei.authorize-request/v1",
+        "tool": "github.read_repo",
+        "connector": {
+            "connector_id": "conn-fixture-1",
+            "capability": "repository.read",
+        },
+        "resource": "repos/owner/name",
+    }
+    assert "user_id" not in body and "agent_id" not in body
 
 
 async def test_an_unlinked_subject_is_a_deny_with_its_enrollment(daemon: tuple[Daemon, str]) -> None:
