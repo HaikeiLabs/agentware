@@ -38,6 +38,7 @@ const KNOWN_REASONING_FIELDS = ["reasoning_content", "thinking", "thinking_conte
 // unchanged.
 const RECOGNIZED_KEYS = new Set([
   "message",
+  "choices",
   "content",
   "reasoning_content",
   "thinking",
@@ -205,19 +206,49 @@ export class ReasoningAdapter {
       return this.analyzeStructured(message, model);
     }
 
+    const choices = m["choices"];
+    if (Array.isArray(choices) && choices.length > 0 && isRecord(choices[0])) {
+      const choiceMessage = choices[0]["message"];
+      if (isRecord(choiceMessage)) return this.analyzeStructured(choiceMessage, model);
+    }
+
     let content = "";
+    let partReasoning = "";
     if ("content" in m) {
       const value = m["content"];
       if (value === null || value === undefined) {
         content = "";
       } else if (typeof value === "string") {
         content = value;
+      } else if (Array.isArray(value)) {
+        const textParts: string[] = [];
+        const thinkingParts: string[] = [];
+        for (const part of value) {
+          if (!isRecord(part)) throw new MalformedContentError("content part is not an object");
+          if (part["type"] === "text") {
+            if (typeof part["text"] !== "string") {
+              throw new MalformedContentError("text part has no string text");
+            }
+            textParts.push(part["text"]);
+          } else if (part["type"] === "thinking") {
+            if (typeof part["thinking"] !== "string") {
+              throw new MalformedReasoningFieldError("thinking part has no string thinking");
+            }
+            thinkingParts.push(part["thinking"]);
+          }
+        }
+        content = textParts.join("\n");
+        partReasoning = thinkingParts.join("\n");
       } else {
         throw new MalformedContentError(`content field is ${typeof value}, not a string`);
       }
     }
 
-    const [reasoning, format] = this.extractReasoningField(m, model);
+    let [reasoning, format] = this.extractReasoningField(m, model);
+    if (reasoning === "" && partReasoning !== "") {
+      reasoning = partReasoning;
+      format = Format.NATIVE;
+    }
 
     if (reasoning !== "") {
       return { reasoning, clean: splitThinkingTags(content).clean, format };

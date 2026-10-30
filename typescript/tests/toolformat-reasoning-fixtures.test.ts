@@ -60,20 +60,6 @@ describe("shared toolformat fixtures", () => {
 const reasoningRoot = resolve(fixtureRoot, "reasoning");
 const reasoningFiles = readdirSync(reasoningRoot).filter((name) => name.endsWith("-cases.json"));
 
-function fixtureMessage(raw: unknown): unknown {
-  if (typeof raw === "string") return raw;
-  const response = raw as { choices?: Array<{ message?: unknown }>; content?: unknown };
-  if (response.choices?.[0]?.message) return response.choices[0].message;
-  if (Array.isArray(response.content)) {
-    const blocks = response.content as Array<Record<string, unknown>>;
-    return {
-      thinking: blocks.filter((block) => block.type === "thinking").map((block) => block.thinking).join("\n"),
-      content: blocks.filter((block) => block.type === "text").map((block) => block.text).join("\n"),
-    };
-  }
-  return raw;
-}
-
 describe("shared reasoning fixtures", () => {
   test.each(reasoningFiles)("%s", (file) => {
     const fixturePath = `reasoning/${file}`;
@@ -84,7 +70,7 @@ describe("shared reasoning fixtures", () => {
       if ((file === "deepseek-cases.json" && c.name === "text mode with THINK tags") ||
           (file === "qwen-cases.json" && ["reasoning_content with thinking tags", "text response with thinking tags"].includes(c.name))) continue;
       const adapter = new ReasoningAdapter();
-      const raw = fixtureMessage(c.raw_response);
+      const raw = c.raw_response;
       if (c.expected_extracted_reasoning === null) {
         expect(() => adapter.parse(raw)).toThrow();
       } else {
