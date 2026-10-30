@@ -5,6 +5,39 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+## [0.14.0] - 2026-10-29
+
+### Added
+
+- **Go, TypeScript:** load and validate `kei.tool-manifest/v3` files into
+  ToolSpecs (`LoadManifestV3`/`ParseManifestV3`,
+  `loadManifestV3`/`parseManifestV3`), with toolsync entry points that register
+  typed specs or a manifest file (#263, #264).
+- Shared `kei.tool-manifest/v3` loader fixtures (#260).
+- Verified GLM-5.3-Flash tool-call and reasoning fixtures (#259).
+
+### Fixed
+
+- **Go:** `GenericFormatter` and the nemotron formatter decode string-encoded
+  tool-call arguments, as GLM-5.3 emits them (#266).
+
+### Documentation
+
+- Add `docs/audit-visibility.md`: how governed tool calls become visible in
+  Kei (#261).
+
+### CI
+
+- Add the tier-1 fixture conformance matrix and the `fixtures/EXCLUSIONS.md`
+  equal-coverage gate (#267).
+- Move the eval gate from deepseek-v4-flash to glm-5.3-flash (HAI-896) (#257).
+- Bump vulnerable npm dependencies, including deepmerge (#256, #258).
+
+### Not yet in this release
+
+- **Python:** the `kei.tool-manifest/v3` loader is in progress.
+- **Rust:** the toolformat and manifest loader are in progress.
+
 ## [0.13.0] - 2026-10-26
 
 ### Breaking

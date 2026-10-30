@@ -83,7 +83,7 @@ export class NodeRuntimeChildFactory implements RuntimeChildFactory {
   }
 }
 
-const SDK_VERSION = "0.13.0";
+const SDK_VERSION = "0.14.0";
 const OUTCOME_FAILURE: Partial<Record<string, FailureClass>> = {
   catalog_unreachable: "catalog_unreachable",
   catalog_timeout: "catalog_timeout",
