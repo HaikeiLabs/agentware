@@ -22,7 +22,7 @@
         ]
       },
       "expected_extracted_reasoning": "The user wants weather for Tokyo. I'll use my get_weather function.\n\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}",
-      "expected_clean_content": "<thinking>The user wants weather for Tokyo. I'll use my get_weather function.</thinking>\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}"
+      "expected_clean_content": "\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}"
     },
     {
       "name": "text response with thinking tags",
@@ -41,7 +41,7 @@
         ]
       },
       "expected_extracted_reasoning": "Simple greeting, no tool needed.",
-      "expected_clean_content": "<thinking>Simple greeting, no tool needed.</thinking>\nHello! How can I help you today?"
+      "expected_clean_content": "\nHello! How can I help you today?"
     },
     {
       "name": "no reasoning field",
