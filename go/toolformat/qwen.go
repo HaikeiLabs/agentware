@@ -38,7 +38,7 @@ func (f *QwenFormatter) formatToolDefinitions(toolsList []formatTool) string {
 		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
 			if schema := et.InputSchema(); schema != nil {
 				schemaJSON, _ := json.Marshal(schema)
-				result += fmt.Sprintf(`<parameters>%s</parameters>`, schemaJSON)
+				result += fmt.Sprintf(`<parameters>%s</parameters>`, schemaJSON) + "\n"
 			}
 		}
 		result += "</tool_description>\n"

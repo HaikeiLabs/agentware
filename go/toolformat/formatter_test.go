@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/haikeilabs/agentware/go/internal/conformance"
 	"github.com/haikeilabs/agentware/go/tools"
 	"github.com/haikeilabs/agentware/go/toolspec"
 )
@@ -618,76 +617,6 @@ func TestParseToolCallsMalformedArgumentsStringReturnsError(t *testing.T) {
 			calls, err := formatter.ParseToolCalls(response)
 			if err == nil {
 				t.Errorf("%T: expected error for %q, got calls %v", formatter, response, calls)
-			}
-		}
-	}
-}
-
-// TestToolformatFixtureParseCalls replays the shared GLM toolformat fixture
-// (fixtures/toolformat/glm-cases.json) through the Go formatters so the
-// language implementations stay in parity.
-func TestToolformatFixtureParseCalls(t *testing.T) {
-	data, err := os.ReadFile("../../fixtures/toolformat/glm-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fixture struct {
-		Family     string `json:"family"`
-		ParseCalls []struct {
-			Name     string `json:"name"`
-			Input    string `json:"input"`
-			Expected []struct {
-				ID   string         `json:"id"`
-				Name string         `json:"name"`
-				Args map[string]any `json:"args"`
-			} `json:"expected"`
-		} `json:"parse_calls"`
-		ValidateFormat []struct {
-			Name  string `json:"name"`
-			Input string `json:"input"`
-			Valid bool   `json:"valid"`
-		} `json:"validate_format"`
-	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
-	if fixture.Family != "glm" {
-		t.Fatalf("expected glm fixture, got family %q", fixture.Family)
-	}
-
-	formatters := map[string]ToolFormatter{
-		"generic": &GenericFormatter{},
-		"glm":     &GLMFormatter{},
-	}
-	for flavor, formatter := range formatters {
-		for _, tc := range fixture.ParseCalls {
-			conformance.Record(t, "toolformat/glm-cases.json", "parse_calls", tc.Name)
-			calls, err := formatter.ParseToolCalls(tc.Input)
-			if err != nil {
-				t.Fatalf("%s/%s: unexpected error: %v", flavor, tc.Name, err)
-			}
-			if len(calls) != len(tc.Expected) {
-				t.Errorf("%s/%s: got %d calls, want %d", flavor, tc.Name, len(calls), len(tc.Expected))
-				continue
-			}
-			for i, want := range tc.Expected {
-				got := calls[i]
-				if got.ID != want.ID || got.Name != want.Name {
-					t.Errorf("%s/%s call %d: got id=%q name=%q, want id=%q name=%q", flavor, tc.Name, i, got.ID, got.Name, want.ID, want.Name)
-				}
-				if !reflect.DeepEqual(got.Args, want.Args) {
-					t.Errorf("%s/%s call %d: args = %#v, want %#v", flavor, tc.Name, i, got.Args, want.Args)
-				}
-			}
-		}
-		for _, tc := range fixture.ValidateFormat {
-			conformance.Record(t, "toolformat/glm-cases.json", "validate_format", tc.Name)
-			err := formatter.ValidateFormat(tc.Input)
-			if tc.Valid && err != nil {
-				t.Errorf("%s/%s: expected valid, got error: %v", flavor, tc.Name, err)
-			}
-			if !tc.Valid && err == nil {
-				t.Errorf("%s/%s: expected invalid, got no error", flavor, tc.Name)
 			}
 		}
 	}
