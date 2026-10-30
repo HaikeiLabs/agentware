@@ -1,0 +1,35 @@
+{
+  "description": "Fixed prompt set for scripts/live-captures/capture.py. Each prompt is sent once to every model profile in evals/model-profiles.yaml with the profile's sampling, seed and thinking setting. Tools come from fixtures/toolformat/tools.json. Changing a prompt changes every capture, so keep the set small and stable.",
+  "max_tokens": 2048,
+  "profiles": {
+    "glm-5.3-flash": {"toolformat_family": "glm", "reasoning_family": "glm"},
+    "qwen3.8-27b": {"toolformat_family": "openai", "text_toolformat_family": "qwen", "reasoning_family": "qwen"}
+  },
+  "prompts": [
+    {
+      "id": "single-tool-call",
+      "tools": true,
+      "messages": [{"role": "user", "content": "What is the weather in Tokyo right now? Use the tool."}]
+    },
+    {
+      "id": "parallel-tool-calls",
+      "tools": true,
+      "messages": [{"role": "user", "content": "Get the current weather in Paris and in London, in celsius. Call the tool once per city."}]
+    },
+    {
+      "id": "tool-with-optional-arg",
+      "tools": true,
+      "messages": [{"role": "user", "content": "Search the web for the latest Go release notes."}]
+    },
+    {
+      "id": "tool-declined",
+      "tools": true,
+      "messages": [{"role": "user", "content": "Say hello in one short sentence. Do not call any tool."}]
+    },
+    {
+      "id": "reasoning-no-tools",
+      "tools": false,
+      "messages": [{"role": "user", "content": "What is 17 multiplied by 23? Answer with the number only."}]
+    }
+  ]
+}

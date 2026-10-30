@@ -1,9 +1,21 @@
 name: Real kei-proxy integration
 
-# Smoke-test-only: download+sha256, start proxy against the fake control-plane,
-# register tool manifest.  End-to-end ALLOW/DENY against the real proxy is
-# blocked on HAI-796 (v2 requires preflight); ALLOW/DENY is covered by the
-# fake-proxy CI.
+# Tier 2 of docs/testing.md: the released kei-proxy against the fake control
+# plane (fixtures/kei/fake-control-plane.py).
+#
+# examples-vs-real-proxy: download + sha256, start `kei-proxy serve`, register
+# the tool manifest, and run the Go, Python and TypeScript minimal harnesses,
+# asserting ALLOW tool=echo and DENY tool=delete_everything (HAI-796, done).
+#
+# governed-call-audit: one ALLOW and one DENY through the Go SDK against the
+# current kei-proxy release (AUDIT_PROXY_VERSION), then asserts that both
+# decisions are in the proxy's audit spool and in what its collector flushed
+# to the control plane, each with a non-empty invoking_subject (HAI-928: the
+# catalog rejects a record without one).
+#
+# Public repo: both jobs run GitHub-hosted. They need no secrets, tailnet or
+# model, so they stay off the two self-hosted eval runners. Never
+# pull_request_target.
 
 on:
   schedule:
@@ -14,6 +26,11 @@ on:
         description: 'kei-proxy version to test (e.g. 0.3.0, 0.3.1); defaults to the pinned version file'
         required: false
         default: '0.3.0'
+        type: string
+      audit_proxy_version:
+        description: 'kei-proxy version for the governed-call audit job; defaults to AUDIT_PROXY_VERSION'
+        required: false
+        default: ''
         type: string
   pull_request:
     branches: [main]
@@ -28,6 +45,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: real-proxy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The kei-proxy release the audit job runs: the current one, which ships the
+  # serve collector's decision flush. Its archive checksum must be in
+  # fixtures/kei/KEI_PROXY_SHA256. KEI_PROXY_VERSION stays the SDK's
+  # compatibility pin (README table) and drives the examples job.
+  AUDIT_PROXY_VERSION: '0.6.3'
+
 jobs:
   examples-vs-real-proxy:
     runs-on: ubuntu-latest
@@ -37,7 +65,9 @@ jobs:
       KEI_RUNTIME_TOKEN: kh_live_ci_dummy_token_0123456789abcdef0123456789abcdef0123456789abcdef
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # ---- Read pinned version (overridable via workflow_dispatch input) ----
       - name: Read kei-proxy version
@@ -142,35 +172,10 @@ jobs:
       - name: Register echo and delete_everything tools
         run: |
           SOCKET="${{ steps.proxy.outputs.socket }}"
-          cat > "$RUNNER_TEMP/tools.json" << 'MANIFEST'
-          {
-            "schema": "kei.tool-manifest/v3",
-            "tools": [
-              {
-                "name": "echo",
-                "service": "harness",
-                "source": "minimal_harness",
-                "operation_class": "write",
-                "route": { "harness_executor": { "executor": "go", "registration": "echo" } },
-                "description": "Echo back a message",
-                "enabled": true
-              },
-              {
-                "name": "delete_everything",
-                "service": "harness",
-                "source": "minimal_harness",
-                "operation_class": "write",
-                "route": { "harness_executor": { "executor": "go", "registration": "delete_everything" } },
-                "description": "Delete everything (should be denied)",
-                "enabled": true
-              }
-            ]
-          }
-          MANIFEST
           printf 'header = "Authorization: Bearer %s"\n' "$KEI_RUNTIME_TOKEN" | \
             curl -sS --fail-with-body --unix-socket "$SOCKET" -K - \
               -H "Content-Type: application/json" \
-              -d @"$RUNNER_TEMP/tools.json" \
+              -d @fixtures/kei/minimal-harness-tools.v3.json \
               "http://localhost/v1/tools:register"
 
       # ---- Run Go minimal harness ----
@@ -185,7 +190,7 @@ jobs:
 
       # ---- Run Python minimal harness ----
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
 
@@ -204,7 +209,7 @@ jobs:
 
       # ---- Run TypeScript minimal harness ----
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22.18'
 
@@ -232,3 +237,131 @@ jobs:
           cat "$RUNNER_TEMP/kei-proxy.log" 2>/dev/null || echo "(no log)"
           echo "=== fake control-plane stderr ==="
           cat "$RUNNER_TEMP/cp-stderr.log" 2>/dev/null || echo "(no log)"
+
+  governed-call-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      KEI_RUNTIME_TOKEN: kh_live_ci_dummy_token_0123456789abcdef0123456789abcdef0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve kei-proxy version
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.audit_proxy_version || '' }}
+        run: |
+          NUM="${INPUT_VERSION:-$AUDIT_PROXY_VERSION}"
+          if ! echo "$NUM" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::kei-proxy version '$NUM' does not match semver (e.g. 0.6.3)"
+            exit 1
+          fi
+          ARCHIVE="kei-proxy_${NUM}_Linux_x86_64.tar.gz"
+          if ! grep -qF "$ARCHIVE" fixtures/kei/KEI_PROXY_SHA256; then
+            echo "::error::$ARCHIVE has no checksum in fixtures/kei/KEI_PROXY_SHA256; add it from the release's checksums file"
+            exit 1
+          fi
+          echo "num=$NUM" >> "$GITHUB_OUTPUT"
+          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Download, verify and extract kei-proxy
+        env:
+          NUM: ${{ steps.version.outputs.num }}
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/kei-proxy"
+          cd "$RUNNER_TEMP/kei-proxy"
+          curl -fsSL --connect-timeout 15 --retry 3 -O \
+            "https://kei-cli-releases.s3.us-east-1.amazonaws.com/kei-proxy/$NUM/$ARCHIVE"
+          grep -F "$ARCHIVE" "$GITHUB_WORKSPACE/fixtures/kei/KEI_PROXY_SHA256" | sha256sum -c -
+          tar -xzf "$ARCHIVE"
+          ./kei-proxy --version
+
+      # Built before the proxy starts: the serve collector flushes about a
+      # minute after start and then drains the spool, so the governed calls
+      # must land well inside that minute for the spool check below.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Build the Go minimal harness
+        working-directory: examples/go/minimal-harness
+        run: go build -mod=mod -o "$RUNNER_TEMP/minimal-harness" .
+
+      - name: Start fake control plane
+        id: control-plane
+        env:
+          FAKE_CONTROL_PLANE_AUDIT_LOG: ${{ runner.temp }}/flushed.jsonl
+        run: |
+          python3 fixtures/kei/fake-control-plane.py \
+            > "$RUNNER_TEMP/cp-port.txt" \
+            2> "$RUNNER_TEMP/cp-stderr.log" &
+          for _ in $(seq 1 20); do
+            [ -s "$RUNNER_TEMP/cp-port.txt" ] && break
+            sleep 0.5
+          done
+          PORT=$(head -1 "$RUNNER_TEMP/cp-port.txt")
+          echo "port=$PORT" >> "$GITHUB_OUTPUT"
+          echo "Fake control plane running on port $PORT"
+
+      - name: Start kei-proxy serve
+        id: proxy
+        env:
+          KEI_RUNTIME_CONTROL_PLANE_URL: "http://127.0.0.1:${{ steps.control-plane.outputs.port }}"
+          KEI_RUNTIME_STATE_DIR: "${{ runner.temp }}/kei-state"
+          KEI_RUNTIME_SOCKET_PATH: "${{ runner.temp }}/kei.sock"
+          ENV: development
+        run: |
+          mkdir -p "$KEI_RUNTIME_STATE_DIR"
+          "$RUNNER_TEMP/kei-proxy/kei-proxy" serve > "$RUNNER_TEMP/kei-proxy.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if [ -S "$KEI_RUNTIME_SOCKET_PATH" ]; then
+              echo "Socket ready after ${i} tries"
+              break
+            fi
+            sleep 0.5
+          done
+          [ -S "$KEI_RUNTIME_SOCKET_PATH" ] || { echo "::error::kei-proxy socket never appeared"; exit 1; }
+          echo "socket=$KEI_RUNTIME_SOCKET_PATH" >> "$GITHUB_OUTPUT"
+          echo "spool=$KEI_RUNTIME_STATE_DIR/audit/harness-tool.jsonl" >> "$GITHUB_OUTPUT"
+
+      - name: Register tools and make one ALLOW and one DENY governed call
+        env:
+          SOCKET: ${{ steps.proxy.outputs.socket }}
+        run: |
+          printf 'header = "Authorization: Bearer %s"\n' "$KEI_RUNTIME_TOKEN" | \
+            curl -sS --fail-with-body --unix-socket "$SOCKET" -K - \
+              -H "Content-Type: application/json" \
+              -d @fixtures/kei/minimal-harness-tools.v3.json \
+              "http://localhost/v1/tools:register"
+          echo
+          OUTPUT=$("$RUNNER_TEMP/minimal-harness" --socket "$SOCKET")
+          printf '%s\n' "$OUTPUT"
+          printf '%s\n' "$OUTPUT" | grep -Fq 'ALLOW tool=echo'
+          printf '%s\n' "$OUTPUT" | grep -Fq 'DENY tool=delete_everything'
+
+      - name: Decisions are in the audit spool
+        env:
+          SPOOL: ${{ steps.proxy.outputs.spool }}
+        run: |
+          python3 fixtures/kei/assert-audit-records.py \
+            --expect echo=allow --expect delete_everything=deny "$SPOOL"
+
+      - name: Decisions reached the control plane through the collector
+        run: |
+          python3 fixtures/kei/assert-audit-records.py --wait 180 \
+            --expect echo=allow --expect delete_everything=deny "$RUNNER_TEMP/flushed.jsonl"
+
+      - name: Show kei-proxy and stub logs on failure
+        if: failure()
+        run: |
+          echo "=== kei-proxy serve log ==="
+          cat "$RUNNER_TEMP/kei-proxy.log" 2>/dev/null || echo "(no log)"
+          echo "=== fake control-plane stderr ==="
+          cat "$RUNNER_TEMP/cp-stderr.log" 2>/dev/null || echo "(no log)"
+          echo "=== records flushed to the fake control plane ==="
+          cat "$RUNNER_TEMP/flushed.jsonl" 2>/dev/null || echo "(none)"

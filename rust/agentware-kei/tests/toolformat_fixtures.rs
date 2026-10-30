@@ -44,12 +44,20 @@ fn shared_tools() -> Vec<ToolDef> {
 /// Select the formatter for a fixture family through the public selector,
 /// using model ids the way real callers do.
 fn family_formatter(family: &str) -> Box<dyn Formatter> {
+    let model = family_model(family)
+        .unwrap_or_else(|| panic!("no model id wired for fixture family {family}"));
+    for_model(model)
+}
+
+/// The model id that selects a fixture family's formatter, or None for a
+/// family with no Rust formatter yet (qwen; see fixtures/EXCLUSIONS.md).
+fn family_model(family: &str) -> Option<&'static str> {
     match family {
-        "openai" => for_model("gpt-4"),
-        "anthropic" => for_model("claude-3"),
-        "deepseek" => for_model("deepseek-chat"),
-        "glm" => for_model("nvidia/GLM-5.3-Flash-FP4-Local"),
-        other => panic!("no model id wired for fixture family {other}"),
+        "openai" => Some("gpt-4"),
+        "anthropic" => Some("claude-3"),
+        "deepseek" => Some("deepseek-chat"),
+        "glm" => Some("nvidia/GLM-5.3-Flash-FP4-Local"),
+        _ => None,
     }
 }
 
@@ -167,4 +175,29 @@ fn deepseek_cases() {
 #[test]
 fn glm_cases() {
     assert_fixture_file("glm-cases.json");
+}
+
+/// Candidate fixtures from live models (`live-*-cases.json`), staged here only
+/// while scripts/live-captures compares the languages (docs/testing.md), so
+/// this test has nothing to do in a normal run. A family with no Rust
+/// formatter yet is reported and skipped.
+#[test]
+fn live_capture_cases() {
+    let mut names: Vec<String> = std::fs::read_dir(fixture_dir())
+        .expect("fixtures/toolformat directory")
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.starts_with("live-") && name.ends_with("-cases.json"))
+        .collect();
+    names.sort();
+    for name in names {
+        let family = load_fixture(&name)["family"]
+            .as_str()
+            .expect("family")
+            .to_owned();
+        if family_model(&family).is_none() {
+            eprintln!("skipping {name}: no Rust formatter for family {family}");
+            continue;
+        }
+        assert_fixture_file(&name);
+    }
 }

@@ -1,0 +1,23 @@
+{
+  "schema": "kei.tool-manifest/v3",
+  "tools": [
+    {
+      "name": "echo",
+      "service": "harness",
+      "source": "minimal_harness",
+      "operation_class": "write",
+      "route": { "harness_executor": { "executor": "go", "registration": "echo" } },
+      "description": "Echo back a message",
+      "enabled": true
+    },
+    {
+      "name": "delete_everything",
+      "service": "harness",
+      "source": "minimal_harness",
+      "operation_class": "write",
+      "route": { "harness_executor": { "executor": "go", "registration": "delete_everything" } },
+      "description": "Delete everything (should be denied)",
+      "enabled": true
+    }
+  ]
+}

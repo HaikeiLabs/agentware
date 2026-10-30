@@ -9,10 +9,15 @@ Endpoints:
     GET  /api/v1/runtime/policy-bundles/current -> v2 policy bundle + ETag
     POST /api/v1/runtime:heartbeat           -> 204 No Content
     PUT  /api/v1/runtime/tools               -> 200 ack
+    POST /api/v1/runtime/audit:flush         -> 200 flush counts
 
 Usage:
     python3 fixtures/kei/fake-control-plane.py
     # prints the ephemeral port on stdout, then serves until killed
+
+Set FAKE_CONTROL_PLANE_AUDIT_LOG to a file path to keep the decision records
+kei-proxy's audit collector flushes: one JSON record per line, in the order
+received.
 """
 
 import hashlib
@@ -21,6 +26,7 @@ import json
 import os
 import socketserver
 import sys
+import threading
 import time
 from typing import Any
 
@@ -182,6 +188,9 @@ POLICY_BUNDLE: dict[str, Any] = {
 
 POLICY_BUNDLE_BYTES: bytes = json.dumps(POLICY_BUNDLE, indent=2).encode("utf-8")
 POLICY_BUNDLE_ETAG = '"sha256:' + hashlib.sha256(POLICY_BUNDLE_BYTES).hexdigest() + '"'
+
+# Serializes appends to FAKE_CONTROL_PLANE_AUDIT_LOG across handler threads.
+_AUDIT_LOG_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -374,13 +383,53 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_empty(404)
 
     def do_POST(self) -> None:
-        self._consume_body()
+        body_bytes = self._read_body()
         if self.path == "/api/v1/runtime:heartbeat":
             return self._send_empty(204)
         if not self._check_token():
             return self._send_json(401, {"error": "invalid_runtime_token"})
 
+        if self.path == "/api/v1/runtime/audit:flush":
+            return self._handle_audit_flush(body_bytes)
+
         self._send_json(404, {"error": "not_found"})
+
+    def _handle_audit_flush(self, body_bytes: bytes) -> None:
+        """Decision records from kei-proxy's audit collector.
+
+        Answers the way the catalog does: exactly upserted/received/skipped
+        (the collector rejects any other shape), and a record with an empty
+        invoking_subject is skipped rather than stored, since the catalog
+        rejects it (HAI-928).  Stored records are appended to
+        FAKE_CONTROL_PLANE_AUDIT_LOG when it is set.
+        """
+        try:
+            records = json.loads(body_bytes)["records"]
+        except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError):
+            return self._send_json(400, {"error": "invalid_json"})
+        if not isinstance(records, list):
+            return self._send_json(400, {"error": "invalid_json"})
+
+        stored = [
+            r
+            for r in records
+            if isinstance(r, dict) and str(r.get("invoking_subject") or "").strip()
+        ]
+        skipped = len(records) - len(stored)
+        if skipped:
+            print(
+                f"[audit:flush] skipped {skipped} record(s) with no invoking_subject",
+                file=sys.stderr,
+                flush=True,
+            )
+        log_path = os.environ.get("FAKE_CONTROL_PLANE_AUDIT_LOG")
+        if log_path and stored:
+            with _AUDIT_LOG_LOCK, open(log_path, "a", encoding="utf-8") as fh:
+                for record in stored:
+                    fh.write(json.dumps(record) + "\n")
+        self._send_json(
+            200, {"upserted": len(stored), "received": len(records), "skipped": skipped}
+        )
 
     def do_PUT(self) -> None:
         body_bytes = self._read_body()
