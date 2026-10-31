@@ -101,6 +101,11 @@ class GenericFormatter:
             if not isinstance(c, dict):
                 continue
             name = c.get("name", "")
+            # Fail closed like the Go formatter, which errors on entries with
+            # an empty name or arguments that do not decode to an object:
+            # skip the entry instead of returning a malformed call.
+            if not name:
+                continue
             args_raw = c.get("arguments")
             if isinstance(args_raw, dict):
                 args = args_raw
@@ -108,6 +113,8 @@ class GenericFormatter:
                 try:
                     args = json.loads(args_raw)
                 except json.JSONDecodeError:
+                    continue
+                if not isinstance(args, dict):
                     continue
             else:
                 continue
@@ -188,6 +195,10 @@ class AnthropicFormatter:
             return []
         result = []
         for name, args_raw in matches:
+            # Fail closed like the Go formatter: skip entries with an empty
+            # tool name instead of returning a malformed call.
+            if not name:
+                continue
             args_raw = args_raw.strip()
             if not args_raw:
                 continue
