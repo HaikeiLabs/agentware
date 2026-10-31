@@ -1,12 +1,56 @@
 # pedro-agentware
 
-Policy enforcement and audit middleware for agent tool calls, in Go, Python, and
-TypeScript.
+Build a custom AI agent or harness that calls tools, tracks decisions, and applies
+guardrails. Agentware provides Go, Python, and TypeScript libraries for the
+parts around your model: tool execution, middleware, audit, and agent-loop
+helpers. Start with a local echo tool, then adapt it to your own application.
 
-Every tool an agent invokes passes through one interception point: policy decides
-whether the call proceeds, and an audit record is emitted whether it does or not.
-The record shape does not change when you swap agent frameworks or models — which
-is the point.
+## Start building
+
+Install the canonical [Haikei Skills](https://github.com/HaikeiLabs/skills)
+to give your coding assistant Agentware guidance (requires Node.js 22.20+ and npx):
+
+```sh
+npx skills add HaikeiLabs/skills --skill haikei --skill agentware-sdk -a codex -y
+```
+
+For Claude Code, Cursor, OpenCode, or Pi, replace `codex` with `claude-code`,
+`cursor`, `opencode`, or `pi`. Skills provide instructions; they do not install
+the SDK, configure Kei, or grant permissions.
+
+Install the SDK for your language, then try the local example below.
+
+```sh
+pip install haikeilabs-agentware     # Python 3.10+
+npm install @haikeilabs/agentware    # TypeScript
+go get github.com/haikeilabs/agentware/go
+```
+
+Save this as `echo.py` and run `python echo.py`:
+
+```python
+import asyncio
+from haikeilabs.agentware.middleware import AuditedToolClient, CallerContext
+
+def echo(**kwargs):
+    return {"echo": kwargs["value"]}
+
+async def main():
+    client = AuditedToolClient(source="my-agent")
+    caller = CallerContext(user_id="user-123", invoking_subject="user-123", source="my-agent")
+    result = await client.Execute("echo", {"value": "hi"}, "user-123", "session-1", None, echo, caller=caller)
+    print(result)
+
+asyncio.run(main())
+```
+
+The output is `{'echo': 'hi'}` and the default in-memory auditor records the
+call. **Without an evaluator, this client allows calls**; configure policy for
+any operation that needs authorization. Kei is optional for this local example.
+For a fake-proxy allow/deny example, see the [Python](docs/getting-started/python.md),
+[TypeScript](docs/getting-started/typescript.md), and [Go](docs/getting-started/go.md)
+guides. The [Rust workspace](rust/README.md) is a port in progress, not a
+complete SDK.
 
 ## Agentware and Kei
 
@@ -31,18 +75,17 @@ chain.
 
 **Policy enforcement.** Declarative rules — allow, deny, filter — with rate
 limits, turn caps, and conditions over caller attributes and tool arguments.
-Fail-closed by default: a call with no caller context is denied, not trusted.
+Configure an evaluator and validate caller identity at the trusted entry point.
+`KeiProxyEvaluator` fails closed when authorization cannot explicitly allow a call.
+The Python `AuditedToolClient` allows calls when no evaluator is configured and
+can construct a caller from supplied IDs, so it does not authenticate those IDs.
 
-**Audit records.** One append-only record per tool call, carrying the invoking
-subject, the delegation chain (`parent_span`, `delegation_depth`), the originating
-framework, a SHA-256 digest of the arguments rather than the arguments themselves,
-the resources touched, the policy decision and the rule that made it, token counts,
-and latency. Metrics are rollups over these records; there is no second
-instrumentation path. The record goes to the client's `Auditor` (the in-process
-`InMemoryAuditor` by default; nothing is exported). With `KeiProxyEvaluator`,
-kei-proxy separately records the authorization **decision** and ships it to Kei;
-outcome fields (success, latency, tokens, error) stay local. See
-[docs/audit-visibility.md](docs/audit-visibility.md).
+**Audit records.** Auditors record tool decisions and caller context; exact fields
+and outcome visibility vary by port and integration. The Python in-memory auditor
+stores the supplied arguments, so do not pass secrets or sensitive data without
+appropriate sanitization. It is local and non-persistent by default. With
+`KeiProxyEvaluator`, kei-proxy separately records authorization decisions;
+see [docs/audit-visibility.md](docs/audit-visibility.md).
 
 **Framework adapters.** The same tool definition renders to a valid call format for
 each target framework, and produces the same audit row shape under each. Adapters
@@ -85,7 +128,7 @@ pip install haikeilabs-agentware
 # TypeScript / Node 18+
 npm i @haikeilabs/agentware
 
-# Go 1.26+ (module path is lowercase)
+# Go 1.27+ for this checkout (module path is lowercase)
 go get github.com/haikeilabs/agentware/go
 ```
 
