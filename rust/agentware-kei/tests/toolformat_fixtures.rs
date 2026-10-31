@@ -7,6 +7,29 @@ use agentware_kei::toolformat::{Formatter, ToolDef, ToolResult, for_model};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
+/// Appends one JSONL record for the equal-coverage gate
+/// (`scripts/conformance/gate.py`); a no-op unless
+/// AGENTWARE_CONFORMANCE_LOG is set. Called after a case's assertions, so
+/// only passing cases are recorded.
+fn record(fixture: &str, section: &str, case: &str) {
+    let Some(log) = std::env::var_os("AGENTWARE_CONFORMANCE_LOG") else {
+        return;
+    };
+    let line = serde_json::json!({"language": "rust", "fixture": fixture, "section": section, "case": case});
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log)
+        .unwrap_or_else(|error| panic!("open conformance log: {error}"));
+    use std::io::Write;
+    // One write call per record: the fixture tests run in parallel threads
+    // against the same log, and writeln!'s fragmented writes would interleave.
+    let mut row = line.to_string();
+    row.push('\n');
+    file.write_all(row.as_bytes())
+        .unwrap_or_else(|error| panic!("write conformance log: {error}"));
+}
+
 fn fixture_dir() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
@@ -50,32 +73,34 @@ fn family_formatter(family: &str) -> Box<dyn Formatter> {
 }
 
 /// The model id that selects a fixture family's formatter, or None for a
-/// family with no Rust formatter yet (qwen; see fixtures/EXCLUSIONS.md).
+/// family with no Rust formatter yet.
 fn family_model(family: &str) -> Option<&'static str> {
     match family {
         "openai" => Some("gpt-4"),
         "anthropic" => Some("claude-3"),
         "deepseek" => Some("deepseek-chat"),
         "glm" => Some("nvidia/GLM-5.3-Flash-FP4-Local"),
+        "qwen" => Some("qwen2.5"),
         _ => None,
     }
 }
 
-fn assert_format_definitions(family: &str, cases: &Value) {
+fn assert_format_definitions(fixture: &str, family: &str, cases: &Value) {
     let formatter = family_formatter(family);
     let tools = shared_tools();
     for case in cases.as_array().expect("format_definitions array") {
+        let name = case["name"].as_str().expect("case name");
         let got = formatter.format_tools(&tools);
         assert_eq!(
             got,
             case["expected"].as_str().expect("expected string"),
-            "family {family}: format_definitions case {:?}",
-            case["name"]
+            "family {family}: format_definitions case {name:?}"
         );
+        record(fixture, "format_definitions", name);
     }
 }
 
-fn assert_parse_calls(family: &str, cases: &Value) {
+fn assert_parse_calls(fixture: &str, family: &str, cases: &Value) {
     let formatter = family_formatter(family);
     for case in cases.as_array().expect("parse_calls array") {
         let name = case["name"].as_str().expect("case name");
@@ -107,12 +132,14 @@ fn assert_parse_calls(family: &str, cases: &Value) {
                 "family {family}: parse_calls case {name:?} args"
             );
         }
+        record(fixture, "parse_calls", name);
     }
 }
 
-fn assert_format_result(family: &str, cases: &Value) {
+fn assert_format_result(fixture: &str, family: &str, cases: &Value) {
     let formatter = family_formatter(family);
     for case in cases.as_array().expect("format_result array") {
+        let name = case["name"].as_str().expect("case name");
         let result = &case["result"];
         let tool_result = ToolResult {
             success: result["success"].as_bool().expect("result.success"),
@@ -124,22 +151,23 @@ fn assert_format_result(family: &str, cases: &Value) {
         assert_eq!(
             got,
             case["expected"].as_str().expect("expected string"),
-            "family {family}: format_result case {:?}",
-            case["name"]
+            "family {family}: format_result case {name:?}"
         );
+        record(fixture, "format_result", name);
     }
 }
 
-fn assert_validate_format(family: &str, cases: &Value) {
+fn assert_validate_format(fixture: &str, family: &str, cases: &Value) {
     let formatter = family_formatter(family);
     for case in cases.as_array().expect("validate_format array") {
+        let name = case["name"].as_str().expect("case name");
         let got = formatter.validate_format(case["input"].as_str().expect("input"));
         assert_eq!(
             got.is_ok(),
             case["valid"].as_bool().expect("valid flag"),
-            "family {family}: validate_format case {:?} -> {got:?}",
-            case["name"]
+            "family {family}: validate_format case {name:?} -> {got:?}"
         );
+        record(fixture, "validate_format", name);
     }
 }
 
@@ -151,10 +179,11 @@ fn assert_fixture_file(name: &str) {
         family,
         "selector family for {family}"
     );
-    assert_format_definitions(family, &v["format_definitions"]);
-    assert_parse_calls(family, &v["parse_calls"]);
-    assert_format_result(family, &v["format_result"]);
-    assert_validate_format(family, &v["validate_format"]);
+    let fixture = format!("toolformat/{name}");
+    assert_format_definitions(&fixture, family, &v["format_definitions"]);
+    assert_parse_calls(&fixture, family, &v["parse_calls"]);
+    assert_format_result(&fixture, family, &v["format_result"]);
+    assert_validate_format(&fixture, family, &v["validate_format"]);
 }
 
 #[test]
@@ -179,8 +208,7 @@ fn glm_cases() {
 
 /// Candidate fixtures from live models (`live-*-cases.json`), staged here only
 /// while scripts/live-captures compares the languages (docs/testing.md), so
-/// this test has nothing to do in a normal run. A family with no Rust
-/// formatter yet is reported and skipped.
+/// this test has nothing to do in a normal run.
 #[test]
 fn live_capture_cases() {
     let mut names: Vec<String> = std::fs::read_dir(fixture_dir())
@@ -190,14 +218,11 @@ fn live_capture_cases() {
         .collect();
     names.sort();
     for name in names {
-        let family = load_fixture(&name)["family"]
-            .as_str()
-            .expect("family")
-            .to_owned();
-        if family_model(&family).is_none() {
-            eprintln!("skipping {name}: no Rust formatter for family {family}");
-            continue;
-        }
         assert_fixture_file(&name);
     }
+}
+
+#[test]
+fn qwen_cases() {
+    assert_fixture_file("qwen-cases.json");
 }

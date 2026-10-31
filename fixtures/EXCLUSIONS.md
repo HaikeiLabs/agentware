@@ -27,4 +27,3 @@ and `#`.
 
 | Language | Cases | Reason | Removed by |
 |---|---|---|---|
-| rust | `toolformat/*-cases.json#*` | Rust has no toolformat module yet | T3a, `feat/parity-8-rust-toolformat` (aw-rs-tf), PR not open yet |
