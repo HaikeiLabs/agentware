@@ -718,7 +718,7 @@ var newSDKInstanceID = func() string {
 }
 
 // sdkVersion is set at build time or inferred.
-var sdkVersion = "0.14.0"
+var sdkVersion = "0.15.0"
 
 // timeNow is overridable in tests.
 var timeNow = time.Now
