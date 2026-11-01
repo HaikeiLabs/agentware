@@ -8,6 +8,22 @@ repository's semantic version with Go and TypeScript; Python releases use the
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-31
+
+### Fixed
+
+- `toolformat` generic parsing rejects a tool call with an empty name, or with
+  arguments that are not a JSON object, as Go does (#288).
+- `toolformat` anthropic parsing rejects `<invoke tool="">` (#288).
+- Reasoning `strip()` raises `MalformedJSONError`, not `UnicodeDecodeError`,
+  for undecodable JSON-looking bytes; bytes decode with `errors="replace"`,
+  matching Go (#288).
+
+### Added
+
+- Hypothesis property tests for the tool-call, manifest-v3 and reasoning
+  parsers (#288).
+
 ## [0.15.0] - 2026-10-30
 
 ### Added
@@ -68,6 +84,7 @@ repository only, as `pedro-agentware`.
 - PyPI package page (`python/README.md`), project URLs, classifiers and a
   `py.typed` marker.
 
-[Unreleased]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.15.0...HEAD
+[Unreleased]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.16.0...HEAD
+[0.16.0]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.15.0...agentware-py-v0.16.0
 [0.15.0]: https://github.com/HaikeiLabs/agentware/compare/agentware-py-v0.14.0...agentware-py-v0.15.0
 [0.1.0]: https://github.com/HaikeiLabs/agentware/releases/tag/agentware-py-v0.1.0

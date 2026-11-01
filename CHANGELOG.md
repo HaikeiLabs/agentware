@@ -5,6 +5,27 @@ shared version across npm, PyPI, and Go.
 
 ## Unreleased
 
+## [0.16.0] - 2026-10-31
+
+### Added
+
+- **Rust:** toolformat for qwen, llama, minimax, mistral and nemotron, so every
+  tool-call family now has Rust, Go, Python and TypeScript implementations and
+  `fixtures/EXCLUSIONS.md` has no Rust rows (#282).
+
+### Fixed
+
+- **Python:** the parsers now fail closed in four cases where they previously
+  accepted bad input, matching Go: the generic formatter rejects an empty tool
+  name and arguments that are not an object, the anthropic formatter rejects
+  `<invoke tool="">`, and reasoning `strip()` raises `MalformedJSONError`
+  rather than `UnicodeDecodeError` for undecodable bytes (#288).
+
+### Tests
+
+- **Python:** Hypothesis property tests for the tool-call, manifest-v3 and
+  reasoning parsers, with a nightly high-count job (#288).
+
 ## [0.15.0] - 2026-10-30
 
 ### Added
