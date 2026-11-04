@@ -2,6 +2,8 @@
 
 pub mod evaluator;
 pub mod fixture;
+pub mod llm;
+pub mod llmcontext;
 pub mod middleware;
 pub mod reasoning;
 pub mod runtimelink;
