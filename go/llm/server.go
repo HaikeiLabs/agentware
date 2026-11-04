@@ -38,9 +38,14 @@ func NewServerBackend(config ServerConfig) Backend {
 
 // Complete sends a completion request to the OpenAI-compatible server.
 func (b *serverBackend) Complete(ctx context.Context, req *Request) (*Response, error) {
+	messages, err := toWireMessages(req.Messages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map messages to OpenAI wire format: %w", err)
+	}
+
 	payload := map[string]any{
 		"model":       b.config.Model,
-		"messages":    req.Messages,
+		"messages":    messages,
 		"temperature": req.Temperature,
 		"max_tokens":  req.MaxTokens,
 		"stop":        req.Stop,
