@@ -268,8 +268,14 @@ export class AgentLoop {
       }
 
       let stepNudged = false;
+      const nativeCalls = resp.tool_calls.length > 0 ? resp.tool_calls : null;
+      if (nativeCalls) {
+        conversation.push({ role: Role.ASSISTANT, content: cleanContent, tool_calls: nativeCalls });
+      }
+      const deferredNudges: Message[] = [];
 
-      for (const call of validation.toolCalls) {
+      for (const [index, call] of validation.toolCalls.entries()) {
+        const toolCallId = nativeCalls?.[index]?.id;
         if (this.config.step_enforcer) {
           const [allowed, missing] = this.config.step_enforcer.canExecute(
             session_id,
@@ -294,7 +300,12 @@ export class AgentLoop {
               missing,
               Math.min(3, nudges)
             );
-            conversation.push({
+            if (nativeCalls) {
+              conversation.push({ role: Role.TOOL, tool_call_id: toolCallId,
+                content: `Tool ${call.tool} error: prerequisites not met`,
+                meta: { type: MessageType.TOOL_RESULT } });
+            }
+            (nativeCalls ? deferredNudges : conversation).push({
               role: Role.USER,
               content: nudge.content,
               meta: { type: MessageType.STEP_NUDGE },
@@ -309,6 +320,7 @@ export class AgentLoop {
         ) {
           conversation.push({
             role: Role.TOOL,
+            ...(nativeCalls ? { tool_call_id: toolCallId } : {}),
             content: `Tool ${call.tool} error: blocked after repeated errors`,
             meta: { type: MessageType.TOOL_RESULT },
           });
@@ -319,6 +331,7 @@ export class AgentLoop {
         if (!tool) {
           conversation.push({
             role: Role.TOOL,
+            ...(nativeCalls ? { tool_call_id: toolCallId } : {}),
             content: `Tool ${call.tool} error: unknown tool`,
             meta: { type: MessageType.TOOL_RESULT },
           });
@@ -338,6 +351,7 @@ export class AgentLoop {
           this.config.step_enforcer?.markStepComplete(session_id, call.tool);
           conversation.push({
             role: Role.TOOL,
+            ...(nativeCalls ? { tool_call_id: toolCallId } : {}),
             content: `Tool ${call.tool} result: ${JSON.stringify(result.data)}`,
             meta: { type: MessageType.TOOL_RESULT },
           });
@@ -352,11 +366,14 @@ export class AgentLoop {
           );
           conversation.push({
             role: Role.TOOL,
+            ...(nativeCalls ? { tool_call_id: toolCallId } : {}),
             content: `Tool ${call.tool} error: ${message}`,
             meta: { type: MessageType.TOOL_RESULT },
           });
         }
       }
+
+      conversation.push(...deferredNudges);
 
       if (stepNudged) {
         continue;
