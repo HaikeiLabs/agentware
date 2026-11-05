@@ -106,9 +106,9 @@ func (b *serverBackend) Complete(ctx context.Context, req *Request) (*Response, 
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content          string     `json:"content"`
-				ReasoningContent string     `json:"reasoning_content"`
-				ToolCalls        []ToolCall `json:"tool_calls"`
+				Content          string                 `json:"content"`
+				ReasoningContent string                 `json:"reasoning_content"`
+				ToolCalls        []wireResponseToolCall `json:"tool_calls"`
 			} `json:"message"`
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
@@ -138,10 +138,14 @@ func (b *serverBackend) Complete(ctx context.Context, req *Request) (*Response, 
 	}
 
 	choice := result.Choices[0]
+	toolCalls, err := fromWireToolCalls(choice.Message.ToolCalls)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode tool calls: %w", err)
+	}
 	return &Response{
 		Content:      choice.Message.Content,
 		Reasoning:    choice.Message.ReasoningContent,
-		ToolCalls:    choice.Message.ToolCalls,
+		ToolCalls:    toolCalls,
 		FinishReason: choice.FinishReason,
 		UsageTokens: TokenUsage{
 			PromptTokens:     result.Usage.PromptTokens,

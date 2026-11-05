@@ -2,10 +2,12 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/haikeilabs/agentware/go/llm"
 	"github.com/haikeilabs/agentware/go/middleware"
+	"github.com/haikeilabs/agentware/go/toolformat"
 	"github.com/haikeilabs/agentware/go/tools"
 )
 
@@ -95,7 +97,16 @@ func (e *inferenceExecutor) Execute(ctx context.Context, req ExecuteRequest) (*E
 			}, nil
 		}
 
-		toolCalls, err := e.config.Formatter.ParseToolCalls(resp.Content)
+		toolCalls, err := e.toolCalls(resp)
+		if errors.Is(err, errFinalAnswer) {
+			return &ExecuteResult{
+				FinalResponse:     resp.Content,
+				Iterations:        iterations + 1,
+				ToolCallsMade:     toolCallsMade,
+				TerminationReason: TerminationComplete,
+				Conversation:      conversation,
+			}, nil
+		}
 		if err != nil {
 			return &ExecuteResult{
 				FinalResponse:     resp.Content,
@@ -145,6 +156,30 @@ func (e *inferenceExecutor) Execute(ctx context.Context, req ExecuteRequest) (*E
 		TerminationReason: TerminationMaxIterations,
 		Conversation:      conversation,
 	}, nil
+}
+
+// errFinalAnswer marks a response from a native tool-calling backend whose
+// content is prose rather than content-encoded tool calls.
+var errFinalAnswer = errors.New("final answer")
+
+// toolCalls returns the calls to run for resp. Native tool calls (OpenAI
+// tool_calls) come first and keep their IDs so each tool message answers its
+// call with tool_call_id. Otherwise the formatter parses content-encoded
+// calls. For a native backend, content the formatter cannot parse is the
+// final answer, not an error.
+func (e *inferenceExecutor) toolCalls(resp *llm.Response) ([]toolformat.ParsedToolCall, error) {
+	if len(resp.ToolCalls) > 0 {
+		calls := make([]toolformat.ParsedToolCall, 0, len(resp.ToolCalls))
+		for _, tc := range resp.ToolCalls {
+			calls = append(calls, toolformat.ParsedToolCall{ID: tc.ID, Name: tc.Name, Args: tc.Args})
+		}
+		return calls, nil
+	}
+	calls, err := e.config.Formatter.ParseToolCalls(resp.Content)
+	if err != nil && e.config.Backend.SupportsNativeToolCalling() {
+		return nil, errFinalAnswer
+	}
+	return calls, err
 }
 
 func buildConversation(req ExecuteRequest) []llm.Message {

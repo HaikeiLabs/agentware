@@ -3,6 +3,7 @@ package llm
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // OpenAI-compatible wire types for the chat-completions request body. They are
@@ -69,4 +70,56 @@ func toWireMessages(messages []Message) ([]wireMessage, error) {
 	}
 
 	return wire, nil
+}
+
+// wireResponseToolCall is the OpenAI tool_calls entry in a chat-completions
+// response: the name and arguments are nested under function, and arguments
+// is usually a JSON string (some servers send an object).
+type wireResponseToolCall struct {
+	ID       string `json:"id"`
+	Function struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
+}
+
+// fromWireToolCalls maps response tool_calls to ToolCall, keeping the ID so
+// the tool result can answer it with tool_call_id. Arguments that are not a
+// JSON object (or a string holding one) are an error, so a malformed call is
+// never run with empty arguments.
+func fromWireToolCalls(calls []wireResponseToolCall) ([]ToolCall, error) {
+	if len(calls) == 0 {
+		return nil, nil
+	}
+	out := make([]ToolCall, 0, len(calls))
+	for _, c := range calls {
+		args, err := decodeWireArguments(c.Function.Arguments)
+		if err != nil {
+			return nil, fmt.Errorf("tool call %q arguments: %w", c.Function.Name, err)
+		}
+		out = append(out, ToolCall{ID: c.ID, Name: c.Function.Name, Args: args})
+	}
+	return out, nil
+}
+
+func decodeWireArguments(raw json.RawMessage) (map[string]any, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" || trimmed == `""` {
+		return map[string]any{}, nil
+	}
+	var args map[string]any
+	if err := json.Unmarshal(raw, &args); err == nil && args != nil {
+		return args, nil
+	}
+	var encoded string
+	if err := json.Unmarshal(raw, &encoded); err != nil {
+		return nil, fmt.Errorf("must be a JSON object or a string containing one: %w", err)
+	}
+	if strings.TrimSpace(encoded) == "" {
+		return map[string]any{}, nil
+	}
+	if err := json.Unmarshal([]byte(encoded), &args); err != nil || args == nil {
+		return nil, fmt.Errorf("arguments string is not a JSON object")
+	}
+	return args, nil
 }
