@@ -119,7 +119,7 @@ version:
 # Python 3.10+ (import haikeilabs.agentware)
 pip install haikeilabs-agentware
 
-# TypeScript / Node 18+
+# TypeScript / Node 18+ (the examples need 22.18+)
 npm i @haikeilabs/agentware
 
 # Go 1.27+ for this checkout (module path is lowercase)

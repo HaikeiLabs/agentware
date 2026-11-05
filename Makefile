@@ -17,7 +17,7 @@ help:
 	@echo "  version-check      - Check npm, PyPI and Go carry the VERSION file's version"
 	@echo "  version-test       - Run the release version tool's tests"
 	@echo "  version-set        - Set the shared version everywhere (VERSION=X.Y.Z)"
-	@echo "  compat-check       - Check the README compatibility table against KEI_PROXY_VERSION"
+	@echo "  compat-check       - Check the README compatibility table and doc version floors"
 	@echo ""
 	@echo "  evals              - Run all evals (file search + general) sequentially against models"
 	@echo "  evals-file-search  - Run only file search tool call evals"
