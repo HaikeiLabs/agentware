@@ -1,7 +1,7 @@
-# Seeing governed tool calls in Kei
+# Seeing protected tool calls in Kei
 
 This page explains which audit records Agentware keeps locally, which record
-Kei receives, and how to follow one governed tool call from your harness to
+Kei receives, and how to follow one protected tool call from your harness to
 the Kei console.
 
 ## What is recorded where
@@ -50,7 +50,7 @@ Two consequences:
 The report-only `kei-proxy hook` covers the Claude Code, Codex, OpenCode and
 Cursor harnesses only; it does not record SDK (Agentware) calls.
 
-## Recipe: see one governed call
+## Recipe: see one protected call
 
 ### 0. Wire the SDK
 

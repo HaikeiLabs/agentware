@@ -15,7 +15,7 @@ TypeScript implementations with the same behaviour.
 pip install haikeilabs-agentware
 ```
 
-## Governed harness quick start: socket client first
+## Quick start with Kei guardrails: socket client first
 
 For an executable allow/deny walkthrough through the `kei-proxy` socket, see
 the [Python getting started guide](../docs/getting-started/python.md) and the
@@ -66,7 +66,7 @@ invoking subject unchanged and records the parent span and delegation depth,
 so the audit trail always leads back to the human who authorized the request.
 
 Audit records stay in process (`InMemoryAuditor`); Kei sees only kei-proxy's
-decision record. See [Seeing governed tool calls in Kei](https://github.com/HaikeiLabs/agentware/blob/main/docs/audit-visibility.md).
+decision record. See [Seeing protected tool calls in Kei](https://github.com/HaikeiLabs/agentware/blob/main/docs/audit-visibility.md).
 
 ## What's in the package
 

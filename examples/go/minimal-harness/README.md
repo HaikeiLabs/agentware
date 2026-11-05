@@ -1,6 +1,6 @@
 # Minimal Go Harness
 
-A minimal governed tool harness demonstrating policy enforcement through
+A minimal agent with Kei guardrails, demonstrating policy enforcement through
 the kei-proxy runtime socket.
 
 ## Layout
@@ -24,7 +24,7 @@ the kei-proxy runtime socket.
 ```bash
 cd examples/go/minimal-harness
 
-# With kei-proxy socket running (go run prints one governed allow and deny):
+# With kei-proxy socket running (go run prints one allow and one deny from Kei):
 go run .
 
 # Override the source name:

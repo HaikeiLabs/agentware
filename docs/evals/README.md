@@ -248,7 +248,7 @@ runs and the gate fails until the label is removed.
 ## Beta tool surface evals
 
 `--beta-tools` runs the model-driven cases in
-`python/src/evals/cases/beta_tools.py` over the governed connector reads,
+`python/src/evals/cases/beta_tools.py` over the connector reads that Kei checks,
 write action tools, and local capabilities.
 
 ```bash

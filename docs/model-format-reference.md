@@ -34,6 +34,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Adapter** | No model-specific field registration needed; `reasoning_content` is in the known set. |
 
 **Example response:**
+
 ```json
 {
   "choices": [{
@@ -65,6 +66,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Adapter** | `thinking` is in the known field set. No registration needed for Claude. |
 
 **Example response (Messages API):**
+
 ```json
 {
   "content": [
@@ -75,7 +77,8 @@ and the reasoning adapter handles its reasoning shape.
 ```
 
 **Example response (text with function_calls):**
-```
+
+```text
 <function_calls>
 <invoke tool="get_weather">{"location": "Tokyo", "unit": "celsius"}</invoke>
 </function_calls>
@@ -95,6 +98,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Adapter** | Both `reasoning_content` and `<thinking>` tags are handled generically. |
 
 **Example response:**
+
 ```json
 {
   "choices": [{
@@ -120,6 +124,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Adapter** | Both `reasoning_content` and `[THINK]` tags are handled. The adapter treats unbalanced `[THINK]` as a fail-closed error. |
 
 **Example response (chat mode):**
+
 ```json
 {
   "choices": [{
@@ -132,7 +137,8 @@ and the reasoning adapter handles its reasoning shape.
 ```
 
 **Example response (text mode):**
-```
+
+```text
 [THINK]
 Called get_weather for Tokyo, got 22°C.
 [/THINK]
@@ -153,6 +159,7 @@ Based on data, Tokyo is 22°C.
 | **Adapter** | `reasoning_content` and `reasoning` are both in the known field set; no registration needed. |
 
 **Example response:**
+
 ```json
 {
   "choices": [{
@@ -186,6 +193,7 @@ cluster, using `/v1/chat/completions` with and without streaming. The
 | Streaming tool calls | — | The first `tool_calls` delta carries `id`, `type`, `name` and the start of `arguments`; later deltas carry only `index` and argument fragments. The last fragment arrives in the same chunk as `finish_reason` |
 
 **Example response (non-streaming):**
+
 ```json
 {
   "choices": [{
@@ -235,7 +243,8 @@ All formatters share the same `ToolFormatter` interface (5 methods: `FormatToolD
 ## Reasoning Adapter Recognition
 
 The adapter's known field set (`knownReasoningFields` / `KNOWN_REASONING_FIELDS`):
-```
+
+```text
 reasoning_content  (priority 1 — all families except Anthropic)
 thinking           (priority 2 — Anthropic)
 thinking_content   (priority 3 — Anthropic, alternative SDK naming)
@@ -246,6 +255,7 @@ Arbitrary additional field names can be registered per model via
 `RegisterModelField` / `register_model_field`.
 
 Inline thinking tags recognized by the adapter:
+
 - `<thinking>...</thinking>` — stripped from text content
 - `[THINK]...[/THINK]` — stripped from text content
 

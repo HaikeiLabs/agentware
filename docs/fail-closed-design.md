@@ -1,6 +1,6 @@
 # Fail-Closed Design
 
-This document describes the fail-closed design that governs every path through
+This document describes the fail-closed design that applies to every path through
 KeiProxyEvaluator and the middleware layer. It is a companion to the parity
 table in `docs/kei-proxy-evaluator-parity.md` and to the language READMEs in
 `docs/{go,python,typescript}/README.md`.
@@ -39,12 +39,12 @@ Every reason reads `kei-proxy <class>` or `kei-proxy <class>: <detail>`.
 
 `KEI_PROXY_DISABLED=true` is a **valid** deployment-time signal. It does not
 bypass the evaluator or shortcut to ALLOW. The only correct behaviour when
-`KEI_PROXY_DISABLED` is true is to **deny every governed tool call** — the same
+`KEI_PROXY_DISABLED` is true is to **deny every protected tool call** — the same
 as any other unreachable or missing policy endpoint. The variable exists so that:
 
 - A runtime without a connected Kei installation can still start and serve
-  non-governed (local) tool calls.
-- The startup path can warn that governed calls will be denied, rather than
+  local tool calls that Kei doesn't check.
+- The startup path can warn that protected calls will be denied, rather than
   hang on a missing binary.
 
 A "disable" switch that implicitly allows would violate the fail-closed
@@ -65,20 +65,20 @@ bypasses every security control in the stack. Such a switch would be:
 
 No language port provides such a switch.
 
-## Governed vs non-governed tool calls
+## Protected vs local tool calls
 
 Tool calls fall into one of two categories. The distinction is a deployment
 choice, not a code-level flag: a harness decides which tools route through
 `KeiProxyEvaluator` by how it wires its `PolicyEvaluator`.
 
-### Governed (through KeiProxyEvaluator)
+### Protected (Kei checks them through KeiProxyEvaluator)
 
-A governed call goes through `KeiProxyEvaluator`, which runs
+A protected call goes through `KeiProxyEvaluator`, which runs
 `kei-proxy authorize` — the policy engine decides (allow / deny / filter),
 every decision is audited, and the caller context is sent with full delegation
 attribution.
 
-Governed tools include:
+Protected tools include:
 
 - **Connector invokes** — any tool whose execution reads or writes tenant data
   through a data-source connector (GitHub, Linear, Google Drive, S3, HTTP API,
@@ -87,17 +87,17 @@ Governed tools include:
   external systems (send email, create ticket, deploy, invoke webhook).
 - **Tools touching credentials** — any tool whose arguments or results contain
   secrets, tokens, or keys.
-- **Any tool the operator chooses to govern** — the boundary is configurable
+- **Any tool the operator chooses to have Kei check** — the boundary is configurable
   per deployment.
 
-### Non-governed (local only)
+### Local (Kei doesn't check them)
 
-A non-governed call uses a local `PolicyEvaluator` (e.g. `SimplePolicyEvaluator`
+A local call uses a local `PolicyEvaluator` (e.g. `SimplePolicyEvaluator`
 or the explicit deny-all evaluator) or no evaluator at all. It never reaches
 kei-proxy. The local middleware chain still applies rate limits, conditions,
 and rules, and still audits the decision.
 
-Non-governed tools include:
+Local tools include:
 
 - **Local computation** — pure functions, math, string manipulation.
 - **Deterministic transforms** — format conversion, data reshaping.
@@ -107,20 +107,20 @@ Non-governed tools include:
   configuration.
 
 The same `AuditedToolClient` wrapper records every decision either way,
-so the audit trail is contiguous regardless of the governance path.
+so the audit trail is contiguous whether or not Kei checks the call.
 
 ### Why the distinction matters
 
-Governed calls place a hard policy boundary between the agent and every
+Protected calls place a hard policy boundary between the agent and every
 external system. If kei-proxy is unreachable, misconfigured, or returns a
-surprising result, the call is denied — never allowed. Non-governed calls
+surprising result, the call is denied — never allowed. Local calls
 let a local agent loop operate without a Kei dependency, but they must never
 touch tenant data, external systems, or credentials.
 
 A harness that routes all tools through `KeiProxyEvaluator` is maximally
 secure; one that routes none is fully local and never requires Kei. Most
-deployments govern connector and write tools while keeping local computation
-non-governed.
+deployments have Kei check connector and write tools and keep local computation
+local.
 
 ## Testing: injecting a fake evaluator
 
@@ -224,12 +224,12 @@ During local development the `kei-proxy` binary may not be installed or the
 runtime token may not be set. A harness can:
 
 1. **Use a local `PolicyEvaluator` instead of `KeiProxyEvaluator`** for
-   non-governed tools. The middleware interface accepts any evaluator, so a
+   local tools that Kei doesn't check. The middleware interface accepts any evaluator, so a
    liberal local policy (allow-all, with rate limits) keeps the dev loop fast.
 2. **Run the local Kei stack** (`docker compose --profile mock up`) which
    provides a mock kei-proxy endpoint on :8081 and a seeded policy. Set
    `KEI_RUNTIME_TOKEN` and point `KEI_PROXY_REGISTRY` at the mock.
 3. **Inject a fake evaluator** (as shown above) in integration tests that
-   exercise the governed path without a real proxy.
+   exercise the protected path without a real proxy.
 
 No development workflow ever needs to disable fail-closed behaviour.

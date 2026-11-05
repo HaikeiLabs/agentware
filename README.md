@@ -94,7 +94,7 @@ path-boundary check in the executor. Memory is not a side channel around the aud
 trail; it is another audited tool call.
 
 **Third-party harness contract.** The `kei/` module and `docs/harness-contract.md`
-define what a harness must implement to be governed by agentware without depending
+define what a harness must implement to get Kei guardrails through Agentware without depending
 on any agent framework. Enforcement is shared library code: `KeiProxyEvaluator`
 fails closed on every path that is not an explicit `permit`/`allow`.
 
@@ -107,7 +107,7 @@ policy enforcement point**; ABAC is called for **metadata policy decisions only*
 and never executes writes or serves/store credentials. Provider payloads and
 results, customer content, credentials, embeddings, and indexes **never enter
 Kei**. Local agent execution works without a direct ABAC connector dependency;
-governed external operations go through the proxy boundary. See
+external operations that Kei allows or denies go through the proxy boundary. See
 `docs/tenant-proxy-reference.md` for the authoritative architecture.
 
 ## Install
@@ -164,7 +164,7 @@ subprocess integration (`kei-proxy authorize`) is deprecated.
 
 ## Compatibility
 
-Governed tool calls go through `kei-proxy`, the runtime the harness calls, which
+Protected tool calls go through `kei-proxy`, the runtime the harness calls, which
 an org admin installs with the `kei` platform admin CLI (kei-cli). The
 kei-cli installer bundles the pinned kei-proxy. Use at least these versions
 with each SDK release:
@@ -292,7 +292,7 @@ record; see [docs/audit-visibility.md](docs/audit-visibility.md).
 | `docs/engineering-design.md` | Architecture |
 | `docs/tenant-proxy-reference.md` | Canonical tenant-side proxy architecture and metadata-only control-plane boundary |
 | `docs/harness-contract.md` | Contract for third-party agent builders |
-| `docs/audit-visibility.md` | What is audited locally vs in Kei, and how to see one governed call |
+| `docs/audit-visibility.md` | What is audited locally vs in Kei, and how to see one protected call |
 | `docs/runtime-link-integration.md` | RuntimeLink public API and usage boundaries for harness authors |
 | `docs/build-history/` | Archived build-loop working files |
 

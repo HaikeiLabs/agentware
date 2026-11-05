@@ -1,10 +1,10 @@
-# Go: governed socket harness
+# Go: Kei guardrails over the runtime socket
 
 For a real Kei runtime setup walkthrough, see the
 [runtime setup guide](runtime-setup.md) and [deny hints](../deny-hints.md).
 
-This guide shows the `runtimesocket` client authorizing a governed allow and
-deny through the local `kei-proxy` socket. For package installation and
+This guide shows the `runtimesocket` client getting one allow and one deny
+from Kei through the local `kei-proxy` socket. For package installation and
 supported versions, see the repository [README](../../README.md). For the
 complete working harness layout, see
 [`examples/go/minimal-harness`](../../examples/go/minimal-harness).
@@ -30,7 +30,7 @@ python3 fixtures/kei/fake-kei-proxy-socket.py ./.runtime.sock --audit ./.runtime
 In the other terminal, copy the Go snippet into your harness module's `main.go`
 and run it with `KEI_RUNTIME_SOCKET_PATH` set to that socket and
 `KEI_RUNTIME_TOKEN=offline-example-token`. The fake has canned decisions and
-is for local examples only; use a real runtime installation for governed work.
+is for local examples only; use a real runtime installation for tool calls that Kei checks.
 The complete [minimal harness](../../examples/go/minimal-harness) prints an
 allowed result followed by a deny with its reason code and hint, and confirms
 the denied handler did not run:

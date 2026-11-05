@@ -5,9 +5,10 @@
 and Go; in TypeScript `evaluate` returns a `Promise<Decision>`). Harnesses in every SDK language
 need the same answer for the same proxy output. One table holds them to that.
 
-See `docs/fail-closed-design.md` for the governing design principles: the
+See `docs/fail-closed-design.md` for the design principles: the
 decision table, `KEI_PROXY_DISABLED` as fail-closed (never an allow switch),
-the governed vs non-governed tool call distinction, and testing patterns that
+the split between protected tool calls and local calls that Kei doesn't
+check, and testing patterns that
 inject a fake evaluator.
 
 ## The shared table

@@ -802,7 +802,7 @@ New top-level packages require an ADR in `docs/adr/` before implementation.
 **Agentware** is the tenant-side execution layer (local tool middleware,
 delegation, semantic tool bindings, and proxy integration). **The distributed
 proxy** is the connector/provider runtime and the policy enforcement point for
-governed external operations. **Kei** is a metadata-only control plane:
+external operations that Kei allows or denies. **Kei** is a metadata-only control plane:
 registration, auth method and *references*, tool bindings, scopes/resources,
 and audit metadata. **ABAC** is a metadata policy decision point only.
 
@@ -823,7 +823,7 @@ and audit metadata. **ABAC** is a metadata policy decision point only.
 - **Local agent execution** stays fully possible **without a direct ABAC
   connector dependency**: the local middleware chain evaluates policy and
   audits locally, fail-closed by default.
-- **Governed external operations** — actions that cross out of the tenant to
+- **External operations that Kei allows or denies** — actions that cross out of the tenant to
   connectors/providers — use the **proxy boundary**: the proxy resolves
   bindings/auth from control-plane metadata (references, not credentials),
   invokes provider adapters, and returns data only inside the tenant runtime.

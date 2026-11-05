@@ -297,7 +297,7 @@ harness, action, result (`permit` or `deny`), and policy. The public [Audit
 logs](https://docs.haikeilabs.com/content/kei/audit/logs.html) page describes
 the recent activity view and recorded fields. Select the runtime installation's
 workspace and leave the Harness, Agent and Decision filters on **All**; see
-[Seeing governed tool calls in Kei](../audit-visibility.md) if a record is missing.
+[Seeing protected tool calls in Kei](../audit-visibility.md) if a record is missing.
 
 ## Understand a denial
 
