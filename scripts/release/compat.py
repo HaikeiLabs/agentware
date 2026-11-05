@@ -80,7 +80,7 @@ DOC_GLOBS = (
     "go/README.md",
     "fixtures/kei/README.md",
 )
-DOC_EXCLUDES = ("docs/specs/", "docs/build-history/")
+DOC_EXCLUDES = ("docs/specs/",)
 
 _DOC_VERSION_RE = re.compile(r"\bagentware(?:\s+sdk)?\s+v?(\d+)\.(\d+)\.(\d+)\b", re.IGNORECASE)
 _FROM_RE = re.compile(r"\bfrom\s+$", re.IGNORECASE)

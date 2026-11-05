@@ -299,7 +299,6 @@ record; see [docs/audit-visibility.md](docs/audit-visibility.md).
 | `docs/harness-contract.md` | Contract for third-party agent builders |
 | `docs/audit-visibility.md` | What is audited locally vs in Kei, and how to see one protected call |
 | `docs/runtime-link-integration.md` | RuntimeLink public API and usage boundaries for harness authors |
-| `docs/build-history/` | Archived build-loop working files |
 
 ## Examples
 
@@ -332,8 +331,8 @@ cd typescript && npm ci && npm run build && npm test
 # Shared version and compatibility table
 make version-test version-check compat-check
 
-# Docs (markdown lint; rules in .markdownlint.json; build-history is archived)
-npx markdownlint-cli2 "docs/**/*.md" README.md "!docs/build-history/**"
+# Docs (markdown lint; rules in .markdownlint.json)
+npx markdownlint-cli2 "docs/**/*.md" README.md
 ```
 
 The ontology T-box is a git submodule: run `git submodule update --init` after
@@ -343,7 +342,7 @@ locally.
 ## Community
 
 - [Docs](https://docs.haikeilabs.com/agentware/build/overview)
-- [Discord](https://discord.gg/g6QaTYWXDa)
+- [Discord](https://discord.gg/g6QaTYWXDa), where contribution work is coordinated
 - [Sovereign Context on Substack](https://haikeilabs.substack.com)
 
 ## License
