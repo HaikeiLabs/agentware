@@ -1,5 +1,6 @@
 //! Rust SDK integration surface for Kei.
 
+pub mod context;
 pub mod evaluator;
 pub mod executor;
 pub mod fixture;
@@ -8,6 +9,7 @@ pub mod jobs;
 pub mod llm;
 pub mod llmcontext;
 pub mod middleware;
+pub mod progress;
 pub mod prompts;
 pub mod ratelimit;
 pub mod reasoning;

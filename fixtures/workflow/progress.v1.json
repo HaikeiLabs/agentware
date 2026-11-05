@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "required": ["member", "policy", "verification"],
+  "max_no_progress": 2,
+  "events": [
+    {"kind":"observe", "key":"policy", "present":true, "pending":["member","verification"], "ready":false, "no_progress":0, "exhausted":false},
+    {"kind":"failure", "pending":["member","verification"], "ready":false, "no_progress":1, "exhausted":false},
+    {"kind":"observe", "key":"policy", "present":true, "pending":["member","verification"], "ready":false, "no_progress":1, "exhausted":false},
+    {"kind":"observe", "key":"member", "present":true, "pending":["verification"], "ready":false, "no_progress":0, "exhausted":false},
+    {"kind":"observe", "key":"verification", "present":true, "pending":[], "ready":true, "no_progress":0, "exhausted":false},
+    {"kind":"observe", "key":"verification", "present":false, "pending":["verification"], "ready":false, "no_progress":0, "exhausted":false},
+    {"kind":"failure", "pending":["verification"], "ready":false, "no_progress":1, "exhausted":false},
+    {"kind":"failure", "pending":["verification"], "ready":false, "no_progress":2, "exhausted":false},
+    {"kind":"failure", "pending":["verification"], "ready":false, "no_progress":3, "exhausted":true}
+  ]
+}

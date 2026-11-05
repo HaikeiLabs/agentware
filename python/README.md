@@ -144,3 +144,12 @@ the tenant runtime.
 ## License
 
 Apache-2.0. See [LICENSE](https://github.com/HaikeiLabs/agentware/blob/main/LICENSE).
+
+## Optional Forge workflow quality
+
+On Python 3.12+, install `haikeilabs-agentware[forge]` to use the pinned Forge
+response-quality integration. Optional `forge-pydantic` and `forge-adk` extras
+also install the supported framework. See [the integration guide](../docs/forge-workflow-integration.md)
+for per-run state, framework wrappers, context-compaction safeguards, and the
+separate policy boundary. The offline [Pydantic template](examples/forge_pydantic_template.py)
+uses a synthetic model and tool.

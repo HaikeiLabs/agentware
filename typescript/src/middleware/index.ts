@@ -33,3 +33,5 @@ export {
 export { StepEnforcer, StepNotAllowedError } from "./guardrails/step_enforcer.js";
 export { Guardrails } from "./guardrails/facade.js";
 export type { GuardrailsConfig, GuardrailsPrerequisite, GuardrailsState, GuardrailsResult } from "./guardrails/facade.js";
+export { ProgressTracker } from "./guardrails/progress.js";
+export type { ProgressSnapshot } from "./guardrails/progress.js";

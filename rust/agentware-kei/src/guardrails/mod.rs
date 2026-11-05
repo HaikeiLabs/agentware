@@ -10,6 +10,7 @@ pub mod error_tracker;
 pub mod facade;
 pub mod nudge;
 pub mod response_validator;
+pub mod shared;
 pub mod step_enforcer;
 
 pub use error_tracker::{ErrorCategory, ErrorTracker, ToolError};
