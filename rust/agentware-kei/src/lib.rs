@@ -2,6 +2,7 @@
 
 pub mod evaluator;
 pub mod fixture;
+pub mod jobs;
 pub mod middleware;
 pub mod reasoning;
 pub mod runtimelink;
