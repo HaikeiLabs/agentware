@@ -34,6 +34,34 @@ The distribution is `haikeilabs-agentware` (like the npm package
 `@haikeilabs/agentware`); the import package is `haikeilabs.agentware`, under
 the `haikeilabs` namespace. Python 3.10 or later.
 
+## Middleware first
+
+Python is middleware-first by design. `llm/backend.py` defines an abstract
+backend; it has no concrete model backend or agent loop. Wrap tool calls from
+frameworks such as LangGraph with `AuditedToolClient`. For example, a LangGraph
+tool node can call this async function:
+
+```python
+from haikeilabs.agentware.middleware import AuditedToolClient
+
+client = AuditedToolClient(source="example")
+
+
+def lookup_topic(topic: str) -> str:
+    return f"Notes about {topic}"
+
+
+async def lookup_topic_node(topic: str) -> str:
+    return await client.Execute(
+        "lookup_topic", {"topic": topic},
+        user_id="alice", channel_id="session-1", guild_id=None,
+        func=lookup_topic,
+    )
+```
+
+Without an evaluator, the Python client allows calls and records them. Supply
+an evaluator to enforce a policy before running the tool.
+
 ## Quick start
 
 ```python

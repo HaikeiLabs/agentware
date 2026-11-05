@@ -1,0 +1,8 @@
+{
+  "name": "agentware-first-agent",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node cli.ts" },
+  "engines": { "node": ">=22.18.0" },
+  "dependencies": { "@haikeilabs/agentware": "file:../../../typescript" }
+}

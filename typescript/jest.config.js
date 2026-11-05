@@ -3,6 +3,7 @@ export default {
   testEnvironment: "node",
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
+    "^@haikeilabs/agentware$": "<rootDir>/src/index.ts",
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   transform: {
@@ -10,6 +11,7 @@ export default {
       "ts-jest",
       {
         useESM: true,
+        tsconfig: { baseUrl: ".", paths: { "@haikeilabs/agentware": ["src/index.ts"] } },
       },
     ],
   },

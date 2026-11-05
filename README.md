@@ -54,6 +54,11 @@ For a fake-proxy allow/deny example, see the [Python](docs/getting-started/pytho
 guides. The [Rust workspace](rust/README.md) is a port in progress, not a
 complete SDK.
 
+Next, build an agent where a model calls a tool: the
+[TypeScript first agent](examples/typescript/first-agent/README.md) summarizes
+the top Hacker News stories with any OpenAI-compatible model, audits each tool
+call, and denies a second tool with a local policy. No Kei needed.
+
 ## Why
 
 Attribution dies at the first delegation hop. An agent spawns a subagent, the
@@ -298,6 +303,8 @@ record; see [docs/audit-visibility.md](docs/audit-visibility.md).
 
 ## Examples
 
+- [TypeScript first agent](examples/typescript/first-agent/README.md): a model
+  calls a tool, with local policy and audit, no Kei
 - [Go minimal harness](examples/go/minimal-harness/README.md)
 - [Python minimal harness](examples/python/minimal-harness/README.md)
 - [TypeScript minimal harness](examples/typescript/minimal-harness/README.md)
