@@ -1,6 +1,6 @@
-# Contributing to pedro-agentware
+# Contributing to Agentware
 
-pedro-agentware is implemented three times — **Go (`go/`, the reference
+Agentware is implemented three times — **Go (`go/`, the reference
 implementation), Python (`python/`, package `haikeilabs.agentware`), and
 TypeScript (`typescript/`)** — with deliberately mirrored package structure and
 mirrored test suites. Changes to shared logic (middleware, guardrails,

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-pedro-agentware is MCP-compatible middleware for LLM tool calling: it sits between an agent (LLM orchestrator) and tool execution, enforcing policy on every tool call (allow/deny/filter, rate limits, caller-context conditions) with auditing. The same library is implemented three times — **Go (`go/`, the reference implementation), Python (`python/`), and TypeScript (`typescript/`)** — with deliberately mirrored package structure and mirrored test suites. When changing shared logic (middleware, guardrails, toolformat, llmcontext, tools), check whether the counterparts in the other two languages and their tests need the same change.
+Agentware is MCP-compatible middleware for LLM tool calling: it sits between an agent (LLM orchestrator) and tool execution, enforcing policy on every tool call (allow/deny/filter, rate limits, caller-context conditions) with auditing. The same library is implemented three times — **Go (`go/`, the reference implementation), Python (`python/`), and TypeScript (`typescript/`)** — with deliberately mirrored package structure and mirrored test suites. When changing shared logic (middleware, guardrails, toolformat, llmcontext, tools), check whether the counterparts in the other two languages and their tests need the same change.
 
 The delegation contract: `CallerContext.InvokingSubject` is the human who initiated the request and is carried unchanged across every delegation hop (`CallerContext.Delegate` / `delegate()`); `ParentSpan` and `DelegationDepth` record where in the chain the call sits. `Trusted` defaults to **false** (fail-closed) in every language; a missing caller context is never promoted to trusted.
 

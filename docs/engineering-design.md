@@ -1,4 +1,4 @@
-# pedro-agentware: Engineering Design Document
+# Agentware: Engineering Design Document
 
 **Status**: Living Document — v0.1 Draft  
 **Repo**: github.com/HaikeiLabs/agentware  
@@ -26,9 +26,9 @@
 
 ## 1. Purpose & Scope
 
-### What pedro-agentware Is
+### What Agentware Is
 
-pedro-agentware is a **language-agnostic agent middleware SDK** for building self-hosted AI agent systems. It provides the infrastructure layer between your application and your LLM — the plumbing that makes agentic tool use reliable, auditable, and safe.
+Agentware is a **language-agnostic agent middleware SDK** for building self-hosted AI agent systems. It provides the infrastructure layer between your application and your LLM — the plumbing that makes agentic tool use reliable, auditable, and safe.
 
 It is **not** a full agent framework. It does not dictate how you write prompts, which model you use, or how your application is structured. It gives you composable primitives that you wire together.
 
@@ -42,7 +42,7 @@ Building agents on self-hosted LLMs is harder than building on cloud APIs becaus
 - Context window management is model-specific and easy to get wrong
 - There is no standard way to define tools and auto-generate their prompt representations
 
-pedro-agentware solves these problems in a model-agnostic, self-hosted-first way.
+Agentware solves these problems in a model-agnostic, self-hosted-first way.
 
 ### Scope
 
@@ -71,7 +71,7 @@ pedro-agentware solves these problems in a model-agnostic, self-hosted-first way
 
 ### 2.1 Middleware, Not Framework
 
-pedro-agentware occupies the middleware layer. It enforces contracts and policies but does not own the application. You can adopt one package at a time without buying into the whole stack.
+Agentware occupies the middleware layer. It enforces contracts and policies but does not own the application. You can adopt one package at a time without buying into the whole stack.
 
 ### 2.2 Self-Hosted First
 
@@ -99,7 +99,7 @@ Each package should be usable in isolation.
 └───────────────────────┬─────────────────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────────────────┐
-│                    pedro-agentware SDK                        │
+│                       Agentware SDK                           │
 │                                                               │
 │  ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐  │
 │  │   executor  │   │  middleware  │   │    toolformat    │  │
@@ -758,7 +758,7 @@ ExecuteResult
 
 ## 10. Versioning & Stability Contract
 
-pedro-agentware follows **semantic versioning** (semver).
+Agentware follows **semantic versioning** (semver).
 
 |Change type                           |Version bump  |
 |--------------------------------------|--------------|

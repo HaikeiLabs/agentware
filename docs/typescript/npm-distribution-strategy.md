@@ -3,7 +3,7 @@
 ## Purpose and scope
 
 This document defines how the TypeScript implementation of Agentware should be
-packaged and released as `@pedro/agentware`. It is a release contract and
+packaged and released as `@haikeilabs/agentware`. It is a release contract and
 rollout plan; it does not add runtime functionality or change the public API.
 
 The package is currently published from `typescript/` and is versioned
@@ -15,7 +15,7 @@ artifact.
 
 The current package configuration has these properties:
 
-- Name: `@pedro/agentware`.
+- Name: `@haikeilabs/agentware`.
 - Version: `0.9.0` in the repository at the time of writing.
 - Format: ESM (`"type": "module"`), targeting ES2022.
 - Runtime entrypoint: `dist/index.js`.
@@ -77,7 +77,7 @@ Before publishing, validate the tarball rather than importing from the
 workspace. A minimal smoke test should install the generated tarball into a
 temporary consumer project and verify:
 
-1. `import { ToolRegistry } from '@pedro/agentware'` resolves at runtime.
+1. `import { ToolRegistry } from '@haikeilabs/agentware'` resolves at runtime.
 2. TypeScript can resolve the declaration entrypoint under strict mode.
 3. Each documented subpath resolves, once an exports map exists.
 4. A tool can be registered and executed without requiring source files.

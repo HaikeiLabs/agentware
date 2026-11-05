@@ -1,6 +1,6 @@
 # Action-Tool / Data-Source-Connector Boundary
 
-This note documents the separation between **agentware** (`pedro-agentware`) and
+This note documents the separation between **Agentware** (the `agentware` repo) and
 the out-of-band enforcement/execution layers, and pins the invariants with
 contract tests. It is the agentware-side statement of the authoritative
 architecture: **tenant-side proxy/data-plane execution, with Kei as a metadata
