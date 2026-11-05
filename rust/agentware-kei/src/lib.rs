@@ -2,8 +2,10 @@
 
 pub mod evaluator;
 pub mod fixture;
+pub mod guardrails;
 pub mod jobs;
 pub mod middleware;
+pub mod ratelimit;
 pub mod reasoning;
 pub mod runtimelink;
 pub mod runtimesocket;
