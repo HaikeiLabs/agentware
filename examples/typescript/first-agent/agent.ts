@@ -48,3 +48,16 @@ export async function runAgent(
   if (result.termination_reason !== AgentTerminationReason.COMPLETE) throw new Error(`Agent stopped: ${result.termination_reason}`);
   return { result, client };
 }
+
+type Log = (line: string) => void;
+
+/** The `npm start` run: summarize the stories, then try a tool the local policy denies. */
+export async function runCli(backend: AsyncBackend, fetchStories: FetchStories = fetch, log: Log = console.log) {
+  const { result, client } = await runAgent(backend, fetchStories, (record) => log(`AUDIT ${JSON.stringify(record)}`));
+  log(result.final_response);
+
+  // Now try a tool the policy denies. The same client checks and audits it.
+  log('Now trying hn_post_comment, a tool the local policy denies:');
+  const [, allowed, error] = await client.execute('hn_post_comment', { story_id: 1, text: 'Nice post' }, { trusted: false });
+  log(allowed ? 'ALLOWED hn_post_comment' : `DENIED hn_post_comment: ${error}`);
+}

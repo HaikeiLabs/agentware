@@ -42,9 +42,27 @@ network access to the model endpoint and the Hacker News API.
 
 ## 4. Read the output
 
-The `AUDIT` line shows the tool name and the local policy decision. The
-summary follows it. The policy allows `hn_top_stories` and denies
-`hn_post_comment`; the comment tool is not registered for the model.
+The run prints an `AUDIT` line for every tool call, with the tool name and the
+local policy decision. First the model calls `hn_top_stories`, which the policy
+allows, and the summary follows:
+
+```text
+AUDIT {"session_id":"","tool_name":"hn_top_stories","args":{},"decision":{"action":"allow","rule":"read-stories","reason":"Reading stories is allowed",...},...,"framework":"first-agent"}
+Here are today's top five Hacker News stories: ...
+```
+
+Then the run tries `hn_post_comment` through the same client. The local policy
+denies it, so the tool never runs, and the deny is audited too:
+
+```text
+Now trying hn_post_comment, a tool the local policy denies:
+AUDIT {"session_id":"","tool_name":"hn_post_comment","args":{"story_id":1,"text":"Nice post"},"decision":{"action":"deny","rule":"deny-comments","reason":"Only reading stories is allowed",...},...,"framework":"first-agent"}
+DENIED hn_post_comment: denied by policy: Only reading stories is allowed
+```
+
+That deny is a guardrail with no Kei involved: `withPolicy` in `agent.ts` holds
+the rule. The comment tool is not registered with the model, so only your code
+can call it, and the policy still stops it.
 
 ## 5. Add your own tool
 
