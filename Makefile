@@ -17,7 +17,7 @@ help:
 	@echo "  version-check      - Check npm, PyPI and Go carry the VERSION file's version"
 	@echo "  version-test       - Run the release version tool's tests"
 	@echo "  version-set        - Set the shared version everywhere (VERSION=X.Y.Z)"
-	@echo "  compat-check       - Check the README compatibility table and doc version floors"
+	@echo "  compat-check       - Check the README compatibility table, doc version floors and guardrails wording"
 	@echo ""
 	@echo "  evals              - Run all evals (file search + general) sequentially against models"
 	@echo "  evals-file-search  - Run only file search tool call evals"
@@ -112,6 +112,7 @@ version-check:
 
 version-test:
 	cd scripts/release && python3 -m unittest -v version_test compat_test
+	cd scripts/docs && python3 -m unittest -v guardrails_lint_test
 
 version-set:
 	@test -n "$(VERSION)" || (echo "usage: make version-set VERSION=X.Y.Z" >&2; exit 1)
@@ -119,3 +120,4 @@ version-set:
 
 compat-check:
 	python3 scripts/release/compat.py check
+	python3 scripts/docs/guardrails_lint.py
