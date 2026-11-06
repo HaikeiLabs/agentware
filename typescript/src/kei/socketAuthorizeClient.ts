@@ -367,9 +367,43 @@ export class KeiProxySocketAuthorizeClient {
 
   // Model routes -----------------------------------------------------------
 
-  /** The models the daemon advertises (`GET /v1/models`), each with an `id`. */
-  async listModels(): Promise<JsonObject[]> {
-    const body = jsonObject(await this.send("GET", "/v1/models"));
+  /**
+   * Fetch selected config using agent_id/profile_id query parameters.
+   * Credential and API-key fields are removed before returning the config.
+   */
+  async modelConfig(agentId?: string, profileId?: string): Promise<JsonObject> {
+    const query = new URLSearchParams();
+    if (agentId) query.set("agent_id", agentId);
+    if (profileId) query.set("profile_id", profileId);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    const body = jsonObject(await this.send("GET", `/v1/model-config${suffix}`));
+    return withoutModelSecrets(body);
+  }
+
+  /** List assigned profile metadata without credentials or secret references. */
+  async listModelProfiles(agentId?: string): Promise<JsonObject[]> {
+    const query = new URLSearchParams();
+    if (agentId) query.set("agent_id", agentId);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    const body = jsonObject(await this.send("GET", `/v1/model-profiles${suffix}`));
+    if (!Array.isArray(body.model_profiles)) {
+      throw new KeiProxySocketError(
+        "malformed_response",
+        "the daemon returned no model profile list",
+      );
+    }
+    return body.model_profiles
+      .filter(isObject)
+      .map((profile) => withoutModelSecrets(profile));
+  }
+
+  /** List advertised models, selecting via agent_id/profile_id query parameters. */
+  async listModels(agentId?: string, profileId?: string): Promise<JsonObject[]> {
+    const query = new URLSearchParams();
+    if (agentId) query.set("agent_id", agentId);
+    if (profileId) query.set("profile_id", profileId);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    const body = jsonObject(await this.send("GET", `/v1/models${suffix}`));
     if (!Array.isArray(body.data)) {
       throw new KeiProxySocketError(
         "malformed_response",
@@ -758,6 +792,20 @@ function jsonObject(response: Buffered): JsonObject {
     );
   }
   return parsed;
+}
+
+function withoutModelSecrets(value: JsonObject): JsonObject {
+  const forbidden = new Set(["secret_ref", "credential", "api_key", "apiKey"]);
+  const clean = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(clean);
+    if (!isObject(item)) return item;
+    return Object.fromEntries(
+      Object.entries(item)
+        .filter(([key]) => !forbidden.has(key))
+        .map(([key, nested]) => [key, clean(nested)]),
+    );
+  };
+  return clean(value) as JsonObject;
 }
 
 function isObject(value: unknown): value is JsonObject {

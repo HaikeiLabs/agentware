@@ -15,7 +15,9 @@ cannot drift apart.
 | `DELETE /v1/session` | `await close_session(session)` | `await closeSession(session)` | `CloseSession(ctx, session)` |
 | Drop cached session | `forget_session(identity)` | `forgetSession(identity)` | `ForgetSession(identity)` |
 | `POST /v1/authorize` | `await authorize(session, tool=, action=, ...)` | `await authorize(session, { tool, action, ... })` | `Authorize(ctx, session, evaluator.AuthorizeRequest{...})` |
-| `GET /v1/models` | `await list_models()` | `await listModels()` | `ListModels(ctx)` |
+| `GET /v1/model-config` | `await model_config(agent_id=None, profile_id=None)` | `await modelConfig(agentId?, profileId?)` | `ModelConfig(ctx, agentID, profileID)` |
+| `GET /v1/model-profiles` | `await list_model_profiles(agent_id=None)` | `await listModelProfiles(agentId?)` | `ListModelProfiles(ctx, agentID)` |
+| `GET /v1/models` | `await list_models(agent_id=None, profile_id=None)` | `await listModels(agentId?, profileId?)` | `ListModels(ctx, agentID, profileID)` |
 | `POST /v1/chat/completions` | `await chat_completion(session, payload)` | `await chatCompletion(session, payload)` | `ChatCompletion(ctx, session, payload)` |
 | Streamed chat (SSE `data:` lines) | `async for line in stream_chat_completion(session, payload)` | `for await (const line of streamChatCompletion(session, payload))` | `StreamChatCompletion(ctx, session, payload, func(line string) error)` |
 | `GET /v1/policy-bundle/status` | `await policy_bundle_status()` | `await policyBundleStatus()` | `PolicyBundleStatus(ctx)` |
@@ -39,6 +41,14 @@ cannot drift apart.
   Requests in a session carry `X-Kei-Session` and never name the user. A
   `session_not_found` answer (a 404 error code, or an authorize deny with
   that `reason_code`) reopens the session once. A second miss fails closed.
+- **Model profile selection.** `agent_id` and `profile_id` are query parameters on
+  `GET /v1/model-config`, `/v1/model-profiles`, and `/v1/models`. The chat
+  completion selector, when used, is supplied in the JSON request fields
+  `agent_id` and `profile_id`; all three SDKs otherwise preserve caller payloads.
+  Omitting `profile_id` selects the chosen agent's default. The profile-list
+  response is `{"model_profiles": [...]}`. SDK model-config/list methods remove
+  credential, API-key, and secret-reference fields before returning data; they
+  never surface API keys.
 - **Fail closed.** These all raise the socket error, so `KeiProxyEvaluator`
   denies with the matching reason:
 

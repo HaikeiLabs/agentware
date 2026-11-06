@@ -260,6 +260,35 @@ func TestConcurrentAuthorizeIsSafe(t *testing.T) {
 	wg.Wait()
 }
 
+func TestModelProfileSelectionAndSecretRedaction(t *testing.T) {
+	d := startDaemon(t,
+		jsonResponse(http.StatusOK, map[string]any{"model": "selected", "endpoint": "https://model.example", "credential": "hidden"}),
+		jsonResponse(http.StatusOK, map[string]any{"model_profiles": []any{map[string]any{"profile_id": "p1", "is_default": false, "secret_ref": "hidden"}}}),
+	)
+	c := &Client{Env: tokenEnv(d.path)}
+	config, err := c.ModelConfig(context.Background(), "agent 1", "profile/2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config["model"] != "selected" || config["credential"] != nil {
+		t.Fatalf("unsafe or unexpected model config: %#v", config)
+	}
+	profiles, err := c.ListModelProfiles(context.Background(), "agent 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(profiles) != 1 || profiles[0]["profile_id"] != "p1" || profiles[0]["secret_ref"] != nil {
+		t.Fatalf("unsafe or unexpected profile list: %#v", profiles)
+	}
+	reqs := d.requests()
+	if reqs[0].Path != "/v1/model-config" || reqs[0].Query != "agent_id=agent+1&profile_id=profile%2F2" {
+		t.Errorf("model config request: %+v", reqs[0])
+	}
+	if reqs[1].Path != "/v1/model-profiles" || reqs[1].Query != "agent_id=agent+1" {
+		t.Errorf("model profiles request: %+v", reqs[1])
+	}
+}
+
 func TestSendToolsPostsManifestToRuntimeSocket(t *testing.T) {
 	manifest := []byte(`{"schema":"kei.tool-manifest/v3","tools":[{"name":"sample"}]}`)
 	d := startDaemon(t, jsonResponse(http.StatusOK, map[string]any{"accepted": true}))

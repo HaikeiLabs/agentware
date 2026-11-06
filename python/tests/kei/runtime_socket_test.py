@@ -651,6 +651,31 @@ def test_the_socket_path_comes_from_the_environment() -> None:
 # Model routes -------------------------------------------------------------
 
 
+async def test_model_profile_selection_routes_and_secret_redaction() -> None:
+    daemon = FakeDaemon()
+    daemon.routes[("GET", "/v1/model-config")] = {
+        "model": "selected-model", "endpoint": "https://model.example", "credential": "never-return",
+    }
+    daemon.routes[("GET", "/v1/model-profiles")] = {
+        "model_profiles": [
+            {"profile_id": "p1", "display_name": "One", "is_default": False, "secret_ref": "hidden"},
+            {"profile_id": "p2", "api_key": "hidden"},
+        ]
+    }
+    client = daemon.client()
+
+    config = await client.model_config("agent 1", "profile/2")
+    profiles = await client.list_model_profiles("agent 1")
+
+    assert config == {"model": "selected-model", "endpoint": "https://model.example"}
+    assert profiles == [
+        {"profile_id": "p1", "display_name": "One", "is_default": False},
+        {"profile_id": "p2"},
+    ]
+    assert str(daemon.requests[0].url) == "http://kei-proxy/v1/model-config?agent_id=agent+1&profile_id=profile%2F2"
+    assert str(daemon.requests[1].url) == "http://kei-proxy/v1/model-profiles?agent_id=agent+1"
+
+
 async def test_list_models_keeps_entries_with_an_id() -> None:
     daemon = FakeDaemon()
     daemon.routes[("GET", "/v1/models")] = {

@@ -34,17 +34,29 @@ describe("KeiProxySocketAuthorizeClient", () => {
   let stall = false;
   let onAuthorize: ((req: any) => void) | undefined;
   let registrations: unknown[] = [];
+  let modelRequests: string[] = [];
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "kei-socket-test-"));
     socketPath = join(dir, "runtime.sock");
-    sessions = 0; authorizations = 0; failStatus = 0; malformed = false; unauthorized = false; decision = "permit"; credentialReleaseDecision = undefined; credentialReleaseResponse = undefined; credentialReleaseBody = null; sessionMissingOnce = false; stall = false; onAuthorize = undefined; registrations = [];
+    sessions = 0; authorizations = 0; failStatus = 0; malformed = false; unauthorized = false; decision = "permit"; credentialReleaseDecision = undefined; credentialReleaseResponse = undefined; credentialReleaseBody = null; sessionMissingOnce = false; stall = false; onAuthorize = undefined; registrations = []; modelRequests = [];
     server = createServer((req, res) => {
       if (unauthorized || req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
       const chunks: Buffer[] = [];
       req.on("data", (chunk: Buffer) => chunks.push(chunk));
       req.on("end", () => {
-        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const rawBody = Buffer.concat(chunks).toString();
+        const body = rawBody ? JSON.parse(rawBody) : {};
+        if (req.url?.startsWith("/v1/model-config")) {
+          modelRequests.push(req.url);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ model: "selected", endpoint: "https://model.example", credential: "hidden" }));
+          return;
+        }
+        if (req.url?.startsWith("/v1/model-profiles")) {
+          modelRequests.push(req.url);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ model_profiles: [{ profile_id: "p1", is_default: false, secret_ref: "hidden" }] }));
+          return;
+        }
         if (req.url === "/v1/session") {
           sessions++;
           expect(req.method).toBe("PUT");
@@ -159,6 +171,17 @@ describe("KeiProxySocketAuthorizeClient", () => {
     expect(credentialReleaseBody.resource).toBe("repo:owner/name");
     expect(credentialReleaseBody.span_id).toBe("span-1");
     expect(credentialReleaseBody.framework).toBe("jest");
+  });
+
+  test("selects model profiles and never returns credential metadata", async () => {
+    const config = await client.modelConfig("agent 1", "profile/2");
+    const profiles = await client.listModelProfiles("agent 1");
+    expect(config).toEqual({ model: "selected", endpoint: "https://model.example" });
+    expect(profiles).toEqual([{ profile_id: "p1", is_default: false }]);
+    expect(modelRequests).toEqual([
+      "/v1/model-config?agent_id=agent+1&profile_id=profile%2F2",
+      "/v1/model-profiles?agent_id=agent+1",
+    ]);
   });
 
   test("registers a v3 tool manifest over the runtime socket", async () => {

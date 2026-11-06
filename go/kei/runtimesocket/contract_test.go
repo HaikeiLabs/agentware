@@ -95,7 +95,7 @@ func runStep(ctx context.Context, c *Client, op string, a stepArgs) (any, error)
 			Framework: r.Framework, ToolArgsDigest: r.ToolArgsDigest,
 		})
 	case "list_models":
-		return c.ListModels(ctx)
+		return c.ListModels(ctx, "", "")
 	case "chat_completion":
 		return c.ChatCompletion(ctx, a.session(), a.Payload)
 	case "stream_chat_completion":
