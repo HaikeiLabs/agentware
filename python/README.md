@@ -15,7 +15,7 @@ TypeScript implementations with the same behaviour.
 pip install haikeilabs-agentware
 ```
 
-## Quick start with Kei guardrails: socket client first
+## Quick start with Kei policies: socket client first
 
 For an executable allow/deny walkthrough through the `kei-proxy` socket, see
 the [Python getting started guide](../docs/getting-started/python.md) and the

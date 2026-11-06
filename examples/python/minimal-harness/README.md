@@ -1,7 +1,7 @@
-# Minimal harness with Kei guardrails (Python)
+# Minimal harness with Kei policies (Python)
 
 The smallest possible agent harness that routes every tool call through
-Kei guardrails in kei-proxy: one `echo` tool behind the
+Kei policies in kei-proxy: one `echo` tool behind the
 `KeiProxySocketAuthorizeClient`. It shows one **allow** and one
 **deny** from Kei (with its `reason_code` and `hint`) in under a minute.
 

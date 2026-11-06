@@ -12,7 +12,7 @@ For the package artifact, release, and npm publishing contract, see the [npm dis
 npm install @haikeilabs/agentware
 ```
 
-## Quick start with Kei guardrails: socket client first
+## Quick start with Kei policies: socket client first
 
 Start with the [TypeScript getting started guide](../getting-started/typescript.md)
 and the [`examples/typescript/minimal-harness`](../../examples/typescript/minimal-harness)
