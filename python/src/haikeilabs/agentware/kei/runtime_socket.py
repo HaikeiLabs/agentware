@@ -38,6 +38,7 @@ import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar
+from urllib.parse import urlencode
 
 import httpx
 
@@ -361,9 +362,41 @@ class KeiProxySocketAuthorizeClient:
 
     # Model routes ---------------------------------------------------------
 
-    async def list_models(self) -> list[dict[str, Any]]:
-        """The models the daemon advertises (``GET /v1/models``), each with an ``id``."""
-        body = _json_object(await self._send("GET", "/v1/models", timeout=self._timeout))
+    async def model_config(
+        self, agent_id: str | None = None, profile_id: str | None = None
+    ) -> dict[str, Any]:
+        """Fetch selected model config using agent_id/profile_id query parameters.
+
+        Credential and API-key fields are removed before returning the config.
+        """
+        query = {k: v for k, v in {"agent_id": agent_id, "profile_id": profile_id}.items() if v}
+        path = "/v1/model-config" + (f"?{urlencode(query)}" if query else "")
+        body = _json_object(await self._send("GET", path, timeout=self._timeout))
+        return _without_model_secrets(body)
+
+    async def list_model_profiles(self, agent_id: str | None = None) -> list[dict[str, Any]]:
+        """List assigned profiles (``GET /v1/model-profiles?agent_id=``), without secrets."""
+        query = {"agent_id": agent_id} if agent_id else {}
+        path = "/v1/model-profiles" + (f"?{urlencode(query)}" if query else "")
+        body = _json_object(await self._send("GET", path, timeout=self._timeout))
+        profiles = body.get("model_profiles")
+        if not isinstance(profiles, list):
+            raise KeiProxySocketError(
+                "malformed_response", "the daemon returned no model profile list"
+            )
+        safe = []
+        for profile in profiles:
+            if isinstance(profile, dict):
+                safe.append(_without_model_secrets(profile))
+        return safe
+
+    async def list_models(
+        self, agent_id: str | None = None, profile_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """List advertised models, selecting via agent_id/profile_id query parameters."""
+        query = {k: v for k, v in {"agent_id": agent_id, "profile_id": profile_id}.items() if v}
+        path = "/v1/models" + (f"?{urlencode(query)}" if query else "")
+        body = _json_object(await self._send("GET", path, timeout=self._timeout))
         data = body.get("data")
         if not isinstance(data, list):
             raise KeiProxySocketError("malformed_response", "the daemon returned no model list")
@@ -666,6 +699,16 @@ def _run_blocking(factory: Callable[[], Awaitable[_T]]) -> _T:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, main()).result()
+
+
+def _without_model_secrets(value: Any) -> Any:
+    """Recursively remove credential-bearing fields from model metadata."""
+    forbidden = {"secret_ref", "credential", "api_key", "apiKey"}
+    if isinstance(value, dict):
+        return {k: _without_model_secrets(v) for k, v in value.items() if k not in forbidden}
+    if isinstance(value, list):
+        return [_without_model_secrets(item) for item in value]
+    return value
 
 
 def _transport_error(exc: BaseException, socket_path: str) -> KeiProxySocketError:

@@ -28,6 +28,7 @@ type fakeResponse struct {
 type recordedRequest struct {
 	Method        string `json:"method"`
 	Path          string `json:"path"`
+	Query         string `json:"query,omitempty"`
 	Session       string `json:"session"`
 	Body          any    `json:"body"`
 	Authorization string `json:"-"`
@@ -89,6 +90,7 @@ func (d *fakeDaemon) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	d.recorded = append(d.recorded, recordedRequest{
 		Method:        r.Method,
 		Path:          r.URL.Path,
+		Query:         r.URL.RawQuery,
 		Session:       r.Header.Get(SessionHeader),
 		Body:          body,
 		Authorization: r.Header.Get("Authorization"),

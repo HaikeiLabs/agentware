@@ -11,6 +11,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -418,10 +419,93 @@ func (c *Client) ReleaseCredential(ctx context.Context, session Session, req Rel
 	return nil, refusal(evaluator.ReasonProxyError, "socket credential release failed closed")
 }
 
+// ModelConfig returns the selected runtime model configuration. Selectors are
+// query parameters; credential fields are always removed before returning.
+func (c *Client) ModelConfig(ctx context.Context, agentID, profileID string) (map[string]any, error) {
+	resp, err := c.send(ctx, http.MethodGet, modelRoute("/v1/model-config", agentID, profileID), "", nil, c.timeout())
+	if err != nil {
+		return nil, err
+	}
+	body, err := resp.object()
+	if err != nil {
+		return nil, err
+	}
+	return withoutModelSecrets(body).(map[string]any), nil
+}
+
+// ListModelProfiles returns assigned profile metadata, without credentials or secret references.
+func (c *Client) ListModelProfiles(ctx context.Context, agentID string) ([]map[string]any, error) {
+	resp, err := c.send(ctx, http.MethodGet, modelRoute("/v1/model-profiles", agentID, ""), "", nil, c.timeout())
+	if err != nil {
+		return nil, err
+	}
+	body, err := resp.object()
+	if err != nil {
+		return nil, err
+	}
+	entries, ok := body["model_profiles"].([]any)
+	if !ok {
+		return nil, malformed("the daemon returned no model profile list")
+	}
+	profiles := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		profile, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		profiles = append(profiles, withoutModelSecrets(profile).(map[string]any))
+	}
+	return profiles, nil
+}
+
+func withoutModelSecrets(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		clean := make(map[string]any, len(v))
+		for key, nested := range v {
+			switch key {
+			case "secret_ref", "credential", "api_key", "apiKey":
+				continue
+			}
+			clean[key] = withoutModelSecrets(nested)
+		}
+		return clean
+	case []any:
+		clean := make([]any, len(v))
+		for i, nested := range v {
+			clean[i] = withoutModelSecrets(nested)
+		}
+		return clean
+	default:
+		return value
+	}
+}
+
+func modelRoute(path, agentID, profileID string) string {
+	query := url.Values{}
+	if agentID != "" {
+		query.Set("agent_id", agentID)
+	}
+	if profileID != "" {
+		query.Set("profile_id", profileID)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		return path + "?" + encoded
+	}
+	return path
+}
+
 // ListModels returns the models the daemon advertises (GET /v1/models), each
-// an object with a non-empty string id.
-func (c *Client) ListModels(ctx context.Context) ([]map[string]any, error) {
-	resp, err := c.send(ctx, http.MethodGet, "/v1/models", "", nil, c.timeout())
+// an object with a non-empty string id. Optional selectors are query params.
+func (c *Client) ListModels(ctx context.Context, selectors ...string) ([]map[string]any, error) {
+	var agentID, profileID string
+	if len(selectors) > 0 {
+		agentID = selectors[0]
+	}
+	if len(selectors) > 1 {
+		profileID = selectors[1]
+	}
+	resp, err := c.send(ctx, http.MethodGet, modelRoute("/v1/models", agentID, profileID), "", nil, c.timeout())
 	if err != nil {
 		return nil, err
 	}
