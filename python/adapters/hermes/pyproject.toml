@@ -7,7 +7,8 @@ name = "pedro-agentware-hermes"
 version = "0.1.0"
 description = "Hermes Agent adapter for pedro-agentware"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
+authors = [{name = "Haikei Labs"}]
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
