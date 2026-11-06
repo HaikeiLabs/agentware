@@ -60,7 +60,9 @@ async def lookup_topic_node(topic: str) -> str:
 ```
 
 Without an evaluator, the Python client allows calls and records them. Supply
-an evaluator to enforce a policy before running the tool.
+an evaluator to enforce a policy before running the tool. For the adapters in
+this repo and what they wrap, see
+[Framework integrations](../docs/framework-integrations.md).
 
 ## Quick start
 

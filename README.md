@@ -115,6 +115,8 @@ Kei**. Local agent execution works without a direct ABAC connector dependency;
 external operations that Kei allows or denies go through the proxy boundary. See
 `docs/tenant-proxy-reference.md` for the authoritative architecture.
 
+- Adapters for other agent frameworks: see [Framework integrations](docs/framework-integrations.md).
+
 ## Install
 
 Each SDK is published to its language's public registry under the same
