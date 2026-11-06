@@ -1,9 +1,9 @@
-# Minimal governed harness (Python)
+# Minimal harness with Kei guardrails (Python)
 
 The smallest possible agent harness that routes every tool call through
-kei-proxy governance: one `echo` tool behind the
-`KeiProxySocketAuthorizeClient`. It shows a governed **allow** and a governed
-**deny** (with its `reason_code` and `hint`) in under a minute.
+Kei guardrails in kei-proxy: one `echo` tool behind the
+`KeiProxySocketAuthorizeClient`. It shows one **allow** and one
+**deny** from Kei (with its `reason_code` and `hint`) in under a minute.
 
 ## Run it
 
@@ -16,7 +16,7 @@ uv run python ../examples/python/minimal-harness/main.py --fake
 (`fixtures/kei/fake-kei-proxy-socket.py`) on a temp Unix socket, points
 `KEI_RUNTIME_SOCKET_PATH` at it, and runs the demo. Output:
 
-```
+```text
 ALLOW tool=echo policy_id=fake-allow-echo
 DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create
 ```

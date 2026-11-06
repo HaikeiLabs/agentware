@@ -42,8 +42,7 @@
   "license": "Apache-2.0",
   "authors": [
     {
-      "name": "Pedro Team",
-      "email": "team@pedro.ai"
+      "name": "Haikei Labs"
     }
   ],
   "devDependencies": {

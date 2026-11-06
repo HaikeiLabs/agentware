@@ -1,4 +1,4 @@
-# pedro-agentware: Engineering Design Document
+# Agentware: Engineering Design Document
 
 **Status**: Living Document — v0.1 Draft  
 **Repo**: github.com/HaikeiLabs/agentware  
@@ -26,9 +26,9 @@
 
 ## 1. Purpose & Scope
 
-### What pedro-agentware Is
+### What Agentware Is
 
-pedro-agentware is a **language-agnostic agent middleware SDK** for building self-hosted AI agent systems. It provides the infrastructure layer between your application and your LLM — the plumbing that makes agentic tool use reliable, auditable, and safe.
+Agentware is a **language-agnostic agent middleware SDK** for building self-hosted AI agent systems. It provides the infrastructure layer between your application and your LLM — the plumbing that makes agentic tool use reliable, auditable, and safe.
 
 It is **not** a full agent framework. It does not dictate how you write prompts, which model you use, or how your application is structured. It gives you composable primitives that you wire together.
 
@@ -42,7 +42,7 @@ Building agents on self-hosted LLMs is harder than building on cloud APIs becaus
 - Context window management is model-specific and easy to get wrong
 - There is no standard way to define tools and auto-generate their prompt representations
 
-pedro-agentware solves these problems in a model-agnostic, self-hosted-first way.
+Agentware solves these problems in a model-agnostic, self-hosted-first way.
 
 ### Scope
 
@@ -71,7 +71,7 @@ pedro-agentware solves these problems in a model-agnostic, self-hosted-first way
 
 ### 2.1 Middleware, Not Framework
 
-pedro-agentware occupies the middleware layer. It enforces contracts and policies but does not own the application. You can adopt one package at a time without buying into the whole stack.
+Agentware occupies the middleware layer. It enforces contracts and policies but does not own the application. You can adopt one package at a time without buying into the whole stack.
 
 ### 2.2 Self-Hosted First
 
@@ -99,7 +99,7 @@ Each package should be usable in isolation.
 └───────────────────────┬─────────────────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────────────────┐
-│                    pedro-agentware SDK                        │
+│                       Agentware SDK                           │
 │                                                               │
 │  ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐  │
 │  │   executor  │   │  middleware  │   │    toolformat    │  │
@@ -758,7 +758,7 @@ ExecuteResult
 
 ## 10. Versioning & Stability Contract
 
-pedro-agentware follows **semantic versioning** (semver).
+Agentware follows **semantic versioning** (semver).
 
 |Change type                           |Version bump  |
 |--------------------------------------|--------------|
@@ -802,7 +802,7 @@ New top-level packages require an ADR in `docs/adr/` before implementation.
 **Agentware** is the tenant-side execution layer (local tool middleware,
 delegation, semantic tool bindings, and proxy integration). **The distributed
 proxy** is the connector/provider runtime and the policy enforcement point for
-governed external operations. **Kei** is a metadata-only control plane:
+external operations that Kei allows or denies. **Kei** is a metadata-only control plane:
 registration, auth method and *references*, tool bindings, scopes/resources,
 and audit metadata. **ABAC** is a metadata policy decision point only.
 
@@ -823,7 +823,7 @@ and audit metadata. **ABAC** is a metadata policy decision point only.
 - **Local agent execution** stays fully possible **without a direct ABAC
   connector dependency**: the local middleware chain evaluates policy and
   audits locally, fail-closed by default.
-- **Governed external operations** — actions that cross out of the tenant to
+- **External operations that Kei allows or denies** — actions that cross out of the tenant to
   connectors/providers — use the **proxy boundary**: the proxy resolves
   bindings/auth from control-plane metadata (references, not credentials),
   invokes provider adapters, and returns data only inside the tenant runtime.

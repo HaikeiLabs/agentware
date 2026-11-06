@@ -1,4 +1,4 @@
-# TypeScript: governed socket harness
+# TypeScript: Kei guardrails over the runtime socket
 
 For a real Kei runtime setup walkthrough, see the
 [runtime setup guide](runtime-setup.md) and [deny hints](../deny-hints.md).

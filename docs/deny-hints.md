@@ -13,12 +13,12 @@ response.
 | `descriptor_invalid` | The connector metadata is invalid. Check the connector setup on the console Connectors page. |
 | `enrollment_required` | Link the provider identity to a Kei user on the console Users page to enable connector access. |
 | `insecure_transport` | OAuth credentials are only returned over TLS. Use HTTPS when connecting to the catalog. |
-| `no_matching_policy` | Add a policy for this source and target: kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit |
+| `no_matching_policy` | Add a policy for this source and target: `kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit` |
 | `oauth_binding_mismatch` | The OAuth connection is bound to another scope. Reconnect the provider in the correct workspace on the console Connectors page. |
 | `oauth_bridge_unavailable` | The OAuth bridge is unavailable. Check the bridge configuration and ensure the service is reachable. |
 | `oauth_not_connected` | Connect the provider account on the console Connectors page to enable OAuth-based access. |
 | `oauth_reconnect_required` | Reconnect the provider account on the console Connectors page; the connection needs to be refreshed. |
-| `policy_deny` | Add a permit policy for this subject and connector: kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit |
+| `policy_deny` | Add a permit policy for this subject and connector: `kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit` |
 | `preflight_required` | Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh. |
 | `subject_missing` | Link the invoking user to this installation on the console Users page so a subject can be resolved. |
 | `subject_unlinked` | Link this identity to the installation: open the enrollment link when the response carries one, or link the user on the console Users page. |

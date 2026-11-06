@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is **pedro-agentware** — MCP-compatible middleware for LLM tool calling. It sits between an agent (LLM orchestrator) and tool execution, enforcing policy on every tool call (allow / deny / filter, rate limits, caller-context conditions) and emitting an audit record per call, whether the call proceeds or not.
+This is **Agentware** — MCP-compatible middleware for LLM tool calling. It sits between an agent (LLM orchestrator) and tool execution, enforcing policy on every tool call (allow / deny / filter, rate limits, caller-context conditions) and emitting an audit record per call, whether the call proceeds or not.
 
 The same library is implemented three times — **Go (`go/`, the reference implementation), Python (`python/`), and TypeScript (`typescript/`)** — with deliberately mirrored package structure and mirrored test suites. When changing shared logic (middleware, guardrails, toolformat, llmcontext, tools), check whether the counterparts in the other languages and their tests need the same change.
 
@@ -41,7 +41,7 @@ gofmt -w .                         # format
 golangci-lint run                  # lint (CI runs golangci-lint)
 ```
 
-### Python (src-layout package `pedro_agentware` at `python/`)
+### Python (src-layout package `haikeilabs.agentware` at `python/`)
 
 ```bash
 cd python
@@ -146,12 +146,13 @@ Each language implementation contains the same packages (Go names shown; Python/
 
 ## Docs and Design References
 
-- `business/` — PRD, engineering design, SDK plan, milestones. Read `ENGINEERING_DESIGN.md` and `SDK_PLAN.md` before architectural changes.
+- `docs/engineering-design.md` — architecture. Read it before architectural changes.
 - `docs/tenant-proxy-reference.md` — **canonical** tenant-side proxy architecture and metadata-only control-plane boundary. Read before changing middleware, tool bindings, or the `kei/` surface.
 - `docs/harness-contract.md` — the contract third-party agent builders implement against.
 - `SCHEMA.md` — the wiki-memory page contract. `SCHEMA_GAPS.md` — **active**: ontology terms the read-only T-box lacks; add entries here rather than inventing terms locally.
-- `docs/build-history/` — archived working files from the wiki-memory build loop. `DECISIONS.md` there explains why the component is shaped as it is. Historical, not maintained.
+- The wiki-memory design rationale (`DECISIONS.md`, explaining why `go/memory` is shaped as it is) was removed from the tree and remains in git history.
+- Contribution work is coordinated on [Discord](https://discord.gg/g6QaTYWXDa): discuss plans, decisions and progress there. Do not log them in files in this repo.
 - `docs/{go,python,typescript}/` — usage examples per language.
-- Staleness warning: older docs reference the pre-rename packages `middleware-py` / `middleware_py`. The actual Python package is `pedro_agentware`; actual Go types live in `go/middleware` (e.g. `middleware.Decision`, `tools.Result`). Trust the code over the docs.
+- Staleness warning: older docs reference the pre-rename packages `middleware-py` / `middleware_py`. The actual Python package is `haikeilabs.agentware` (`pedro_agentware` remains a deprecated alias); actual Go types live in `go/middleware` (e.g. `middleware.Decision`, `tools.Result`). Trust the code over the docs.
 
 Follow semantic versioning for releases.

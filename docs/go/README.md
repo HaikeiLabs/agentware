@@ -14,7 +14,7 @@ The module path is lowercase; `github.com/HaikeiLabs/agentware/go` does not
 resolve. Releases are tagged `go/vX.Y.Z` at the same version as the npm and
 PyPI packages (`go get github.com/haikeilabs/agentware/go@vX.Y.Z`).
 
-## Governed harness quick start: socket client first
+## Quick start with Kei guardrails: socket client first
 
 For a working socket-based harness, start with the [Go getting started
 guide](../getting-started/go.md) and the
@@ -134,7 +134,7 @@ for _, entry := range records {
 }
 ```
 
-`InMemoryAuditor` is process-local; see [Seeing governed tool calls in Kei](../audit-visibility.md).
+`InMemoryAuditor` is process-local; see [Seeing protected tool calls in Kei](../audit-visibility.md).
 
 ### Audited Tool Client
 
@@ -285,5 +285,5 @@ Conditions can reference:
   to false).
 - The hermes and ADK adapters follow the same rule: no context, no trust.
 - A policy denial is an audited outcome, not a transport error.
-- `KEI_PROXY_DISABLED` denies every governed call; it is never an allow switch.
+- `KEI_PROXY_DISABLED` denies every protected call; it is never an allow switch.
   See `docs/fail-closed-design.md`.

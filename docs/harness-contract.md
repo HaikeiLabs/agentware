@@ -2,7 +2,7 @@
 
 This contract describes the requirements for a custom harness in any language.
 The harness may use an agentware port or call the local `kei-proxy` runtime
-socket directly. It must keep the invoking user's identity with each governed
+socket directly. It must keep the invoking user's identity with each protected
 tool call and ask the proxy for an authorization decision before execution.
 
 The SDK (Agentware) path is one of Kei's six user-facing harness types. The
@@ -34,15 +34,15 @@ send the caller context that belongs to the invocation:
 A missing caller identity or authenticated runtime context must fail closed.
 Do not infer identity from prompt text or an agent-supplied environment value.
 
-## Authorize every governed tool call
+## Authorize every protected tool call
 
-Authorize each governed tool call with kei-proxy before executing it: over
+Authorize each protected tool call with kei-proxy before executing it: over
 the `kei-proxy serve` Unix socket (`POST /v1/authorize`, recommended), or with
 the one-shot `kei-proxy authorize` command when no daemon runs. The proxy is the connector/provider runtime and
 policy enforcement point. Treat the result as `allow` or `deny`; execute the
 tool only for an explicit allow/permit decision. Deny on an unknown or missing
 decision, an unreachable proxy, a missing credential, or an expired token.
-Never fall back to ungoverned execution when authorization cannot complete.
+Never fall back to running the call without a Kei check when authorization cannot complete.
 
 A denial includes a machine-readable `reason_code` and a user-facing `hint`.
 Preserve and surface those values so the user can understand the next step.

@@ -15,8 +15,8 @@ and credentials stay out of the control plane.
   you.
 - An organization owner or admin who can approve `kei login` and provision a
   runtime installation credential.
-- `kei-cli` 0.2.0 or later and `kei-proxy` v0.3.0 or later (the compatible
-  minimums for Agentware 0.11.0).
+- The `kei-cli` and `kei-proxy` versions listed for your Agentware release in
+  the README [compatibility table](../../README.md#compatibility).
 
 ## Install and sign in
 
@@ -159,9 +159,9 @@ kei harness add --kind custom --installation INSTALLATION_ID
 
 ### Register tools over the runtime socket
 
-Agentware 0.11.0 can register tools directly with `kei-proxy` over its Unix
-socket. Use `ToolSpec` with an explicit `harness_executor` route; the tool name
-must match the name your harness authorizes. These examples register the
+From Agentware 0.11.0, you can register tools directly with `kei-proxy` over
+its Unix socket. Use `ToolSpec` with an explicit `harness_executor` route; the
+tool name must match the name your harness authorizes. These examples register the
 minimal harness's `echo` and `delete_everything` names. The socket API is
 available in `kei-proxy` v0.3.0 at `POST /v1/tools:register`.
 
@@ -297,7 +297,7 @@ harness, action, result (`permit` or `deny`), and policy. The public [Audit
 logs](https://docs.haikeilabs.com/content/kei/audit/logs.html) page describes
 the recent activity view and recorded fields. Select the runtime installation's
 workspace and leave the Harness, Agent and Decision filters on **All**; see
-[Seeing governed tool calls in Kei](../audit-visibility.md) if a record is missing.
+[Seeing protected tool calls in Kei](../audit-visibility.md) if a record is missing.
 
 ## Understand a denial
 

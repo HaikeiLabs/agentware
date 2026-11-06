@@ -21,3 +21,6 @@ typescript/python/
 evals-out/
 # Scratch notes from the CI integration ticket (HAI-785) — never committed
 NOTES-785.md
+
+# Go coverage profiles
+coverage.out

@@ -14,8 +14,8 @@ the current contract; older prose may be stale.
 ## The boundary in one paragraph
 
 Execution happens **on the tenant side**. Agentware runs local tool middleware,
-tracks delegation, resolves semantic tool bindings, and — for governed external
-operations — calls out through a **distributed proxy** that is the
+tracks delegation, resolves semantic tool bindings, and — for external
+operations that Kei allows or denies — calls out through a **distributed proxy** that is the
 connector/provider runtime and the policy enforcement point. Kei (the control
 plane) is only a **metadata catalog and an ABAC policy decision point**. What
 crosses the control-plane boundary is metadata — registration, auth method and
@@ -78,7 +78,7 @@ ABAC (via Kei) is consulted for **metadata policy decisions only**:
 - ABAC **decides**; it does **not** execute writes and does **not** serve or
   store credentials. Connectors are data-source integrations; GitHub/CRM/Linear
   *mutations* are agent capabilities executed in the harness/agentware/agents
-  local tool loop, governed through the proxy boundary — not ABAC connectors.
+  local tool loop, checked through the proxy boundary — not ABAC connectors.
 
 ## What never enters Kei
 
@@ -92,7 +92,7 @@ ABAC (via Kei) is consulted for **metadata policy decisions only**:
 
 Local agent execution remains fully possible **without a direct ABAC connector
 dependency**: local middleware evaluates policy and audits locally. The proxy
-boundary is only required for **governed external operations** — actions that
+boundary is only required for **external operations that Kei allows or denies** — actions that
 cross out of the tenant to connectors/providers.
 
 ---

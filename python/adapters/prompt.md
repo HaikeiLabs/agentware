@@ -1,7 +1,7 @@
 # Python Agent Adapters - Implementation Prompt
 
 ## Goal
-Create Python adapter packages for Kitaru, Hermes, and Pydantic agent backends that integrate with pedro-agentware middleware. These adapters should follow the same patterns as the Go implementations.
+Create Python adapter packages for Kitaru, Hermes, and Pydantic agent backends that integrate with Agentware middleware. These adapters should follow the same patterns as the Go implementations.
 
 ## Context
 - Branch: `feature/kitaru-integration` (or create new branch for Python adapters)

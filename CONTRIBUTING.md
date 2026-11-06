@@ -1,11 +1,18 @@
-# Contributing to pedro-agentware
+# Contributing to Agentware
 
-pedro-agentware is implemented three times — **Go (`go/`, the reference
+Agentware is implemented three times — **Go (`go/`, the reference
 implementation), Python (`python/`, package `haikeilabs.agentware`), and
 TypeScript (`typescript/`)** — with deliberately mirrored package structure and
 mirrored test suites. Changes to shared logic (middleware, guardrails,
 toolformat, llmcontext, tools) must be mirrored in all three languages and
 their tests.
+
+## Where to coordinate
+
+Contribution work is coordinated on
+[Discord](https://discord.gg/g6QaTYWXDa). Say what you plan to work on
+there before a large change, and discuss design questions there. Bugs and
+feature requests go in GitHub issues; changes go in pull requests.
 
 This guide covers the full path for adding and testing a model **formatter**
 (`toolformat`), the most common contribution surface.
@@ -170,7 +177,7 @@ cd typescript && npm run build && npx jest tests/toolformat.test.ts
 npm run lint                 # eslint
 
 # Docs (markdown lint; rules in .markdownlint.json)
-npx markdownlint-cli2 "docs/**/*.md" README.md "!docs/build-history/**"
+npx markdownlint-cli2 "docs/**/*.md" README.md
 ```
 
 Run the full suite for the languages you touched before opening a PR:

@@ -3,7 +3,7 @@
 ## Background
 
 The Agentware Developer Path aims to take an engineer from installing the SDK
-to seeing one governed allow and one governed deny in their own Go, Python, or
+to seeing Kei allow one tool call and deny another in their own Go, Python, or
 TypeScript harness in under an hour, using public documentation only. This
 moderated dry run records where that path works and where participants need
 help.
@@ -94,7 +94,7 @@ Pass only when all of these are true:
 - The participant completes the path in **under 60 minutes**.
 - There are **zero undocumented interventions**; all help comes from public
   repository docs and examples.
-- The live harness produces one governed allow and one governed deny.
+- The live harness shows Kei allowing one tool call and denying another.
 - The deny includes a `reason_code` and `hint` consistent with
   [`docs/deny-hints.md`](../deny-hints.md).
 - The participant observes an audit entry for both authorization attempts.
@@ -111,8 +111,8 @@ command during the session.
 | Language and toolchain versions | |
 | Total elapsed time | |
 | Completed in under 60 minutes? | Yes / No |
-| Governed allow observed? | Yes / No |
-| Governed deny observed? | Yes / No |
+| Kei allow observed? | Yes / No |
+| Kei deny observed? | Yes / No |
 | Deny `reason_code` and `hint` observed? | Yes / No |
 | Audit entry observed for both calls? | Yes / No |
 | Denied handler stayed unexecuted? | Yes / No |

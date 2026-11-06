@@ -15,7 +15,7 @@ TypeScript implementations with the same behaviour.
 pip install haikeilabs-agentware
 ```
 
-## Governed harness quick start: socket client first
+## Quick start with Kei guardrails: socket client first
 
 For an executable allow/deny walkthrough through the `kei-proxy` socket, see
 the [Python getting started guide](../docs/getting-started/python.md) and the
@@ -33,6 +33,34 @@ import haikeilabs.agentware.kei
 The distribution is `haikeilabs-agentware` (like the npm package
 `@haikeilabs/agentware`); the import package is `haikeilabs.agentware`, under
 the `haikeilabs` namespace. Python 3.10 or later.
+
+## Middleware first
+
+Python is middleware-first by design. `llm/backend.py` defines an abstract
+backend; it has no concrete model backend or agent loop. Wrap tool calls from
+frameworks such as LangGraph with `AuditedToolClient`. For example, a LangGraph
+tool node can call this async function:
+
+```python
+from haikeilabs.agentware.middleware import AuditedToolClient
+
+client = AuditedToolClient(source="example")
+
+
+def lookup_topic(topic: str) -> str:
+    return f"Notes about {topic}"
+
+
+async def lookup_topic_node(topic: str) -> str:
+    return await client.Execute(
+        "lookup_topic", {"topic": topic},
+        user_id="alice", channel_id="session-1", guild_id=None,
+        func=lookup_topic,
+    )
+```
+
+Without an evaluator, the Python client allows calls and records them. Supply
+an evaluator to enforce a policy before running the tool.
 
 ## Quick start
 
@@ -66,7 +94,7 @@ invoking subject unchanged and records the parent span and delegation depth,
 so the audit trail always leads back to the human who authorized the request.
 
 Audit records stay in process (`InMemoryAuditor`); Kei sees only kei-proxy's
-decision record. See [Seeing governed tool calls in Kei](https://github.com/HaikeiLabs/agentware/blob/main/docs/audit-visibility.md).
+decision record. See [Seeing protected tool calls in Kei](https://github.com/HaikeiLabs/agentware/blob/main/docs/audit-visibility.md).
 
 ## What's in the package
 

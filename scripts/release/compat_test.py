@@ -81,5 +81,47 @@ class CheckTest(unittest.TestCase):
         self.assertIn("KEI_PROXY_VERSION", errors[0])
 
 
+
+class DocsCheckTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        (self.root / "VERSION").write_text("1.1.0\n")
+        (self.root / "docs").mkdir()
+
+    def write(self, rel: str, text: str) -> None:
+        path = self.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def test_repository_docs_pass(self) -> None:
+        self.assertEqual(compat.check_docs(REPO), [])
+
+    def test_older_version_without_floor_fails(self) -> None:
+        self.write("docs/guide.md", "# Guide\n\nAgentware 1.0.0 can register tools.\n")
+        errors = compat.check_docs(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("docs/guide.md:3", errors[0])
+        self.assertIn("1.0.0", errors[0])
+
+    def test_from_and_or_later_are_floors(self) -> None:
+        self.write(
+            "README.md",
+            "From Agentware 1.0.0, tools register.\n"
+            "Needs agentware SDK v0.9.0 or later.\n"
+            "Works from\nAgentware 0.8.0 onward.\n",
+        )
+        self.assertEqual(compat.check_docs(self.root), [])
+
+    def test_current_and_newer_versions_pass(self) -> None:
+        self.write("docs/guide.md", "Agentware 1.1.0 and Agentware 2.0.0.\n")
+        self.assertEqual(compat.check_docs(self.root), [])
+
+    def test_specs_and_out_of_scope_files_are_skipped(self) -> None:
+        self.write("docs/specs/contract.md", "Agentware 0.1.0 shipped this.\n")
+        self.write("CHANGELOG.md", "Agentware 0.1.0 shipped this.\n")
+        self.assertEqual(compat.check_docs(self.root), [])
+
+
 if __name__ == "__main__":
     unittest.main()

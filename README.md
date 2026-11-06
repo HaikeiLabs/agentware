@@ -1,4 +1,6 @@
-# pedro-agentware
+# Agentware
+
+The open-source SDK we build our own agents with, from [Haikei Labs](https://haikeilabs.com).
 
 Build a custom AI agent or harness that calls tools, tracks decisions, and applies
 guardrails. Agentware provides Go, Python, and TypeScript libraries for the
@@ -52,13 +54,10 @@ For a fake-proxy allow/deny example, see the [Python](docs/getting-started/pytho
 guides. The [Rust workspace](rust/README.md) is a port in progress, not a
 complete SDK.
 
-## Agentware and Kei
-
-Agentware is a library — middleware, audit, guardrails, LLM tooling, and the
-Kei policy SDK. The Kei policy SDK connects a harness to Kei governance:
-`KeiProxyEvaluator` → `kei-proxy authorize`, fail closed, plus audit. A
-harness built on Agentware that uses this path is the **SDK (Agentware)**
-type in Kei's six-type harness taxonomy ([docs/harness-contract.md](docs/harness-contract.md)).
+Next, build an agent where a model calls a tool: the
+[TypeScript first agent](examples/typescript/first-agent/README.md) summarizes
+the top Hacker News stories with any OpenAI-compatible model, audits each tool
+call, and denies a second tool with a local policy. No Kei needed.
 
 ## Why
 
@@ -100,7 +99,7 @@ path-boundary check in the executor. Memory is not a side channel around the aud
 trail; it is another audited tool call.
 
 **Third-party harness contract.** The `kei/` module and `docs/harness-contract.md`
-define what a harness must implement to be governed by agentware without depending
+define what a harness must implement to get Kei guardrails through Agentware without depending
 on any agent framework. Enforcement is shared library code: `KeiProxyEvaluator`
 fails closed on every path that is not an explicit `permit`/`allow`.
 
@@ -113,7 +112,7 @@ policy enforcement point**; ABAC is called for **metadata policy decisions only*
 and never executes writes or serves/store credentials. Provider payloads and
 results, customer content, credentials, embeddings, and indexes **never enter
 Kei**. Local agent execution works without a direct ABAC connector dependency;
-governed external operations go through the proxy boundary. See
+external operations that Kei allows or denies go through the proxy boundary. See
 `docs/tenant-proxy-reference.md` for the authoritative architecture.
 
 ## Install
@@ -125,7 +124,7 @@ version:
 # Python 3.10+ (import haikeilabs.agentware)
 pip install haikeilabs-agentware
 
-# TypeScript / Node 18+
+# TypeScript / Node 18+ (the examples need 22.18+)
 npm i @haikeilabs/agentware
 
 # Go 1.27+ for this checkout (module path is lowercase)
@@ -134,9 +133,43 @@ go get github.com/haikeilabs/agentware/go
 
 To work on the SDKs themselves, see [Development](#development).
 
+## Add guardrails with Kei
+
+Agentware runs on its own. When an agent needs permissions that someone else
+manages, connect it to Kei: `KeiProxyEvaluator` asks the Kei runtime
+(`kei-proxy`) to allow or deny each tool call, fails closed, and records the
+decision. In Kei's harness types this is the **SDK (Agentware)** type
+([docs/harness-contract.md](docs/harness-contract.md)).
+
+### Quick starts with the Kei runtime
+
+To have Kei allow or deny tool calls, connect to the `kei-proxy` Unix socket
+first. Each language guide uses the minimal harness example and demonstrates an
+allow and a deny against the local fake socket:
+
+- [Go getting started](docs/getting-started/go.md)
+- [Python getting started](docs/getting-started/python.md)
+- [TypeScript getting started](docs/getting-started/typescript.md)
+- [Agentware 60-minute cold-start dry run](docs/dry-run/60-minute-dry-run.md)
+- [Using agentware as a team](docs/using-agentware-as-a-team.md)
+
+The in-repo guides above describe the same path as the
+[Agentware docs site](https://docs.haikeilabs.com/agentware/build/overview) —
+the repo docs are the checked source, but both reflect the same quick-start
+flow. The site also hosts language-specific pages for
+[Go](https://docs.haikeilabs.com/agentware/build/go),
+[Python](https://docs.haikeilabs.com/agentware/build/python), and
+[TypeScript](https://docs.haikeilabs.com/agentware/build/typescript), plus
+guides on [runtime setup](https://docs.haikeilabs.com/agentware/build/runtime-setup),
+[policy and audit](https://docs.haikeilabs.com/agentware/build/policy-and-audit),
+and the [deny-hints reference](https://docs.haikeilabs.com/agentware/reference/deny-hints).
+
+The socket client is recommended. The older `KeiProxyAuthorizeClient`
+subprocess integration (`kei-proxy authorize`) is deprecated.
+
 ## Compatibility
 
-Governed tool calls go through `kei-proxy`, the runtime the harness calls, which
+Protected tool calls go through `kei-proxy`, the runtime the harness calls, which
 an org admin installs with the `kei` platform admin CLI (kei-cli). The
 kei-cli installer bundles the pinned kei-proxy. Use at least these versions
 with each SDK release:
@@ -163,32 +196,6 @@ runtime agent identity needs kei-proxy 0.1.11 or later, and the runtime-link
 heartbeat flags need 0.1.12 or later. kei-proxy releases older than the
 minimum above are not tested against this SDK release. ToolSpec registration
 over the socket requires kei-proxy v0.3.0 or later.
-
-## Governed harness quick starts
-
-For governed tool calls, connect to the `kei-proxy` Unix socket first. Each
-language guide uses the minimal harness example and demonstrates an allow and
-a deny against the local fake socket:
-
-- [Go getting started](docs/getting-started/go.md)
-- [Python getting started](docs/getting-started/python.md)
-- [TypeScript getting started](docs/getting-started/typescript.md)
-- [Agentware 60-minute cold-start dry run](docs/dry-run/60-minute-dry-run.md)
-- [Using agentware as a team](docs/using-agentware-as-a-team.md)
-
-The in-repo guides above describe the same path as the
-[Agentware docs site](https://docs.haikeilabs.com/agentware/build/overview) —
-the repo docs are the checked source, but both reflect the same quick-start
-flow. The site also hosts language-specific pages for
-[Go](https://docs.haikeilabs.com/agentware/build/go),
-[Python](https://docs.haikeilabs.com/agentware/build/python), and
-[TypeScript](https://docs.haikeilabs.com/agentware/build/typescript), plus
-guides on [runtime setup](https://docs.haikeilabs.com/agentware/build/runtime-setup),
-[policy and audit](https://docs.haikeilabs.com/agentware/build/policy-and-audit),
-and the [deny-hints reference](https://docs.haikeilabs.com/agentware/reference/deny-hints).
-
-The socket client is recommended. The older `KeiProxyAuthorizeClient`
-subprocess integration (`kei-proxy authorize`) is deprecated.
 
 ## Quick start (Python)
 
@@ -290,17 +297,18 @@ record; see [docs/audit-visibility.md](docs/audit-visibility.md).
 | `docs/engineering-design.md` | Architecture |
 | `docs/tenant-proxy-reference.md` | Canonical tenant-side proxy architecture and metadata-only control-plane boundary |
 | `docs/harness-contract.md` | Contract for third-party agent builders |
-| `docs/audit-visibility.md` | What is audited locally vs in Kei, and how to see one governed call |
+| `docs/audit-visibility.md` | What is audited locally vs in Kei, and how to see one protected call |
 | `docs/runtime-link-integration.md` | RuntimeLink public API and usage boundaries for harness authors |
-| `docs/build-history/` | Archived build-loop working files |
 
 ## Examples
 
+- [TypeScript first agent](examples/typescript/first-agent/README.md): a model
+  calls a tool, with local policy and audit, no Kei
 - [Go minimal harness](examples/go/minimal-harness/README.md)
 - [Python minimal harness](examples/python/minimal-harness/README.md)
 - [TypeScript minimal harness](examples/typescript/minimal-harness/README.md)
 
-Set up and run a governed harness in this order:
+To run an example with Kei guardrails, set it up in this order:
 
 1. `kei bot init`
 2. `kei harness add --kind custom`
@@ -323,14 +331,20 @@ cd typescript && npm ci && npm run build && npm test
 # Shared version and compatibility table
 make version-test version-check compat-check
 
-# Docs (markdown lint; rules in .markdownlint.json; build-history is archived)
-npx markdownlint-cli2 "docs/**/*.md" README.md "!docs/build-history/**"
+# Docs (markdown lint; rules in .markdownlint.json)
+npx markdownlint-cli2 "docs/**/*.md" README.md
 ```
 
 The ontology T-box is a git submodule: run `git submodule update --init` after
 cloning. It is read-only — missing terms go in `SCHEMA_GAPS.md`, never invented
 locally.
 
+## Community
+
+- [Docs](https://docs.haikeilabs.com/agentware/build/overview)
+- [Discord](https://discord.gg/g6QaTYWXDa), where contribution work is coordinated
+- [Sovereign Context on Substack](https://haikeilabs.substack.com)
+
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE).

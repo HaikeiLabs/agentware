@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-pedro-agentware is MCP-compatible middleware for LLM tool calling: it sits between an agent (LLM orchestrator) and tool execution, enforcing policy on every tool call (allow/deny/filter, rate limits, caller-context conditions) with auditing. The same library is implemented three times — **Go (`go/`, the reference implementation), Python (`python/`), and TypeScript (`typescript/`)** — with deliberately mirrored package structure and mirrored test suites. When changing shared logic (middleware, guardrails, toolformat, llmcontext, tools), check whether the counterparts in the other two languages and their tests need the same change.
+Agentware is MCP-compatible middleware for LLM tool calling: it sits between an agent (LLM orchestrator) and tool execution, enforcing policy on every tool call (allow/deny/filter, rate limits, caller-context conditions) with auditing. The same library is implemented three times — **Go (`go/`, the reference implementation), Python (`python/`), and TypeScript (`typescript/`)** — with deliberately mirrored package structure and mirrored test suites. When changing shared logic (middleware, guardrails, toolformat, llmcontext, tools), check whether the counterparts in the other two languages and their tests need the same change.
 
 The delegation contract: `CallerContext.InvokingSubject` is the human who initiated the request and is carried unchanged across every delegation hop (`CallerContext.Delegate` / `delegate()`); `ParentSpan` and `DelegationDepth` record where in the chain the call sits. `Trusted` defaults to **false** (fail-closed) in every language; a missing caller context is never promoted to trusted.
 
@@ -70,11 +70,12 @@ Each language implementation contains the same packages (Go names shown; Python/
 
 ## Docs and design references
 
-- `business/` — PRD, engineering design, SDK plan, milestones. Read `ENGINEERING_DESIGN.md` and `SDK_PLAN.md` before architectural changes.
+- `docs/engineering-design.md` — architecture. Read it before architectural changes.
 - `docs/tenant-proxy-reference.md` — canonical tenant-side proxy architecture and metadata-only control-plane boundary. Read before changing middleware, tool bindings, or the `kei/` surface.
 - `docs/harness-contract.md` — the contract third-party agent builders implement against.
 - `SCHEMA.md` — the wiki-memory page contract (frontmatter, typed wikilinks, ingest workflow). `SCHEMA_GAPS.md` — **active**: ontology terms the read-only T-box lacks; add entries here rather than inventing terms locally.
-- `docs/build-history/` — archived working files from the wiki-memory build loop. `DECISIONS.md` there explains why the component is shaped as it is; worth reading before changing `go/memory`. Historical, not maintained.
+- The wiki-memory design rationale (`DECISIONS.md`, explaining why `go/memory` is shaped as it is) was removed from the tree and remains in git history. Worth reading before changing `go/memory`.
+- Contribution work is coordinated on [Discord](https://discord.gg/g6QaTYWXDa): discuss plans, decisions and progress there. Do not log them in files in this repo.
 - `docs/{go,python,typescript}/README.md` — usage examples per language.
 - `AGENTS.md` — build/test commands and Go style conventions (naming, imports, error wrapping with `%w`, sentinel errors, structured logging).
 - Staleness warning: older docs reference the pre-rename packages `middleware-py` / `middleware_py`. The actual Python package is `haikeilabs.agentware`; actual Go types live in `go/middleware` (e.g. `middleware.Decision`, `tools.Result`). Trust the code over the docs.

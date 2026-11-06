@@ -12,7 +12,7 @@ For the package artifact, release, and npm publishing contract, see the [npm dis
 npm install @haikeilabs/agentware
 ```
 
-## Governed harness quick start: socket client first
+## Quick start with Kei guardrails: socket client first
 
 Start with the [TypeScript getting started guide](../getting-started/typescript.md)
 and the [`examples/typescript/minimal-harness`](../../examples/typescript/minimal-harness)
@@ -113,7 +113,7 @@ for (const entry of records) {
 }
 ```
 
-`InMemoryAuditor` is process-local; see [Seeing governed tool calls in Kei](../audit-visibility.md).
+`InMemoryAuditor` is process-local; see [Seeing protected tool calls in Kei](../audit-visibility.md).
 
 ## Condition Operators
 
@@ -144,7 +144,7 @@ Conditions can reference:
 - `CallerContext.trusted` is a required field that callers must set explicitly;
   a caller that was never marked trusted is untrusted.
 - A policy denial is an audited outcome, not a transport error.
-- `KEI_PROXY_DISABLED` denies every governed call; it is never an allow switch.
+- `KEI_PROXY_DISABLED` denies every protected call; it is never an allow switch.
   See `docs/fail-closed-design.md`.
 
 ## Over the kei-proxy daemon socket

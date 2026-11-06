@@ -3,7 +3,7 @@
 Shared, language-neutral fixtures for the harness → Agentware `RuntimeLink` →
 `kei-connector-runtime` heartbeat contract
 (`docs/specs/runtime-heartbeat-liveness.md`, HAI-141). Go
-(`go/kei/runtimelink`), Python (`pedro_agentware.kei.runtime_link`) and
+(`go/kei/runtimelink`), Python (`haikeilabs.agentware.kei.runtime_link`) and
 TypeScript (`typescript/src/kei/runtimeLink.ts`) each load every file here and
 must produce identical results. A change to any fixture is a contract change:
 update all three languages in the same PR.

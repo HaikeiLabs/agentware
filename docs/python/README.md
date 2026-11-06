@@ -19,7 +19,7 @@ deprecated alias that resolves to the same modules. See
 [PyPI distribution strategy](pypi-distribution-strategy.md) for the artifact
 contract and the release process.
 
-## Governed harness quick start: socket client first
+## Quick start with Kei guardrails: socket client first
 
 Start with the [Python getting started guide](../getting-started/python.md)
 and the [`examples/python/minimal-harness`](../../examples/python/minimal-harness)
@@ -133,7 +133,7 @@ for entry in records:
     print(f"Decision: {entry.decision.action.value}, Tool: {entry.tool_name}")
 ```
 
-`InMemoryAuditor` is process-local; see [Seeing governed tool calls in Kei](../audit-visibility.md).
+`InMemoryAuditor` is process-local; see [Seeing protected tool calls in Kei](../audit-visibility.md).
 
 ## Condition Operators
 
@@ -244,8 +244,8 @@ sync_tool_manifest(manifest, ToolManifestSyncConfig.from_env(), expect_tools=boo
 ```
 
 For the fail-closed design principles — the decision table,
-`KEI_PROXY_DISABLED` as fail-closed (never an allow switch), governed vs
-non-governed tool calls, and testing patterns — see `docs/fail-closed-design.md`.
+`KEI_PROXY_DISABLED` as fail-closed (never an allow switch), protected tool calls vs
+local calls that Kei doesn't check, and testing patterns — see `docs/fail-closed-design.md`.
 
 ## API Reference
 

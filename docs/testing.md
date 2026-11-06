@@ -32,7 +32,7 @@ to full commit SHAs.
 
 **Tier 2: trusted events only.** Work that needs a live model, the real
 `kei-proxy`, or more time than a PR should wait for: the live model captures,
-the real-proxy integration with a governed-call audit assertion, and the
+the real-proxy integration with an audit assertion for a protected tool call, and the
 agent evals. Anything that needs the model servers runs on the self-hosted
 EKS runners `kei-agent-evals` and `kei-agent-evals-qwen` (runner group
 "Agent evals"), which reach the servers on the tailnet; there are two of
@@ -206,7 +206,7 @@ uv run --no-project --python 3.11 --with pyyaml==6.0.2 \
   python -m unittest discover -s scripts/live-captures -p '*_test.py'
 ```
 
-## Real kei-proxy and the governed-call audit
+## Real kei-proxy and the protected-call audit
 
 `real-proxy-integration.yml` runs the released `kei-proxy serve` against the
 fake control plane (`fixtures/kei/fake-control-plane.py`) with the policy

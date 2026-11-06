@@ -1,5 +1,5 @@
 // Package mcp implements a minimal MCP (Model Context Protocol) server over
-// JSON-RPC 2.0, per business/SDK_PLAN.md: the Go core is the engine and the
+// JSON-RPC 2.0. The Go core is the engine and the
 // Python/TypeScript SDKs are clients speaking MCP over stdio.
 //
 // Supported methods: initialize, ping, tools/list, tools/call. Tools come
