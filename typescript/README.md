@@ -4,7 +4,7 @@
 that already own their agent loop, channel integration, identities, and tool
 handlers.
 
-## Quick start with Kei guardrails: socket client first
+## Quick start with Kei policies: socket client first
 
 For an executable allow/deny walkthrough through the `kei-proxy` socket, see
 the [TypeScript getting started guide](../docs/getting-started/typescript.md)

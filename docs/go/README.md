@@ -14,7 +14,7 @@ The module path is lowercase; `github.com/HaikeiLabs/agentware/go` does not
 resolve. Releases are tagged `go/vX.Y.Z` at the same version as the npm and
 PyPI packages (`go get github.com/haikeilabs/agentware/go@vX.Y.Z`).
 
-## Quick start with Kei guardrails: socket client first
+## Quick start with Kei policies: socket client first
 
 For a working socket-based harness, start with the [Go getting started
 guide](../getting-started/go.md) and the

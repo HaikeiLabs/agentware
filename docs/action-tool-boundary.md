@@ -42,7 +42,7 @@ never resolves connector credentials or executes providers itself.
    *`::TestLocalLoopHasNoABACDependency`*; Go:
    `go/middleware/action_tool_boundary_test.go::TestIsolatedLocalLoopSeparatesActionFromRead`
 
-4. **Optional Kei guardrails through the proxy are an explicit adapter boundary.**
+4. **Optional Kei policies through the proxy are an explicit adapter boundary.**
    The middleware's only policy seam is the `PolicyEvaluator` interface. The
    proxy is reached, if at all, through an injected `AuthorizationClient` behind
    `KeiProxyEvaluator`; the middleware never spawns a subprocess or talks to a

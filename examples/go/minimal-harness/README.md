@@ -1,6 +1,6 @@
 # Minimal Go Harness
 
-A minimal agent with Kei guardrails, demonstrating policy enforcement through
+A minimal agent with Kei policies, demonstrating policy enforcement through
 the kei-proxy runtime socket.
 
 ## Layout

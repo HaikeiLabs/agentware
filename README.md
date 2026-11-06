@@ -99,7 +99,7 @@ path-boundary check in the executor. Memory is not a side channel around the aud
 trail; it is another audited tool call.
 
 **Third-party harness contract.** The `kei/` module and `docs/harness-contract.md`
-define what a harness must implement to get Kei guardrails through Agentware without depending
+define what a harness must implement to get Kei policies through Agentware without depending
 on any agent framework. Enforcement is shared library code: `KeiProxyEvaluator`
 fails closed on every path that is not an explicit `permit`/`allow`.
 
@@ -133,9 +133,9 @@ go get github.com/haikeilabs/agentware/go
 
 To work on the SDKs themselves, see [Development](#development).
 
-## Add guardrails with Kei
+## Add Kei policies
 
-Agentware runs on its own. When an agent needs permissions that someone else
+Kei policies are deterministic guardrails for the tool calls your agent can make. Agentware runs on its own. When an agent needs permissions that someone else
 manages, connect it to Kei: `KeiProxyEvaluator` asks the Kei runtime
 (`kei-proxy`) to allow or deny each tool call, fails closed, and records the
 decision. In Kei's harness types this is the **SDK (Agentware)** type
@@ -308,7 +308,7 @@ record; see [docs/audit-visibility.md](docs/audit-visibility.md).
 - [Python minimal harness](examples/python/minimal-harness/README.md)
 - [TypeScript minimal harness](examples/typescript/minimal-harness/README.md)
 
-To run an example with Kei guardrails, set it up in this order:
+To run an example with Kei policies, set it up in this order:
 
 1. `kei bot init`
 2. `kei harness add --kind custom`
