@@ -73,8 +73,6 @@ result = await adapter.execute("search", {"query": "weather"})
 
 The Go adapters (`go/adapters/`) provide the same functionality for Go-based tools:
 
-- `go/adapters/kitaru/` - Kitaru client using kitaru-go SDK
 - `go/adapters/hermes/` - Hermes subprocess wrapper
-- `go/adapters/pydantic/` - Pydantic AI Go bindings
 
 See `examples/go/minimal-harness` for usage.

@@ -7,7 +7,8 @@ name = "pedro-agentware-kitaru"
 version = "0.1.0"
 description = "Kitaru adapter for pedro-agentware"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
+authors = [{name = "Haikei Labs"}]
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.25",
