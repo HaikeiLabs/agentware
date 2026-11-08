@@ -1,8 +1,8 @@
 # KeiProxyEvaluator parity
 
 `KeiProxyEvaluator` is the fail-closed policy evaluator that asks
-`kei-proxy authorize` before a tool call runs (a `PolicyEvaluator` in Python
-and Go; in TypeScript `evaluate` returns a `Promise<Decision>`). Harnesses in every SDK language
+`kei-proxy authorize` before a tool call runs (a `PolicyEvaluator` in Python,
+Go and Rust; in TypeScript `evaluate` returns a `Promise<Decision>`). Harnesses in every SDK language
 need the same answer for the same proxy output. One table holds them to that.
 
 See `docs/fail-closed-design.md` for the design principles: the
@@ -21,7 +21,7 @@ inject a fake evaluator.
 
 Every language reads these files from the repo root; there are no mirrored
 copies to drift. A change to any of them is a contract change: update all
-three ports in the same stack.
+four ports in the same stack.
 
 ## The contract
 
@@ -101,6 +101,7 @@ Invariants every port asserts on every case:
 | Python | `haikeilabs.agentware.kei.KeiProxyEvaluator` | `KeiProxyAuthorizeClient` (`subprocess.Popen`, `start_new_session=True`, `expected_sha256=`) | `python/tests/kei/authorize_cases_test.py` |
 | TypeScript | `KeiProxyEvaluator` (`typescript/src/kei/evaluator.ts`; async `evaluate`) | `KeiProxyAuthorizeClient` (`authorizeClient.ts`; async `spawn`, `detached`, `expectedSha256`) | `typescript/tests/kei-evaluator.test.ts` |
 | Go | `evaluator.KeiProxyEvaluator` (`go/kei/evaluator`) | `evaluator.CLIClient` (`exec.CommandContext`, `Setpgid`, stderr discarded, `ExpectedSHA256`) | `go/kei/evaluator/evaluator_test.go` |
+| Rust | `haikeilabs_agentware::evaluator::KeiProxyEvaluator` (`rust/agentware-kei/src/evaluator.rs`) | `evaluator::CliClient` (`std::process::Command`, `process_group(0)`, stderr discarded, `expected_sha256`) | `rust/agentware-kei/tests/authorize_cases.rs` |
 
 Python-only tests (the injected-client seam: four-argument clients,
 object-shaped results, arbitrary exceptions) stay in

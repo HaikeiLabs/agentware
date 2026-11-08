@@ -210,6 +210,7 @@ dependencies = [
 name = "haikeilabs-agentware"
 version = "0.16.0"
 dependencies = [
+ "libc",
  "regex",
  "serde_json",
  "sha2",

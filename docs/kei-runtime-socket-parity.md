@@ -23,9 +23,9 @@ cannot drift apart.
 | Streamed chat (SSE `data:` lines) | `async for line in stream_chat_completion(session, payload)` | `for await (const line of streamChatCompletion(session, payload))` | `StreamChatCompletion(ctx, session, payload, func(line string) error)` | `stream_chat_completion(&session, &payload, callback)` |
 | `GET /v1/policy-bundle/status` | `await policy_bundle_status()` | `await policyBundleStatus()` | `PolicyBundleStatus(ctx)` | `policy_bundle_status()` |
 | Refusal error | `KeiProxySocketError` (`reason_class`, `code`) ⊂ `KeiProxyAuthorizeError` | `KeiProxySocketError` (`reasonClass`, `code`) ⊂ `KeiProxyAuthorizeError` | `*runtimesocket.Error` (`Class`, `Code`), unwraps to `*evaluator.AuthorizeError` | `runtimesocket::SocketError` (`kind`, `code`) |
-| Evaluator adapter | `KeiProxySocketAuthorizationClient(source, client)` | `new KeiProxySocketAuthorizationClient(source, client)` | `&runtimesocket.AuthorizationClient{Source, Socket}` | `KeiProxyEvaluator::new(runtimesocket::Client)` |
-| Socket or CLI selector | `select_authorization_client(source, socket_path=, env=, ...)` | `selectAuthorizationClient(source, { socketPath, env, ... })` | `runtimesocket.SelectAuthorizationClient(source, runtimesocket.SelectOptions{...})` | — |
-| CLI fallback | `KeiProxyAuthorizeClient` | `KeiProxyAuthorizeClient` | `evaluator.CLIClient` | — |
+| Evaluator adapter | `KeiProxySocketAuthorizationClient(source, client)` | `new KeiProxySocketAuthorizationClient(source, client)` | `&runtimesocket.AuthorizationClient{Source, Socket}` | `KeiProxyEvaluator::new(runtimesocket::Client)` / `with_client(evaluator::SocketAuthorizationClient { source, socket })` |
+| Socket or CLI selector | `select_authorization_client(source, socket_path=, env=, ...)` | `selectAuthorizationClient(source, { socketPath, env, ... })` | `runtimesocket.SelectAuthorizationClient(source, runtimesocket.SelectOptions{...})` | `evaluator::select_authorization_client(source, &evaluator::SelectOptions { .. })` |
+| CLI fallback | `KeiProxyAuthorizeClient` | `KeiProxyAuthorizeClient` | `evaluator.CLIClient` | `evaluator::CliClient` |
 | Tool sync config | `ToolManifestSyncConfig.from_env(env)` | `ToolManifestSyncConfig.fromEnv(env)` | `toolsync.ConfigFromEnv(env)` | `toolsync::Config::from_env(env)` |
 | Tool sync | `sync_tool_manifest(manifest, config, expect_tools=)` | `await syncToolManifest(manifest, config, { expectTools })` | `toolsync.Sync(ctx, manifest, cfg, expectTools)` / `toolsync.SyncDocument(...)` | `toolsync::sync(manifest, config, expect_tools)` |
 | Tool sync error | `ToolManifestSyncError` | `ToolManifestSyncError` | wraps `toolsync.ErrSyncFailed` (+ `ErrEmptyManifest`, `ErrInvalidManifest`, `ErrInvalidConfig`) | `toolsync::SyncError` |
@@ -81,9 +81,9 @@ cannot drift apart.
   `toolsync` works everywhere.
 - **Rust is Unix only.** The socket client dials with
   `std::os::unix::net::UnixStream`, so the crate does not build on Windows.
-  `toolsync` works everywhere. Rust has no `kei-proxy authorize` CLI
-  fallback or socket-or-CLI selector yet, so `KeiProxyEvaluator` needs a
-  configured socket.
+  `toolsync` works everywhere. Rust's `kei-proxy authorize` CLI fallback
+  (`evaluator::CliClient`) and socket-or-CLI selector
+  (`evaluator::select_authorization_client`) match the other SDKs.
 - **Python adapter.** `KeiProxySocketAuthorizationClient.authorize` is
   synchronous, because Python's `KeiProxyEvaluator` is. It runs the async
   client on a worker-thread event loop.

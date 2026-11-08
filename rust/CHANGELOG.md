@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add the `kei-proxy authorize` CLI fallback (`evaluator::CliClient`), the
+  socket-or-CLI selector (`evaluator::select_authorization_client`) and the
+  shared authorize-cases fixture replay.
+- Fix `tool_args_digest` to sort object keys at every depth like Go, so
+  digests match across SDKs; follow Go's decision mapping for enrollment and
+  connect (only as JSON objects, only on deny and enrollment_required).
 - Rename the crate to `haikeilabs-agentware` (import `haikeilabs_agentware`) and version it with the shared Agentware version (0.16.0).
 - Add `list_models`, `model_config`, `list_model_profiles`, `chat_completion`, `stream_chat_completion` and `release_credential` to the runtime socket client, replaying the shared contract cases.
 - Add a generic governed-call example and offline Unix socket end-to-end test.
