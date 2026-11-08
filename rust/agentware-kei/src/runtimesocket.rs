@@ -18,6 +18,8 @@ use std::{
 };
 
 pub const DEFAULT_SOCKET_PATH: &str = "/run/kei-proxy/runtime.sock";
+/// Environment variable naming the daemon socket (Go: SocketPathEnv).
+pub const SOCKET_PATH_ENV: &str = "KEI_RUNTIME_SOCKET_PATH";
 pub const SESSION_SCHEMA: &str = "kei.session/v2";
 pub const AUTHORIZE_REQUEST_SCHEMA: &str = "kei.authorize-request/v1";
 pub const AUTHORIZE_RESPONSE_SCHEMA: &str = "kei.authorize-response/v1";

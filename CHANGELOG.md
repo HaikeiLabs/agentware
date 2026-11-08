@@ -24,6 +24,11 @@ shared version across npm, PyPI, and Go.
 - **Rust:** toolformat for qwen, llama, minimax, mistral and nemotron, so every
   tool-call family now has Rust, Go, Python and TypeScript implementations and
   `fixtures/EXCLUSIONS.md` has no Rust rows (#282).
+- **Rust:** the `kei-proxy authorize` CLI fallback (`evaluator::CliClient`),
+  the socket-or-CLI selector (`evaluator::select_authorization_client`) and
+  the shared authorize-cases replay
+  (`rust/agentware-kei/tests/authorize_cases.rs`), reaching Go, Python and
+  TypeScript evaluator parity.
 
 ### Fixed
 
@@ -32,6 +37,11 @@ shared version across npm, PyPI, and Go.
   name and arguments that are not an object, the anthropic formatter rejects
   `<invoke tool="">`, and reasoning `strip()` raises `MalformedJSONError`
   rather than `UnicodeDecodeError` for undecodable bytes (#288).
+- **Rust:** `tool_args_digest` now sorts object keys at every depth like Go,
+  so digests match across SDKs.
+- **Rust:** the evaluator follows Go's decision mapping: enrollment and
+  connect are carried only as JSON objects, only on deny and
+  enrollment_required.
 
 ### Tests
 
