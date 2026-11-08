@@ -2,11 +2,10 @@
 
 The `kei-proxy serve` daemon listens on a Unix socket. Each SDK ships the
 same client for it, plus the tool-manifest sync a harness runs before it
-serves. Go, TypeScript and Rust replay the shared cases in
+serves. All four replay the shared cases in
 [`testing/contracts/runtime-socket`](../testing/contracts/runtime-socket/README.md),
 so the request and response shapes, error classes and fail-closed rules
-cannot drift apart. Python covers the same cases in its own tests
-(`python/tests/kei/`).
+cannot drift apart.
 
 | | Python (`haikeilabs.agentware.kei`) | TypeScript (`@haikeilabs/agentware`) | Go (`kei/runtimesocket`, `kei/toolsync`) | Rust (`haikeilabs_agentware::runtimesocket`) |
 | --- | --- | --- | --- | --- |

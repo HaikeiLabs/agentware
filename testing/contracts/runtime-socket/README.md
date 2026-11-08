@@ -1,15 +1,14 @@
 # Runtime socket client contract fixtures
 
 Shared, language-neutral fixtures for the harness → `kei-proxy serve` Unix
-socket client and the tool-manifest sync. TypeScript
+socket client and the tool-manifest sync. Python
+(`haikeilabs.agentware.kei.runtime_socket`, `tool_sync`; replayed by
+`python/tests/kei/runtime_socket_fixture_replay_test.py`), TypeScript
 (`typescript/src/kei/socketAuthorizeClient.ts`, `toolSync.ts`), Go
 (`go/kei/runtimesocket`, `go/kei/toolsync`) and Rust
 (`haikeilabs_agentware::runtimesocket`, `toolsync`) replay every case here and
-must produce identical results. Python
-(`haikeilabs.agentware.kei.runtime_socket`, `tool_sync`) covers the same cases
-in `python/tests/kei/` but does not replay these files yet. A change to any
-fixture is a contract change: update every language in the same PR, or in
-linked PRs that land together.
+must produce identical results. A change to any fixture is a contract change:
+update every language in the same PR, or in linked PRs that land together.
 
 | File | Asserts |
 | --- | --- |
