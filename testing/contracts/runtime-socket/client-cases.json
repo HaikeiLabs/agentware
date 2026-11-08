@@ -1818,6 +1818,361 @@
       ]
     },
     {
+      "name": "model_config_sends_selectors_and_strips_secrets",
+      "steps": [
+        {
+          "op": "model_config",
+          "args": {
+            "agent_id": "agent 1",
+            "profile_id": "profile/2"
+          },
+          "expect": {
+            "result": {
+              "model": "selected",
+              "endpoint": "https://model.example"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/model-config",
+            "query": "agent_id=agent+1&profile_id=profile%2F2",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "model": "selected",
+              "endpoint": "https://model.example",
+              "credential": "hidden"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "list_model_profiles_strips_secret_fields",
+      "steps": [
+        {
+          "op": "list_model_profiles",
+          "args": {
+            "agent_id": "agent 1"
+          },
+          "expect": {
+            "result": [
+              {
+                "profile_id": "p1",
+                "is_default": false
+              }
+            ]
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/model-profiles",
+            "query": "agent_id=agent+1",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "model_profiles": [
+                {
+                  "profile_id": "p1",
+                  "is_default": false,
+                  "secret_ref": "hidden"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "release_credential_allow_returns_the_credential",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "test",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "release_credential",
+          "args": {
+            "session": {
+              "source": "test",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "connector_id": "github",
+              "capability": "read",
+              "resource": "repo:owner/name"
+            }
+          },
+          "expect": {
+            "result": {
+              "decision": "allow",
+              "policy_id": "pol_01J",
+              "bundle_state": "ready",
+              "credential": {
+                "connector_id": "github",
+                "issuer": "https://auth.example.com",
+                "resource": "repo:owner/name",
+                "account_model": "per_user",
+                "access_token": "ghs_secret",
+                "expires_at": "2026-10-17T10:00:00Z"
+              }
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "test",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/credentials:release",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.credential-release-request/v1",
+              "resource": "repo:owner/name",
+              "connector": {
+                "connector_id": "github",
+                "capability": "read"
+              }
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.credential-release-response/v1",
+              "decision": "allow",
+              "policy_id": "pol_01J",
+              "bundle_state": "ready",
+              "credential": {
+                "connector_id": "github",
+                "issuer": "https://auth.example.com",
+                "resource": "repo:owner/name",
+                "account_model": "per_user",
+                "access_token": "ghs_secret",
+                "expires_at": "2026-10-17T10:00:00Z"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "release_credential_deny_returns_the_reason_code",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "test",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "release_credential",
+          "args": {
+            "session": {
+              "source": "test",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "connector_id": "github",
+              "capability": "read",
+              "resource": "repo:owner/name"
+            }
+          },
+          "expect": {
+            "result": {
+              "decision": "deny",
+              "reason_code": "credential_not_connected",
+              "reason": "the connector is not connected for this user",
+              "bundle_state": "ready"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "test",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/credentials:release",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.credential-release-request/v1",
+              "resource": "repo:owner/name",
+              "connector": {
+                "connector_id": "github",
+                "capability": "read"
+              }
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.credential-release-response/v1",
+              "decision": "deny",
+              "reason_code": "credential_not_connected",
+              "reason": "the connector is not connected for this user",
+              "bundle_state": "ready"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "release_credential_500_is_a_proxy_error",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "test",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "release_credential",
+          "args": {
+            "session": {
+              "source": "test",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "connector_id": "github",
+              "capability": "read",
+              "resource": "repo:owner/name"
+            }
+          },
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "internal"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "test",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/credentials:release",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.credential-release-request/v1",
+              "resource": "repo:owner/name",
+              "connector": {
+                "connector_id": "github",
+                "capability": "read"
+              }
+            }
+          },
+          "response": {
+            "status": 500,
+            "body": {
+              "error": {
+                "code": "internal",
+                "message": "leaked kei_rt_contract-canary-0123456789abcdef",
+                "type": "runtime_error"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "a_missing_token_fails_before_any_call",
       "env": {},
       "steps": [

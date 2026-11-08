@@ -97,6 +97,7 @@ describe("runtime socket constants", () => {
 interface Seen {
   method: string;
   path: string;
+  query?: string;
   session: string;
   body: Json;
   authorization: string;
@@ -114,9 +115,11 @@ async function replayDaemon(
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
+      const [path, query] = (req.url ?? "").split("?", 2);
       seen.push({
         method: req.method ?? "",
-        path: req.url ?? "",
+        path,
+        ...(query ? { query } : {}),
         session: String(req.headers["x-kei-session"] ?? ""),
         body: raw ? JSON.parse(raw) : null,
         authorization: String(req.headers.authorization ?? ""),
@@ -184,6 +187,28 @@ async function runStep(
     }
     case "list_models":
       return c.listModels();
+    case "model_config":
+      return c.modelConfig(args.agent_id, args.profile_id);
+    case "list_model_profiles":
+      return c.listModelProfiles(args.agent_id);
+    case "release_credential": {
+      const r = args.request;
+      const { schema: _schema, ...result } = await c.releaseCredential(
+        sess(args.session),
+        {
+          tool: r.tool,
+          connectorId: r.connector_id,
+          capability: r.capability,
+          resource: r.resource,
+          spanId: r.span_id,
+          parentSpan: r.parent_span,
+          delegationDepth: r.delegation_depth,
+          framework: r.framework,
+          toolArgsDigest: r.tool_args_digest,
+        },
+      );
+      return result;
+    }
     case "chat_completion":
       return c.chatCompletion(sess(args.session), args.payload);
     case "stream_chat_completion": {

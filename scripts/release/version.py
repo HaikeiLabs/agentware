@@ -54,6 +54,8 @@ TARGETS: tuple[Target, ...] = (
     Target("python/pyproject.toml", r'^version = "([^"]*)"', pep440=True),
     Target("python/src/haikeilabs/agentware/kei/runtime_link.py", r'^SDK_VERSION = "([^"]*)"', pep440=True),
     Target("go/kei/runtimelink/link.go", r'^var sdkVersion = "([^"]*)"'),
+    # Cargo carries the shared version in its own spelling (no PEP 440 rewrite).
+    Target("rust/agentware-kei/Cargo.toml", r'^version = "([^"]*)"'),
 )
 
 

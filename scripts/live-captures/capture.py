@@ -60,7 +60,7 @@ LANGUAGES: dict[str, tuple[str, list[str]]] = {
     "go": ("go", ["go", "test", "-count=1", "-run", "^(TestToolformatFixtures|TestReasoningFixtures)$", "./toolformat/", "./reasoning/"]),
     "python": ("python", ["uv", "run", "--extra", "dev", "pytest", "-q", "tests/toolformat_fixtures_test.py", "tests/reasoning_fixtures_test.py"]),
     "typescript": ("typescript", ["node", "--experimental-vm-modules", "node_modules/jest/bin/jest.js", "toolformat-reasoning-fixtures"]),
-    "rust": (".", ["cargo", "test", "--manifest-path", "rust/Cargo.toml", "-p", "agentware-kei", "--test", "toolformat_fixtures", "--test", "reasoning_fixtures"]),
+    "rust": (".", ["cargo", "test", "--manifest-path", "rust/Cargo.toml", "-p", "haikeilabs-agentware", "--test", "toolformat_fixtures", "--test", "reasoning_fixtures"]),
 }
 
 

@@ -1,14 +1,14 @@
 //! Shared ToolSpec contract cases (`fixtures/toolspec/cases.v1.json`):
-//! replays every case against `agentware_kei::toolspec`, mirroring
+//! replays every case against `haikeilabs_agentware::toolspec`, mirroring
 //! go/toolspec/cases_test.go and python/tests/toolspec_test.py, and records
 //! passing cases for the equal-coverage gate (`scripts/conformance/gate.py`,
 //! see `docs/testing.md`).
 
-use agentware_kei::toolformat::{
+use haikeilabs_agentware::toolformat::{
     AnthropicFormatter, DeepSeekFormatter, Formatter, GLMFormatter, GenericFormatter,
     OpenAIFormatter, ToolDef,
 };
-use agentware_kei::toolspec::{self, CODE_MISSING_FIELD, ToolSpec};
+use haikeilabs_agentware::toolspec::{self, CODE_MISSING_FIELD, ToolSpec};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 

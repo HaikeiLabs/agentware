@@ -1,13 +1,15 @@
 # Runtime socket client contract fixtures
 
 Shared, language-neutral fixtures for the harness → `kei-proxy serve` Unix
-socket client and the tool-manifest sync. Python
-(`haikeilabs.agentware.kei.runtime_socket`, `tool_sync`), TypeScript
-(`typescript/src/kei/socketAuthorizeClient.ts`, `toolSync.ts`) and Go
-(`go/kei/runtimesocket`, `go/kei/toolsync`) each replay every case here and
-must produce identical results. A change to any fixture is a contract change:
-update all three languages in the same PR, or in linked PRs that land
-together.
+socket client and the tool-manifest sync. TypeScript
+(`typescript/src/kei/socketAuthorizeClient.ts`, `toolSync.ts`), Go
+(`go/kei/runtimesocket`, `go/kei/toolsync`) and Rust
+(`haikeilabs_agentware::runtimesocket`, `toolsync`) replay every case here and
+must produce identical results. Python
+(`haikeilabs.agentware.kei.runtime_socket`, `tool_sync`) covers the same cases
+in `python/tests/kei/` but does not replay these files yet. A change to any
+fixture is a contract change: update every language in the same PR, or in
+linked PRs that land together.
 
 | File | Asserts |
 | --- | --- |
@@ -33,8 +35,10 @@ For each case:
 1. Unless `"daemon": "absent"`, start a fake daemon on a fresh Unix socket
    (keep the path short: macOS caps it near 104 bytes). It answers incoming
    requests with `exchanges[i].response` in order and records each request as
-   `{method, path, session, body}`: `session` is the `X-Kei-Session` header or
-   `""`, `body` is the parsed JSON body or `null` when there is none. A
+   `{method, path, session, body}`, plus `query` when the request target
+   carries one (`path` excludes the query string): `session` is the
+   `X-Kei-Session` header or `""`, `body` is the parsed JSON body or `null`
+   when there is none. A
    response is `{status, body}` (JSON), `{status, raw, content_type}`
    (verbatim bytes), `{status}` (no body), or `{"stall": true}` (never
    answers).

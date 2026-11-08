@@ -1,6 +1,6 @@
 [package]
-name = "agentware-kei"
-version = "0.1.0"
+name = "haikeilabs-agentware"
+version = "0.16.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

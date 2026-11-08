@@ -1,12 +1,12 @@
 //! Shared Guardrails facade cases (`fixtures/guardrails/cases.v1.json`):
-//! replays every case against `agentware_kei::guardrails`, mirroring
+//! replays every case against `haikeilabs_agentware::guardrails`, mirroring
 //! go/middleware/guardrails facade_replay_test.go and contract_test.go.
 //!
 //! The guardrails family is not in the conformance gate's fixture families
 //! (scripts/conformance/gate.py) and the Go replay does not record to the
 //! conformance log, so this test does not record either.
 
-use agentware_kei::guardrails::{ErrorCategory, ToolCall, load_config, new_guardrails};
+use haikeilabs_agentware::guardrails::{ErrorCategory, ToolCall, load_config, new_guardrails};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 

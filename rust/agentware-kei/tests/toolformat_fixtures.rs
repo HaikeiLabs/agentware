@@ -3,7 +3,7 @@
 //! Every case asserts the same render/parse output the other language SDKs
 //! produce against the same fixture files.
 
-use agentware_kei::toolformat::{Formatter, ToolDef, ToolResult, for_model};
+use haikeilabs_agentware::toolformat::{Formatter, ToolDef, ToolResult, for_model};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 

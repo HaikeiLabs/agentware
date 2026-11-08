@@ -2,32 +2,34 @@
 
 The `kei-proxy serve` daemon listens on a Unix socket. Each SDK ships the
 same client for it, plus the tool-manifest sync a harness runs before it
-serves. All three replay the shared cases in
+serves. Go, TypeScript and Rust replay the shared cases in
 [`testing/contracts/runtime-socket`](../testing/contracts/runtime-socket/README.md),
 so the request and response shapes, error classes and fail-closed rules
-cannot drift apart.
+cannot drift apart. Python covers the same cases in its own tests
+(`python/tests/kei/`).
 
-| | Python (`haikeilabs.agentware.kei`) | TypeScript (`@haikeilabs/agentware`) | Go (`kei/runtimesocket`, `kei/toolsync`) |
-| --- | --- | --- | --- |
-| Client | `KeiProxySocketAuthorizeClient(socket_path=, timeout=, model_timeout=, env=)` | `new KeiProxySocketAuthorizeClient({ socketPath, timeoutMs, modelTimeoutMs, env })` | `&runtimesocket.Client{SocketPath, Timeout, ModelTimeout, Env}` |
-| Identity / session | `KeiProxySocketIdentity(source, external_id)`, `KeiProxySocketSession` | `{ source, externalId }`, `KeiProxySocketSession` | `runtimesocket.Identity{Source, ExternalID}`, `runtimesocket.Session` |
-| `PUT /v1/session` | `await open_session(identity)` | `await openSession(identity)` | `OpenSession(ctx, identity)` |
-| `DELETE /v1/session` | `await close_session(session)` | `await closeSession(session)` | `CloseSession(ctx, session)` |
-| Drop cached session | `forget_session(identity)` | `forgetSession(identity)` | `ForgetSession(identity)` |
-| `POST /v1/authorize` | `await authorize(session, tool=, action=, ...)` | `await authorize(session, { tool, action, ... })` | `Authorize(ctx, session, evaluator.AuthorizeRequest{...})` |
-| `GET /v1/model-config` | `await model_config(agent_id=None, profile_id=None)` | `await modelConfig(agentId?, profileId?)` | `ModelConfig(ctx, agentID, profileID)` |
-| `GET /v1/model-profiles` | `await list_model_profiles(agent_id=None)` | `await listModelProfiles(agentId?)` | `ListModelProfiles(ctx, agentID)` |
-| `GET /v1/models` | `await list_models(agent_id=None, profile_id=None)` | `await listModels(agentId?, profileId?)` | `ListModels(ctx, agentID, profileID)` |
-| `POST /v1/chat/completions` | `await chat_completion(session, payload)` | `await chatCompletion(session, payload)` | `ChatCompletion(ctx, session, payload)` |
-| Streamed chat (SSE `data:` lines) | `async for line in stream_chat_completion(session, payload)` | `for await (const line of streamChatCompletion(session, payload))` | `StreamChatCompletion(ctx, session, payload, func(line string) error)` |
-| `GET /v1/policy-bundle/status` | `await policy_bundle_status()` | `await policyBundleStatus()` | `PolicyBundleStatus(ctx)` |
-| Refusal error | `KeiProxySocketError` (`reason_class`, `code`) ⊂ `KeiProxyAuthorizeError` | `KeiProxySocketError` (`reasonClass`, `code`) ⊂ `KeiProxyAuthorizeError` | `*runtimesocket.Error` (`Class`, `Code`), unwraps to `*evaluator.AuthorizeError` |
-| Evaluator adapter | `KeiProxySocketAuthorizationClient(source, client)` | `new KeiProxySocketAuthorizationClient(source, client)` | `&runtimesocket.AuthorizationClient{Source, Socket}` |
-| Socket or CLI selector | `select_authorization_client(source, socket_path=, env=, ...)` | `selectAuthorizationClient(source, { socketPath, env, ... })` | `runtimesocket.SelectAuthorizationClient(source, runtimesocket.SelectOptions{...})` |
-| CLI fallback | `KeiProxyAuthorizeClient` | `KeiProxyAuthorizeClient` | `evaluator.CLIClient` |
-| Tool sync config | `ToolManifestSyncConfig.from_env(env)` | `ToolManifestSyncConfig.fromEnv(env)` | `toolsync.ConfigFromEnv(env)` |
-| Tool sync | `sync_tool_manifest(manifest, config, expect_tools=)` | `await syncToolManifest(manifest, config, { expectTools })` | `toolsync.Sync(ctx, manifest, cfg, expectTools)` / `toolsync.SyncDocument(...)` |
-| Tool sync error | `ToolManifestSyncError` | `ToolManifestSyncError` | wraps `toolsync.ErrSyncFailed` (+ `ErrEmptyManifest`, `ErrInvalidManifest`, `ErrInvalidConfig`) |
+| | Python (`haikeilabs.agentware.kei`) | TypeScript (`@haikeilabs/agentware`) | Go (`kei/runtimesocket`, `kei/toolsync`) | Rust (`haikeilabs_agentware::runtimesocket`) |
+| --- | --- | --- | --- | --- |
+| Client | `KeiProxySocketAuthorizeClient(socket_path=, timeout=, model_timeout=, env=)` | `new KeiProxySocketAuthorizeClient({ socketPath, timeoutMs, modelTimeoutMs, env })` | `&runtimesocket.Client{SocketPath, Timeout, ModelTimeout, Env}` | `runtimesocket::Client::new(socket_path)` (fields `timeout`, `model_timeout`, `env`, `caller_timeout`) |
+| Identity / session | `KeiProxySocketIdentity(source, external_id)`, `KeiProxySocketSession` | `{ source, externalId }`, `KeiProxySocketSession` | `runtimesocket.Identity{Source, ExternalID}`, `runtimesocket.Session` | `runtimesocket::Identity { source, external_id }`, `runtimesocket::Session` |
+| `PUT /v1/session` | `await open_session(identity)` | `await openSession(identity)` | `OpenSession(ctx, identity)` | `open_session(identity)` |
+| `DELETE /v1/session` | `await close_session(session)` | `await closeSession(session)` | `CloseSession(ctx, session)` | `close_session(&session)` |
+| Drop cached session | `forget_session(identity)` | `forgetSession(identity)` | `ForgetSession(identity)` | `forget_session(&identity)` |
+| `POST /v1/authorize` | `await authorize(session, tool=, action=, ...)` | `await authorize(session, { tool, action, ... })` | `Authorize(ctx, session, evaluator.AuthorizeRequest{...})` | `authorize(&session, &fields)` |
+| `POST /v1/credentials:release` | `await release_credential(session, connector_id=, capability=, resource=, ...)` | `await releaseCredential(session, { connectorId, capability, resource, ... })` | `ReleaseCredential(ctx, session, ReleaseRequest{...})` | `release_credential(&session, &ReleaseRequest { .. })` |
+| `GET /v1/model-config` | `await model_config(agent_id=None, profile_id=None)` | `await modelConfig(agentId?, profileId?)` | `ModelConfig(ctx, agentID, profileID)` | `model_config(agent_id, profile_id)` |
+| `GET /v1/model-profiles` | `await list_model_profiles(agent_id=None)` | `await listModelProfiles(agentId?)` | `ListModelProfiles(ctx, agentID)` | `list_model_profiles(agent_id)` |
+| `GET /v1/models` | `await list_models(agent_id=None, profile_id=None)` | `await listModels(agentId?, profileId?)` | `ListModels(ctx, agentID, profileID)` | `list_models(agent_id, profile_id)` |
+| `POST /v1/chat/completions` | `await chat_completion(session, payload)` | `await chatCompletion(session, payload)` | `ChatCompletion(ctx, session, payload)` | `chat_completion(&session, &payload)` |
+| Streamed chat (SSE `data:` lines) | `async for line in stream_chat_completion(session, payload)` | `for await (const line of streamChatCompletion(session, payload))` | `StreamChatCompletion(ctx, session, payload, func(line string) error)` | `stream_chat_completion(&session, &payload, callback)` |
+| `GET /v1/policy-bundle/status` | `await policy_bundle_status()` | `await policyBundleStatus()` | `PolicyBundleStatus(ctx)` | `policy_bundle_status()` |
+| Refusal error | `KeiProxySocketError` (`reason_class`, `code`) ⊂ `KeiProxyAuthorizeError` | `KeiProxySocketError` (`reasonClass`, `code`) ⊂ `KeiProxyAuthorizeError` | `*runtimesocket.Error` (`Class`, `Code`), unwraps to `*evaluator.AuthorizeError` | `runtimesocket::SocketError` (`kind`, `code`) |
+| Evaluator adapter | `KeiProxySocketAuthorizationClient(source, client)` | `new KeiProxySocketAuthorizationClient(source, client)` | `&runtimesocket.AuthorizationClient{Source, Socket}` | `KeiProxyEvaluator::new(runtimesocket::Client)` |
+| Socket or CLI selector | `select_authorization_client(source, socket_path=, env=, ...)` | `selectAuthorizationClient(source, { socketPath, env, ... })` | `runtimesocket.SelectAuthorizationClient(source, runtimesocket.SelectOptions{...})` | — |
+| CLI fallback | `KeiProxyAuthorizeClient` | `KeiProxyAuthorizeClient` | `evaluator.CLIClient` | — |
+| Tool sync config | `ToolManifestSyncConfig.from_env(env)` | `ToolManifestSyncConfig.fromEnv(env)` | `toolsync.ConfigFromEnv(env)` | `toolsync::Config::from_env(env)` |
+| Tool sync | `sync_tool_manifest(manifest, config, expect_tools=)` | `await syncToolManifest(manifest, config, { expectTools })` | `toolsync.Sync(ctx, manifest, cfg, expectTools)` / `toolsync.SyncDocument(...)` | `toolsync::sync(manifest, config, expect_tools)` |
+| Tool sync error | `ToolManifestSyncError` | `ToolManifestSyncError` | wraps `toolsync.ErrSyncFailed` (+ `ErrEmptyManifest`, `ErrInvalidManifest`, `ErrInvalidConfig`) | `toolsync::SyncError` |
 
 ## The shared contract
 
@@ -44,7 +46,7 @@ cannot drift apart.
 - **Model profile selection.** `agent_id` and `profile_id` are query parameters on
   `GET /v1/model-config`, `/v1/model-profiles`, and `/v1/models`. The chat
   completion selector, when used, is supplied in the JSON request fields
-  `agent_id` and `profile_id`; all three SDKs otherwise preserve caller payloads.
+  `agent_id` and `profile_id`; all four SDKs otherwise preserve caller payloads.
   Omitting `profile_id` selects the chosen agent's default. The profile-list
   response is `{"model_profiles": [...]}`. SDK model-config/list methods remove
   credential, API-key, and secret-reference fields before returning data; they
@@ -78,6 +80,11 @@ cannot drift apart.
 - **Go is Unix only.** On Windows every socket call refuses with
   `proxy_unavailable`, wrapping `runtimesocket.ErrUnsupportedPlatform`.
   `toolsync` works everywhere.
+- **Rust is Unix only.** The socket client dials with
+  `std::os::unix::net::UnixStream`, so the crate does not build on Windows.
+  `toolsync` works everywhere. Rust has no `kei-proxy authorize` CLI
+  fallback or socket-or-CLI selector yet, so `KeiProxyEvaluator` needs a
+  configured socket.
 - **Python adapter.** `KeiProxySocketAuthorizationClient.authorize` is
   synchronous, because Python's `KeiProxyEvaluator` is. It runs the async
   client on a worker-thread event loop.

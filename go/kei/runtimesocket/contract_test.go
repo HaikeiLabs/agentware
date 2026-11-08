@@ -49,6 +49,8 @@ type expectedError struct {
 type stepArgs struct {
 	Source     string         `json:"source"`
 	ExternalID string         `json:"external_id"`
+	AgentID    string         `json:"agent_id"`
+	ProfileID  string         `json:"profile_id"`
 	Payload    map[string]any `json:"payload"`
 	Session    struct {
 		Source     string `json:"source"`
@@ -96,6 +98,10 @@ func runStep(ctx context.Context, c *Client, op string, a stepArgs) (any, error)
 		})
 	case "list_models":
 		return c.ListModels(ctx, "", "")
+	case "model_config":
+		return c.ModelConfig(ctx, a.AgentID, a.ProfileID)
+	case "list_model_profiles":
+		return c.ListModelProfiles(ctx, a.AgentID)
 	case "chat_completion":
 		return c.ChatCompletion(ctx, a.session(), a.Payload)
 	case "stream_chat_completion":
