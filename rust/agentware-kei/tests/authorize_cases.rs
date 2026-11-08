@@ -8,6 +8,7 @@
 #![cfg(unix)]
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -208,7 +209,11 @@ fn expected_sha256(case: &Value) -> Option<String> {
     }
     let script = fs::read(fixture_dir().join("fake-kei-proxy.sh")).expect("read fake proxy");
     let digest = Sha256::digest(&script);
-    Some(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    let mut hex = String::with_capacity(64);
+    for byte in digest.iter() {
+        write!(hex, "{byte:02x}").expect("write to String");
+    }
+    Some(hex)
 }
 
 /// Mirrors caseDir: a temp dir with symlinks resolved (macOS /var is a
