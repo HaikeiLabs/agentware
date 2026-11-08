@@ -1,4 +1,4 @@
-# fixtures/kei — CI test infrastructure for agentware-kei integration
+# fixtures/kei — CI test infrastructure for the Rust crate (haikeilabs-agentware) integration
 
 | File | Purpose |
 |---|---|

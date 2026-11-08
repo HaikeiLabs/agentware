@@ -1,4 +1,4 @@
-use agentware_kei::{
+use haikeilabs_agentware::{
     evaluator::{Action, CallerContext, KeiProxyEvaluator},
     middleware::{AuditEvent, Auditor, Middleware, ToolExecutor},
     runtimesocket::{

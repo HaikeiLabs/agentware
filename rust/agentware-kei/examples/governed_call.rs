@@ -2,7 +2,7 @@
 //! The SDK treats `source` and `external_id` as opaque strings chosen by the
 //! harness; the daemon resolves them to a Kei user.
 
-use agentware_kei::{
+use haikeilabs_agentware::{
     evaluator::{CallerContext, KeiProxyEvaluator},
     middleware::{AuditEvent, Auditor, Middleware, ToolExecutor},
     runtimesocket::{Client, Identity},

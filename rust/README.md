@@ -13,7 +13,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-The `agentware-kei::fixture::load_contract` helper resolves paths relative to
+The `haikeilabs_agentware::fixture::load_contract` helper resolves paths relative to
 `testing/contracts/` at the repository root, so tests can consume the shared
 fixtures without copying them into this crate.
 
@@ -27,7 +27,7 @@ Unix socket. Then run the example with a socket path and opaque `source` and
 
 ```sh
 KEI_RUNTIME_SOCKET_PATH=/run/kei-proxy/runtime.sock \
-  cargo run -p agentware-kei --example governed_call -- \
+  cargo run -p haikeilabs-agentware --example governed_call -- \
   --source example --external-id user-1
 ```
 

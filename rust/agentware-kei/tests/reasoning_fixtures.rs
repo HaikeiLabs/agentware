@@ -6,7 +6,7 @@
 //! shared by strip/extract/parse; parse only exposes the clean side and a
 //! summarized tree, so the runner asserts on the analysis directly.
 
-use agentware_kei::reasoning::Adapter;
+use haikeilabs_agentware::reasoning::Adapter;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 

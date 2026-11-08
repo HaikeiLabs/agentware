@@ -31,7 +31,7 @@ return the tools in file order.
 | Go | `go/toolspec` | `LoadManifestV3(path string) ([]ToolSpec, error)` | `ParseManifestV3(data []byte) ([]ToolSpec, error)` |
 | Python | `haikeilabs.agentware.toolspec` | `load_manifest_v3(path) -> list[ToolSpec]` | `parse_manifest_v3(data: bytes \| str) -> list[ToolSpec]` |
 | TypeScript | `typescript/src/toolspec` | `loadManifestV3(path: string): ToolSpec[]` | `parseManifestV3(data: string \| Uint8Array): ToolSpec[]` |
-| Rust | `agentware_kei::toolspec` | `load_manifest_v3(path) -> Result<Vec<ToolSpec>, ManifestError>` | `parse_manifest_v3(data: &[u8]) -> Result<Vec<ToolSpec>, ManifestError>` |
+| Rust | `haikeilabs_agentware::toolspec` | `load_manifest_v3(path) -> Result<Vec<ToolSpec>, ManifestError>` | `parse_manifest_v3(data: &[u8]) -> Result<Vec<ToolSpec>, ManifestError>` |
 
 A rejected manifest produces an error that carries one of the codes below as
 a string: a `ManifestError` with a `Code` field (Go, found with `errors.As`),

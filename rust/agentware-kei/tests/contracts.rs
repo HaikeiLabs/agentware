@@ -1,4 +1,4 @@
-use agentware_kei::{
+use haikeilabs_agentware::{
     evaluator::{Action, CallerContext, KeiProxyEvaluator, RULE},
     fixture::load_contract,
     runtimesocket::*,
@@ -55,11 +55,11 @@ fn runtime_socket_constants_match_shared_contract() {
     );
     assert_eq!(
         c["schemas"]["credential_release_request"],
-        "kei.credential-release-request/v1"
+        CREDENTIAL_RELEASE_REQUEST_SCHEMA
     );
     assert_eq!(
         c["schemas"]["credential_release_response"],
-        "kei.credential-release-response/v1"
+        CREDENTIAL_RELEASE_RESPONSE_SCHEMA
     );
 }
 
@@ -104,7 +104,21 @@ fn serve(path: PathBuf, exchanges: Vec<Value>) -> mpsc::Receiver<Value> {
             } else {
                 serde_json::from_slice(&buf[body_start..]).unwrap()
             };
-            tx.send(json!({"method":head.split_whitespace().next().unwrap(),"path":head.split_whitespace().nth(1).unwrap(),"session":session,"body":body})).unwrap();
+            let target = head.split_whitespace().nth(1).unwrap_or("");
+            let (path, query) = match target.split_once('?') {
+                Some((p, q)) => (p, q),
+                None => (target, ""),
+            };
+            let mut seen = json!({
+                "method": head.split_whitespace().next().unwrap(),
+                "path": path,
+                "session": session,
+                "body": body
+            });
+            if !query.is_empty() {
+                seen["query"] = json!(query);
+            }
+            tx.send(seen).unwrap();
             let resp = &ex["response"];
             if resp["stall"] == true {
                 thread::sleep(Duration::from_millis(450));
@@ -130,22 +144,44 @@ fn serve(path: PathBuf, exchanges: Vec<Value>) -> mpsc::Receiver<Value> {
     rx
 }
 
+/// Serialize a ReleaseResult the way Go's ReleaseResult marshals: empty
+/// optional strings dropped, `bundle_state` always present, and a credential
+/// object carrying all six fields.
+fn release_result_value(r: ReleaseResult) -> Value {
+    let mut v = Map::new();
+    v.insert("decision".into(), json!(r.decision));
+    if !r.reason_code.is_empty() {
+        v.insert("reason_code".into(), json!(r.reason_code));
+    }
+    if !r.reason.is_empty() {
+        v.insert("reason".into(), json!(r.reason));
+    }
+    if let Some(c) = r.credential {
+        v.insert(
+            "credential".into(),
+            json!({
+                "connector_id": c.connector_id,
+                "issuer": c.issuer,
+                "resource": c.resource,
+                "account_model": c.account_model,
+                "access_token": c.access_token,
+                "expires_at": c.expires_at
+            }),
+        );
+    }
+    if !r.policy_id.is_empty() {
+        v.insert("policy_id".into(), json!(r.policy_id));
+    }
+    v.insert("bundle_state".into(), json!(r.bundle_state));
+    Value::Object(v)
+}
+
 #[test]
 fn runtime_socket_supported_client_cases_replay() {
     let fixture = load_contract("runtime-socket/client-cases.json").unwrap();
     let token = fixture["token"].as_str().unwrap();
-    let mut unsupported = Vec::new();
     for case in fixture["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        if case["steps"].as_array().unwrap().iter().any(|s| {
-            matches!(
-                s["op"].as_str(),
-                Some("list_models" | "chat_completion" | "stream_chat_completion")
-            )
-        }) {
-            unsupported.push(name.to_owned());
-            continue;
-        }
         let path =
             std::env::temp_dir().join(format!("kei-{}-{}.sock", std::process::id(), name.len()));
         let _ = std::fs::remove_file(&path);
@@ -208,6 +244,53 @@ fn runtime_socket_supported_client_cases_replay() {
                     )
                 }
                 "policy_bundle_status" => c.policy_bundle_status(),
+                "list_models" => c.list_models(None, None),
+                "chat_completion" => {
+                    let s = Session {
+                        source: a["session"]["source"].as_str().unwrap_or("").into(),
+                        external_id: a["session"]["external_id"].as_str().unwrap_or("").into(),
+                        session_id: a["session"]["session_id"].as_str().unwrap_or("").into(),
+                    };
+                    c.chat_completion(&s, &a["payload"])
+                }
+                "stream_chat_completion" => {
+                    let s = Session {
+                        source: a["session"]["source"].as_str().unwrap_or("").into(),
+                        external_id: a["session"]["external_id"].as_str().unwrap_or("").into(),
+                        session_id: a["session"]["session_id"].as_str().unwrap_or("").into(),
+                    };
+                    let mut lines: Vec<String> = Vec::new();
+                    c.stream_chat_completion(&s, &a["payload"], |line| {
+                        lines.push(line.to_owned());
+                        Ok(())
+                    })
+                    .map(|()| json!(lines))
+                }
+                "model_config" => c.model_config(a["agent_id"].as_str(), a["profile_id"].as_str()),
+                "list_model_profiles" => c.list_model_profiles(a["agent_id"].as_str()),
+                "release_credential" => {
+                    let s = Session {
+                        source: a["session"]["source"].as_str().unwrap_or("").into(),
+                        external_id: a["session"]["external_id"].as_str().unwrap_or("").into(),
+                        session_id: a["session"]["session_id"].as_str().unwrap_or("").into(),
+                    };
+                    let r = &a["request"];
+                    c.release_credential(
+                        &s,
+                        &ReleaseRequest {
+                            tool: r["tool"].as_str().unwrap_or("").into(),
+                            connector_id: r["connector_id"].as_str().unwrap_or("").into(),
+                            capability: r["capability"].as_str().unwrap_or("").into(),
+                            resource: r["resource"].as_str().unwrap_or("").into(),
+                            span_id: r["span_id"].as_str().unwrap_or("").into(),
+                            parent_span: r["parent_span"].as_str().unwrap_or("").into(),
+                            delegation_depth: r["delegation_depth"].as_u64().unwrap_or(0),
+                            framework: r["framework"].as_str().unwrap_or("").into(),
+                            tool_args_digest: r["tool_args_digest"].as_str().unwrap_or("").into(),
+                        },
+                    )
+                    .map(release_result_value)
+                }
                 _ => unreachable!(),
             };
             let expect = &step["expect"];
@@ -248,14 +331,9 @@ fn runtime_socket_supported_client_cases_replay() {
         }
         let _ = std::fs::remove_file(path);
     }
-    assert_eq!(
-        unsupported.len(),
-        10,
-        "unexpected retired-route fixture cases: {unsupported:?}"
-    );
 }
 
-use agentware_kei::runtimelink as rl;
+use haikeilabs_agentware::runtimelink as rl;
 use std::collections::BTreeMap;
 
 fn obj(value: &Value) -> BTreeMap<String, String> {

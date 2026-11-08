@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename the crate to `haikeilabs-agentware` (import `haikeilabs_agentware`) and version it with the shared Agentware version (0.16.0).
+- Add `list_models`, `model_config`, `list_model_profiles`, `chat_completion`, `stream_chat_completion` and `release_credential` to the runtime socket client, replaying the shared contract cases.
 - Add a generic governed-call example and offline Unix socket end-to-end test.
 - Add fail-closed Rust governed tool middleware with FILTER argument replacement and metadata-only audit digests.
 - Add a fail-closed Rust Kei proxy evaluator with decision metadata, caller context, and deny hints.

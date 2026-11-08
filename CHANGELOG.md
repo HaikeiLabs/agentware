@@ -9,6 +9,15 @@ shared version across npm, PyPI, and Go.
 
 ### Added
 
+- **Rust:** the runtime socket client reaches parity with Go, Python and
+  TypeScript: `list_models`, `model_config` and `list_model_profiles` (with
+  `agent_id`/`profile_id` selectors and secret-field stripping),
+  `chat_completion`, `stream_chat_completion` and `release_credential`. The
+  crate is now `haikeilabs-agentware` (import `haikeilabs_agentware`) at the
+  shared version, checked by `make version-check`.
+- **Contracts:** shared runtime-socket cases for model config, model
+  profiles and credential release, replayed by Go, TypeScript and Rust.
+
 - **Rust:** toolformat for qwen, llama, minimax, mistral and nemotron, so every
   tool-call family now has Rust, Go, Python and TypeScript implementations and
   `fixtures/EXCLUSIONS.md` has no Rust rows (#282).

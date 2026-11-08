@@ -3,7 +3,7 @@
 //! (the loader contract) and records passing cases for the equal-coverage
 //! gate, see `docs/testing.md`.
 
-use agentware_kei::toolspec::{self, Route, ToolSpec};
+use haikeilabs_agentware::toolspec::{self, Route, ToolSpec};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
