@@ -17,6 +17,9 @@ shared version across npm, PyPI, and Go.
   shared version, checked by `make version-check`.
 - **Contracts:** shared runtime-socket cases for model config, model
   profiles and credential release, replayed by Go, TypeScript and Rust.
+- **Python:** a replay of every shared runtime-socket fixture (constants,
+  client cases and tool-sync cases), so all four SDKs now run the same
+  contract.
 
 - **Rust:** toolformat for qwen, llama, minimax, mistral and nemotron, so every
   tool-call family now has Rust, Go, Python and TypeScript implementations and
