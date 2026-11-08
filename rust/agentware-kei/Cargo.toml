@@ -4,7 +4,12 @@ version = "0.16.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Rust SDK integration surface for Kei runtime contracts"
+description = "Agentware for Rust: Kei runtime socket client, tool-call authorization, tool sync and agent middleware"
+repository = "https://github.com/HaikeiLabs/agentware"
+homepage = "https://docs.haikeilabs.com/agentware/build/overview"
+readme = "../README.md"
+keywords = ["agents", "ai-agents", "guardrails", "llm", "kei"]
+categories = ["api-bindings", "development-tools"]
 
 [dependencies]
 regex = "1"
