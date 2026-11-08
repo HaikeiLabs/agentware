@@ -1,11 +1,11 @@
 # Changelog
 
-Notable changes to agentware (Go, Python, and TypeScript). Releases use one
-shared version across npm, PyPI, and Go.
+Notable changes to agentware (Go, Python, TypeScript and Rust). Releases use
+one shared version across npm, PyPI, Go and crates.io.
 
 ## Unreleased
 
-## [0.16.0] - 2026-10-31
+## [0.16.0] - 2026-11-08
 
 ### Added
 
