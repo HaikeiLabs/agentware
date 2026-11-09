@@ -1,0 +1,207 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": { "type": "string" },
+            "units": { "type": "string" }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_web",
+        "description": "Search the web",
+        "parameters": {
+          "type": "object",
+          "properties": { "query": { "type": "string" } },
+          "required": ["query"]
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "case": {
+        "name": "call-passes",
+        "description": "expect call (the default): the expected tool is called",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in Paris?",
+        "expectedTool": "get_weather",
+        "maxTurns": 3
+      },
+      "script": [
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris" } }] }]
+      ],
+      "expected": { "success": true, "passes": 1, "repeats": 1, "turns": 1, "toolCalls": ["get_weather"], "error": "" }
+    },
+    {
+      "case": {
+        "name": "call-fails-when-not-called",
+        "description": "expect call: the model answers without calling the tool",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in Paris?",
+        "expectedTool": "get_weather",
+        "expect": "call",
+        "maxTurns": 3
+      },
+      "script": [
+        [{ "content": "It is sunny." }]
+      ],
+      "expected": { "success": false, "passes": 0, "repeats": 1, "turns": 1, "toolCalls": [], "errorContains": "not called" }
+    },
+    {
+      "case": {
+        "name": "no-call-passes",
+        "description": "expect no_call: the model answers without calling the tool",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "Say hello.",
+        "expectedTool": "get_weather",
+        "expect": "no_call",
+        "maxTurns": 3
+      },
+      "script": [
+        [{ "content": "Hello!" }]
+      ],
+      "expected": { "success": true, "passes": 1, "repeats": 1, "turns": 1, "toolCalls": [], "error": "" }
+    },
+    {
+      "case": {
+        "name": "no-call-passes-after-other-tool",
+        "description": "expect no_call: another tool is called and executed, the expected tool never is",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "Search for agentware.",
+        "expectedTool": "get_weather",
+        "expect": "no_call",
+        "maxTurns": 3
+      },
+      "script": [
+        [
+          { "tool_calls": [{ "name": "search_web", "arguments": { "query": "agentware" } }] },
+          { "content": "Here is what I found." }
+        ]
+      ],
+      "expected": { "success": true, "passes": 1, "repeats": 1, "turns": 2, "toolCalls": ["search_web"], "error": "" }
+    },
+    {
+      "case": {
+        "name": "no-call-fails-when-called",
+        "description": "expect no_call: the expected tool is called, so the case fails",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "Say hello.",
+        "expectedTool": "get_weather",
+        "expect": "no_call",
+        "maxTurns": 3
+      },
+      "script": [
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris" } }] }]
+      ],
+      "expected": { "success": false, "passes": 0, "repeats": 1, "turns": 1, "toolCalls": ["get_weather"], "errorContains": "no_call" }
+    },
+    {
+      "case": {
+        "name": "no-call-with-args-passes-on-other-args",
+        "description": "expect no_call with expectedArgs: the tool is called, but not with the forbidden arguments",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in London?",
+        "expectedTool": "get_weather",
+        "expect": "no_call",
+        "expectedArgs": { "city": "Paris" },
+        "maxTurns": 3
+      },
+      "script": [
+        [
+          { "tool_calls": [{ "name": "get_weather", "arguments": { "city": "London" } }] },
+          { "content": "It is raining in London." }
+        ]
+      ],
+      "expected": { "success": true, "passes": 1, "repeats": 1, "turns": 2, "toolCalls": ["get_weather"], "error": "" }
+    },
+    {
+      "case": {
+        "name": "expected-args-match",
+        "description": "expectedArgs is a partial match: extra arguments are allowed",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in Paris, in metric?",
+        "expectedTool": "get_weather",
+        "expectedArgs": { "city": "Paris" },
+        "maxTurns": 3
+      },
+      "script": [
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris", "units": "metric" } }] }]
+      ],
+      "expected": { "success": true, "passes": 1, "repeats": 1, "turns": 1, "toolCalls": ["get_weather"], "error": "" }
+    },
+    {
+      "case": {
+        "name": "expected-args-mismatch",
+        "description": "expectedArgs mismatch: the expected tool is called with a different value",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in Paris?",
+        "expectedTool": "get_weather",
+        "expectedArgs": { "city": "Paris" },
+        "maxTurns": 3
+      },
+      "script": [
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "London" } }] }]
+      ],
+      "expected": { "success": false, "passes": 0, "repeats": 1, "turns": 1, "toolCalls": ["get_weather"], "errorContains": "get_weather" }
+    },
+    {
+      "case": {
+        "name": "repeats-pass-rate-met",
+        "description": "2 of 3 repeats pass and minPassRate is 0.6",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in Paris?",
+        "expectedTool": "get_weather",
+        "repeats": 3,
+        "minPassRate": 0.6,
+        "maxTurns": 1
+      },
+      "script": [
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris" } }] }],
+        [{ "content": "I don't know." }],
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris" } }] }]
+      ],
+      "expected": { "success": true, "passes": 2, "repeats": 3, "turns": 3, "toolCalls": ["get_weather", "get_weather"], "error": "" }
+    },
+    {
+      "case": {
+        "name": "repeats-pass-rate-missed",
+        "description": "2 of 3 repeats pass and minPassRate defaults to 1.0",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "What is the weather in Paris?",
+        "expectedTool": "get_weather",
+        "repeats": 3,
+        "maxTurns": 1
+      },
+      "script": [
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris" } }] }],
+        [{ "content": "I don't know." }],
+        [{ "tool_calls": [{ "name": "get_weather", "arguments": { "city": "Paris" } }] }]
+      ],
+      "expected": { "success": false, "passes": 2, "repeats": 3, "turns": 3, "toolCalls": ["get_weather", "get_weather"], "errorContains": "passed 2/3 repeats" }
+    },
+    {
+      "case": {
+        "name": "invalid-expect",
+        "description": "an unknown expect value is rejected before any model call",
+        "systemPrompt": "You are a helpful assistant.",
+        "userMessage": "Say hello.",
+        "expectedTool": "get_weather",
+        "expect": "sometimes",
+        "maxTurns": 3
+      },
+      "script": [],
+      "expected": { "success": false, "passes": 0, "repeats": 1, "turns": 0, "toolCalls": [], "errorContains": "expect" }
+    }
+  ]
+}

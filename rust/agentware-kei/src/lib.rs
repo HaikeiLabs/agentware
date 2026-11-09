@@ -1,5 +1,6 @@
 //! Rust SDK integration surface for Kei.
 
+pub mod evals;
 pub mod evaluator;
 pub mod executor;
 pub mod fixture;
