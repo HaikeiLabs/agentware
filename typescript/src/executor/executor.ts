@@ -77,6 +77,7 @@ export class InferenceExecutor implements Executor {
         break;
       }
 
+      conversation.push({ role: Role.ASSISTANT, content: response.content, tool_calls: response.tool_calls });
       tool_calls_made += response.tool_calls.length;
 
       for (const tool_call of response.tool_calls) {

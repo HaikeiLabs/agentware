@@ -60,6 +60,7 @@ interface OpenAIChatMessage {
     id: string;
     type: "function";
     function: { name: string; arguments: string };
+    extra_content?: unknown;
   }>;
 }
 
@@ -72,6 +73,7 @@ interface OpenAIChatCompletion {
       tool_calls?: Array<{
         id?: string;
         function?: { name?: string; arguments?: string };
+        extra_content?: unknown;
       }>;
     };
   }>;
@@ -118,6 +120,7 @@ function toOpenAIMessage(message: Message): OpenAIChatMessage {
             id: tc.id,
             type: "function",
             function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+            ...(tc.metadata !== undefined ? { extra_content: tc.metadata } : {}),
           })),
         };
       }
@@ -270,6 +273,7 @@ export class OpenAIBackend implements AsyncBackend {
           continue;
         }
         toolCalls.push({
+          ...(tc.extra_content !== undefined ? { metadata: tc.extra_content } : {}),
           id: tc.id ?? `call_${i}`,
           name,
           arguments: parseToolArguments(

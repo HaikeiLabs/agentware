@@ -337,6 +337,7 @@ class EvalRunner:
                                     "id": tc["id"],
                                     "type": "function",
                                     "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                                **({"extra_content": tc["metadata"]} if "metadata" in tc else {}),
                                 }
                             ],
                         }
@@ -426,6 +427,7 @@ class EvalRunner:
                                 "id": tc["id"],
                                 "type": "function",
                                 "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                                **({"extra_content": tc["metadata"]} if "metadata" in tc else {}),
                             }
                             for tc in result.tool_calls
                         ],

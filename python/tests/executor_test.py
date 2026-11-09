@@ -95,3 +95,28 @@ def test_system_prompt_leads_history() -> None:
     assert sent[-1].role == Role.USER
     assert sent[-1].content == "user"
     assert result.final_response == "done"
+
+
+def test_native_tool_history_keeps_metadata() -> None:
+    from haikeilabs.agentware.llm import ToolCall
+
+    metadata = {"google": {"thought_signature": "fixture-signature"}}
+    backend = MockBackend(
+        responses=[
+            Response(
+                tool_calls=[ToolCall(id="call-1", name="lookup", arguments={}, metadata=metadata)]
+            ),
+            Response(content="done"),
+        ]
+    )
+
+    class ToolExecutor:
+        def execute(self, *args: Any) -> tuple[str, bool, str]:
+            return ("ok", True, "")
+
+    executor = _executor(backend)
+    executor._config.tool_executor = ToolExecutor()
+    executor.execute(ExecuteRequest(system_prompt="sys", user_message="go"))
+    assistant = next(m for m in backend.calls[1] if m.role == Role.ASSISTANT)
+    assert assistant.tool_calls[0].metadata == metadata
+    assert "fixture-signature" not in repr(assistant.tool_calls[0])

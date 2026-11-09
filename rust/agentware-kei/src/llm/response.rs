@@ -19,11 +19,13 @@ pub struct Response {
 }
 
 /// A structured tool invocation from the LLM (Go `ToolCall`).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default)]
 pub struct ToolCall {
     pub id: String,
     pub name: String,
     pub args: Map<String, serde_json::Value>,
+    /// Opaque provider tool-call metadata; never log or display.
+    pub metadata: Option<serde_json::Value>,
 }
 
 /// Prompt and completion token counts (Go `TokenUsage`).
@@ -35,4 +37,15 @@ pub struct TokenUsage {
     /// The subset of `prompt_tokens` served from the provider's prompt cache.
     /// Zero when the backend does not report cache usage.
     pub cached_tokens: i64,
+}
+
+impl std::fmt::Debug for ToolCall {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolCall")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("args", &self.args)
+            .field("metadata", &"[redacted]")
+            .finish()
+    }
 }

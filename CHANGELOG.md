@@ -5,6 +5,10 @@ one shared version across npm, PyPI, Go and crates.io.
 
 ## Unreleased
 
+### Added
+
+- Gemini 3 thought signatures: OpenAI-compatible backends round-trip per-tool-call provider extras (extra_content) in TS, Python, Go and Rust.
+
 ## [0.16.0] - 2026-11-08
 
 ### Added

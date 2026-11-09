@@ -90,6 +90,7 @@ class InferenceExecutor:
                 final_response = response.content
                 break
 
+            conversation.append(Message(role=Role.ASSISTANT, content=response.content, tool_calls=response.tool_calls))
             tool_calls_made += len(response.tool_calls)
 
             for tool_call in response.tool_calls:

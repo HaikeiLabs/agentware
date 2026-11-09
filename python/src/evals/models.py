@@ -125,6 +125,7 @@ class OpenAIClient(BaseModelClient):
                         "id": tc["id"],
                         "name": tc["function"]["name"],
                         "arguments": tc["function"]["arguments"],
+                        **({"metadata": tc["extra_content"]} if "extra_content" in tc else {}),
                     }
                 )
 
@@ -330,6 +331,7 @@ class OllamaClient(BaseModelClient):
                         "id": tc.get("id", ""),
                         "name": tc.get("function", {}).get("name", ""),
                         "arguments": tc.get("function", {}).get("arguments", ""),
+                    **({"metadata": tc["extra_content"]} if "extra_content" in tc else {}),
                     }
                 )
 
@@ -408,6 +410,7 @@ class VLLMClient(BaseModelClient):
                         "id": tc["id"],
                         "name": tc["function"]["name"],
                         "arguments": tc["function"]["arguments"],
+                        **({"metadata": tc["extra_content"]} if "extra_content" in tc else {}),
                     }
                 )
 
@@ -498,6 +501,7 @@ class LlamaCPPClient(VLLMClient):
                     "id": tc.get("id", ""),
                     "name": tc.get("function", {}).get("name", ""),
                     "arguments": tc.get("function", {}).get("arguments", ""),
+                    **({"metadata": tc["extra_content"]} if "extra_content" in tc else {}),
                 }
             )
 
@@ -596,6 +600,7 @@ class AgentExecutor:
                                 "id": tc["id"],
                                 "type": "function",
                                 "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                                **({"extra_content": tc["metadata"]} if "metadata" in tc else {}),
                             }
                         ],
                     }

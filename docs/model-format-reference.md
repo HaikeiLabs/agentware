@@ -33,6 +33,13 @@ and the reasoning adapter handles its reasoning shape.
 | **Inline tags** | None. o-series models do not use inline thinking tags. |
 | **Adapter** | No model-specific field registration needed; `reasoning_content` is in the known set. |
 
+OpenAI-compatible native tool calls may carry opaque `extra_content` on each
+call. The backend stores this as the call's `metadata` and the OpenAI-family
+message formatter echoes it on that same call when formatting assistant
+history. Gemini 3 uses `extra_content.google.thought_signature`; other
+providers can use the same opaque field. An absent field stays absent. This
+metadata is not reasoning display and must not be logged or displayed.
+
 **Example response:**
 
 ```json

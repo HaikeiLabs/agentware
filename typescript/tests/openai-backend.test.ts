@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   FetchFn,
   FetchLikeInit,
@@ -400,5 +401,17 @@ describe("OpenAIBackend", () => {
     expect(backend.supportsNativeToolCalling()).toBe(true);
     expect(backend.modelName()).toBe("gpt-test");
     expect(backend.contextWindowSize()).toBe(4096);
+  });
+});
+
+describe("shared provider extras", () => {
+  const cases = JSON.parse(readFileSync("../fixtures/llm/provider-extras/cases.json", "utf8")) as Array<{ name: string; response: unknown; expected: { role: string; tool_calls: unknown[] } }>;
+  it.each(cases)("round trips $name", async ({ response, expected }) => {
+    const { fetchFn, captured } = capturingFetch(jsonResponse(JSON.stringify(response)));
+    const backend = new OpenAIBackend({ model: "fixture", fetchFn });
+    const first = await backend.complete([{ role: Role.USER, content: "go" }]);
+    await backend.complete([{ role: Role.ASSISTANT, content: "", tool_calls: first.tool_calls }]);
+    const body = JSON.parse(captured[1].init.body!);
+    expect(body.messages[0].tool_calls).toEqual(expected.tool_calls);
   });
 });

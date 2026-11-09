@@ -69,16 +69,17 @@ pub fn message_to_wire(message: &Message) -> Value {
 
 /// Serializes one tool call to the OpenAI wire object
 /// (`go/llm/proxy/convert.go` `ToOpenAIMessages`; `arguments` carries the
-/// args as a JSON object, exactly as Go assigns the map).
+/// args as a JSON string, as required by OpenAI-compatible chat APIs).
 pub fn tool_call_to_wire(tool_call: &ToolCall) -> Value {
-    json!({
+    let mut wire = json!({
         "id": tool_call.id,
         "type": "function",
-        "function": {
-            "name": tool_call.name,
-            "arguments": tool_call.args,
-        },
-    })
+        "function": { "name": tool_call.name, "arguments": serde_json::to_string(&tool_call.args).expect("JSON object serialization") },
+    });
+    if let Some(metadata) = &tool_call.metadata {
+        wire["extra_content"] = metadata.clone();
+    }
+    wire
 }
 
 /// Serializes tool definitions to the OpenAI wire array
@@ -249,6 +250,7 @@ fn parse_tool_calls(value: Option<&Value>) -> Vec<ToolCall> {
                 id: string_field(entry, "id"),
                 name,
                 args,
+                metadata: entry.get("extra_content").cloned(),
             }
         })
         .collect()
@@ -284,6 +286,24 @@ mod tests {
     use std::net::{TcpListener, TcpStream};
     use std::sync::mpsc;
     use std::thread;
+
+    #[test]
+    fn provider_extras_fixtures() {
+        let cases: Value = serde_json::from_str(include_str!(
+            "../../../../fixtures/llm/provider-extras/cases.json"
+        ))
+        .unwrap();
+        for case in cases.as_array().unwrap() {
+            let calls = parse_tool_calls(case.pointer("/response/choices/0/message/tool_calls"));
+            let actual: Vec<Value> = calls.iter().map(tool_call_to_wire).collect();
+            assert_eq!(
+                Value::Array(actual),
+                case["expected"]["tool_calls"],
+                "{}",
+                case["name"]
+            );
+        }
+    }
 
     /// A minimal local HTTP server that captures the request body and replies
     /// with a canned status and body (the Rust equivalent of Go's
@@ -631,6 +651,7 @@ mod tests {
             content: String::new(),
             tool_call_id: "call_1".into(),
             tool_calls: vec![ToolCall {
+                metadata: None,
                 id: "call_1".into(),
                 name: "get_issue".into(),
                 args,
@@ -647,7 +668,7 @@ mod tests {
                 "tool_calls": [{
                     "id": "call_1",
                     "type": "function",
-                    "function": {"name": "get_issue", "arguments": {"owner": "acme"}},
+                    "function": {"name": "get_issue", "arguments": "{\"owner\":\"acme\"}"},
                 }],
             })
         );

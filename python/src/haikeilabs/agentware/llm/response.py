@@ -11,6 +11,9 @@ class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    # Opaque model-family metadata. Do not log or display it.
+    metadata: Any = field(default=None, repr=False)
+    _metadata_present: bool = field(default=False, repr=False, compare=False)
 
 
 @dataclass

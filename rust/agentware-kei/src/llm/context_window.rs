@@ -495,6 +495,7 @@ mod tests {
             role: Role::Assistant,
             content: String::new(),
             tool_calls: vec![ToolCall {
+                metadata: None,
                 name: "test".into(),
                 ..Default::default()
             }],

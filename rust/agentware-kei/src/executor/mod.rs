@@ -1,9 +1,8 @@
 //! The agentic inference loop and its wiring (port of `go/executor`).
 //!
 //! The loop sends the conversation to the backend, parses tool calls from
-//! the response TEXT with the model formatter (Go attaches native
-//! `resp.ToolCalls` to the conversation but executes only text-parsed
-//! calls), executes them through the governed executor seam, and repeats
+//! native tool calls or parses response text with the model formatter,
+//! executes them through the governed executor seam, and repeats
 //! until completion, an error, or the iteration cap.
 
 pub mod dispatcher;
