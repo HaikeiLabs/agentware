@@ -56,7 +56,7 @@ func TestExecuteWithDecision_DenyDoesNotRunHandler(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected deny error, got nil")
 	}
-	if decision.ReasonCode != "no_matching_policy" || decision.Hint != "Add a policy for this tool: kei policies create" {
+	if decision.ReasonCode != "no_matching_policy" || decision.Hint != "Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>" {
 		t.Fatalf("unexpected deny metadata: reason_code=%q hint=%q", decision.ReasonCode, decision.Hint)
 	}
 	if handlerRan {
@@ -95,6 +95,6 @@ func (denyDetailsClient) Authorize(ctx context.Context, req evaluator.AuthorizeR
 	return map[string]any{
 		"decision":    "deny",
 		"reason_code": "no_matching_policy",
-		"hint":        "Add a policy for this tool: kei policies create",
+		"hint":        "Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>",
 	}, nil
 }

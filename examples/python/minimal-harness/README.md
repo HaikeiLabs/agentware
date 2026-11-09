@@ -18,7 +18,7 @@ uv run python ../examples/python/minimal-harness/main.py --fake
 
 ```text
 ALLOW tool=echo policy_id=fake-allow-echo
-DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create
+DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>
 ```
 
 The fake daemon appends one JSON audit line per authorize to the audit file

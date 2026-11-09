@@ -65,7 +65,7 @@ handler did not run:
 
 ```text
 ALLOW tool=echo policy_id=fake-allow-echo result=map[echo:hello harness]
-DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create handler=not_run
+DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace> handler=not_run
 ```
 
 ## Tests

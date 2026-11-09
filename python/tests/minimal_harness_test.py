@@ -42,7 +42,10 @@ def test_minimal_harness_fake_round_trip() -> None:
         deny = [line for line in out if line.startswith("DENY tool=delete_everything")]
         assert deny, f"no deny line for delete_everything in {out!r}"
         assert "reason_code=no_matching_policy" in deny[0]
-        assert "hint=Add a policy for this tool: kei policies create" in deny[0]
+        assert (
+            "hint=Add a policy for this target: kei policy create"
+            " --group <group> --allow <target> --workspace <workspace>"
+        ) in deny[0]
 
         lines = [
             json.loads(line) for line in Path(audit_path).read_text().splitlines() if line.strip()

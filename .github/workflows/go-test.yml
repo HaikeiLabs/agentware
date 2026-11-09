@@ -59,7 +59,7 @@ jobs:
           OUTPUT=$(KEI_RUNTIME_TOKEN=fake-token go run . --socket "$SOCKET")
           printf '%s\n' "$OUTPUT"
           printf '%s\n' "$OUTPUT" | grep -Fq 'ALLOW tool=echo policy_id=fake-allow-echo result=map[echo:hello harness]'
-          printf '%s\n' "$OUTPUT" | grep -Fq 'DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create handler=not_run'
+          printf '%s\n' "$OUTPUT" | grep -Fq 'DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace> handler=not_run'
           python3 -c 'import json, sys; rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]; assert len(rows) == 2, rows; assert [(row["tool"], row["decision"]) for row in rows] == [("echo", "permit"), ("delete_everything", "deny")], rows' "$AUDIT"
       - name: Check kei/runtimelink ships in the module
         run: go/scripts/check-module.sh
