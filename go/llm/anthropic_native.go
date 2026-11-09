@@ -92,7 +92,7 @@ func FormatAnthropicMessages(messages []Message) ([]map[string]any, error) {
 	for _, message := range messages {
 		switch message.Role {
 		case RoleSystem:
-			return nil, errors.New("Anthropic system instructions must be top-level")
+			return nil, errors.New("anthropic system instructions must be top-level")
 		case RoleTool:
 			if message.ToolCallID == "" {
 				return nil, errors.New("tool_result requires tool_call_id")
