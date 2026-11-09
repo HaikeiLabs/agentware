@@ -149,6 +149,7 @@ mod tests {
             role: super::super::request::Role::Assistant,
             content: "using tool".into(),
             tool_calls: vec![super::super::response::ToolCall {
+                metadata: None,
                 name: "my_tool".into(),
                 args,
                 ..Default::default()

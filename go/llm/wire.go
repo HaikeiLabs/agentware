@@ -17,9 +17,10 @@ type wireToolCallFunction struct {
 }
 
 type wireToolCall struct {
-	ID       string               `json:"id"`
-	Type     string               `json:"type"`
-	Function wireToolCallFunction `json:"function"`
+	ExtraContent json.RawMessage      `json:"extra_content,omitempty"`
+	ID           string               `json:"id"`
+	Type         string               `json:"type"`
+	Function     wireToolCallFunction `json:"function"`
 }
 
 type wireMessage struct {
@@ -56,8 +57,9 @@ func toWireMessages(messages []Message) ([]wireMessage, error) {
 					args = string(argsBytes)
 				}
 				wm.ToolCalls = append(wm.ToolCalls, wireToolCall{
-					ID:   tc.ID,
-					Type: "function",
+					ID:           tc.ID,
+					ExtraContent: tc.Metadata,
+					Type:         "function",
 					Function: wireToolCallFunction{
 						Name:      tc.Name,
 						Arguments: args,
@@ -76,8 +78,9 @@ func toWireMessages(messages []Message) ([]wireMessage, error) {
 // response: the name and arguments are nested under function, and arguments
 // is usually a JSON string (some servers send an object).
 type wireResponseToolCall struct {
-	ID       string `json:"id"`
-	Function struct {
+	ExtraContent json.RawMessage `json:"extra_content"`
+	ID           string          `json:"id"`
+	Function     struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	} `json:"function"`
@@ -97,7 +100,7 @@ func fromWireToolCalls(calls []wireResponseToolCall) ([]ToolCall, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tool call %q arguments: %w", c.Function.Name, err)
 		}
-		out = append(out, ToolCall{ID: c.ID, Name: c.Function.Name, Args: args})
+		out = append(out, ToolCall{ID: c.ID, Name: c.Function.Name, Args: args, Metadata: c.ExtraContent})
 	}
 	return out, nil
 }

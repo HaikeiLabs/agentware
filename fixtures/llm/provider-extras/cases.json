@@ -1,0 +1,153 @@
+[
+  {
+    "name": "provider extras on one of two calls",
+    "response": {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{\"q\":\"hello\"}"
+                },
+                "extra_content": {
+                  "google": {
+                    "thought_signature": "fixture-signature"
+                  },
+                  "other": {
+                    "opaque": [
+                      1,
+                      true
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "call-2",
+                "type": "function",
+                "function": {
+                  "name": "count",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    "expected": {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call-1",
+          "type": "function",
+          "function": {
+            "name": "lookup",
+            "arguments": "{\"q\":\"hello\"}"
+          },
+          "extra_content": {
+            "google": {
+              "thought_signature": "fixture-signature"
+            },
+            "other": {
+              "opaque": [
+                1,
+                true
+              ]
+            }
+          }
+        },
+        {
+          "id": "call-2",
+          "type": "function",
+          "function": {
+            "name": "count",
+            "arguments": "{}"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "no provider extras",
+    "response": {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call-3",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    "expected": {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call-3",
+          "type": "function",
+          "function": {
+            "name": "lookup",
+            "arguments": "{}"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "explicit null metadata",
+    "response": {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call-4",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                },
+                "extra_content": null
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    "expected": {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call-4",
+          "type": "function",
+          "function": {
+            "name": "lookup",
+            "arguments": "{}"
+          },
+          "extra_content": null
+        }
+      ]
+    }
+  }
+]

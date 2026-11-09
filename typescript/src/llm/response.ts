@@ -2,6 +2,8 @@ export interface ToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  /** Opaque model-family tool-call metadata; do not log or display. */
+  metadata?: unknown;
 }
 
 export interface TokenUsage {

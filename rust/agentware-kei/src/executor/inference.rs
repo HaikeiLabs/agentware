@@ -3,6 +3,7 @@
 
 use super::{ExecuteRequest, ExecuteResult, Executor, InferenceExecutorConfig, TerminationReason};
 use crate::llm::{Message, Request, Role, ThinkingConfig, ToolDefinition};
+use crate::toolformat::ParsedToolCall;
 use crate::tools::ToolResult;
 use serde_json::{Map, Value};
 
@@ -96,9 +97,22 @@ impl Executor for InferenceExecutor {
                 });
             }
 
-            let tool_calls = match self.config.formatter.parse_tool_calls(&response.content) {
-                Ok(tool_calls) => tool_calls,
-                Err(error) => return Err(format!("failed to parse tool calls: {error}")),
+            let tool_calls = if !response.tool_calls.is_empty() {
+                response
+                    .tool_calls
+                    .iter()
+                    .map(|call| ParsedToolCall {
+                        id: call.id.clone(),
+                        name: call.name.clone(),
+                        args: call.args.clone(),
+                        raw: String::new(),
+                    })
+                    .collect()
+            } else {
+                match self.config.formatter.parse_tool_calls(&response.content) {
+                    Ok(tool_calls) => tool_calls,
+                    Err(error) => return Err(format!("failed to parse tool calls: {error}")),
+                }
             };
 
             if tool_calls.is_empty() {
@@ -338,6 +352,51 @@ mod tests {
     }
 
     // ---- loop tests --------------------------------------------------------
+
+    #[test]
+    fn native_tool_call_metadata_stays_in_history() {
+        let metadata = serde_json::json!({"google": {"thought_signature": "fixture-signature"}});
+        let config = InferenceExecutorConfig {
+            backend: Arc::new(FakeBackend {
+                responses: Mutex::new(vec![
+                    Response {
+                        tool_calls: vec![crate::llm::ToolCall {
+                            id: "call-1".into(),
+                            name: "echo".into(),
+                            metadata: Some(metadata.clone()),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    },
+                    Response {
+                        content: "TASK_COMPLETE".into(),
+                        ..Default::default()
+                    },
+                ]),
+            }),
+            tool_exec: Arc::new(FakeExecutor {
+                calls: Mutex::new(Vec::new()),
+            }),
+            ..test_config()
+        };
+        let result = InferenceExecutor::new(config)
+            .execute(&ExecuteRequest::default())
+            .unwrap();
+        assert_eq!(result.tool_calls_made, 1);
+        let assistant = result
+            .conversation
+            .iter()
+            .find(|m| !m.tool_calls.is_empty())
+            .unwrap();
+        assert_eq!(assistant.tool_calls[0].metadata.as_ref(), Some(&metadata));
+        assert!(
+            result
+                .conversation
+                .iter()
+                .any(|m| m.tool_call_id == "call-1")
+        );
+        assert!(!format!("{:?}", assistant.tool_calls[0]).contains("fixture-signature"));
+    }
 
     #[test]
     fn loop_completes_on_signal() {

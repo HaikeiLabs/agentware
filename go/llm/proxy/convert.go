@@ -32,6 +32,9 @@ func ToInternalMessages(openAIMessages MessageList) []llm.Message {
 				}
 
 				var tc llm.ToolCall
+				if extra, ok := tcMap["extra_content"]; ok {
+					tc.Metadata, _ = json.Marshal(extra)
+				}
 				if id, ok := tcMap["id"].(string); ok {
 					tc.ID = id
 				}
@@ -81,6 +84,12 @@ func ToOpenAIMessages(internalMessages []llm.Message) MessageList {
 						"name":      tc.Name,
 						"arguments": tc.Args,
 					},
+				}
+				if tc.Metadata != nil {
+					var extra any
+					if json.Unmarshal(tc.Metadata, &extra) == nil {
+						tcMap["extra_content"] = extra
+					}
 				}
 				toolCalls = append(toolCalls, tcMap)
 			}

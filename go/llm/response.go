@@ -1,5 +1,7 @@
 package llm
 
+import "encoding/json"
+
 // Response is the output from a completion.
 type Response struct {
 	Content string
@@ -16,6 +18,9 @@ type Response struct {
 
 // ToolCall is a structured tool invocation from the LLM.
 type ToolCall struct {
+	// Metadata is opaque model-family tool-call metadata; do not log or display it.
+	Metadata json.RawMessage
+
 	ID   string
 	Name string
 	Args map[string]any

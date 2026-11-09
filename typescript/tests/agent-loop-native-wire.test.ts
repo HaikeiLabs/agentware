@@ -9,7 +9,7 @@ test('native tool calls retain their IDs in the conversation and OpenAI requests
     requests.push(JSON.parse(init!.body!));
     const message = requests.length === 1
       ? { content: null, tool_calls: [
-          { id: 'call-one', function: { name: 'ok', arguments: '{"x":1}' } },
+          { id: 'call-one', function: { name: 'ok', arguments: '{"x":1}' }, extra_content: { google: { thought_signature: 'fixture-signature' } } },
           { id: 'call-two', function: { name: 'fail', arguments: '{}' } },
         ] }
       : { content: 'done' };
@@ -20,13 +20,13 @@ test('native tool calls retain their IDs in the conversation and OpenAI requests
   registry.register({ name: 'fail', description: 'fail', execute: () => new Result(false, null, 'failed') });
   const result = await new AgentLoop({ backend, registry, validator: new ResponseValidator(registry.names()) }).run('sys', 'go');
   expect(result.conversation[2]).toMatchObject({ role: Role.ASSISTANT, tool_calls: [
-    { id: 'call-one', name: 'ok', arguments: { x: 1 } },
+    { id: 'call-one', name: 'ok', arguments: { x: 1 }, metadata: { google: { thought_signature: 'fixture-signature' } } },
     { id: 'call-two', name: 'fail', arguments: {} },
   ] });
   expect(result.conversation.filter(m => m.role === Role.TOOL).map(m => m.tool_call_id)).toEqual(['call-one', 'call-two']);
   expect(requests[1].messages.slice(2)).toMatchObject([
     { role: 'assistant', tool_calls: [
-      { id: 'call-one', function: { name: 'ok', arguments: '{"x":1}' } },
+      { id: 'call-one', function: { name: 'ok', arguments: '{"x":1}' }, extra_content: { google: { thought_signature: 'fixture-signature' } } },
       { id: 'call-two', function: { name: 'fail', arguments: '{}' } },
     ] },
     { role: 'tool', tool_call_id: 'call-one' },
