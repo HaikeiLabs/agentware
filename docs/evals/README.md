@@ -463,6 +463,57 @@ const myCases: EvalCase[] = [
 ];
 ```
 
+## Expectations: `expect`, `expectedArgs`, `repeats`, `minPassRate`
+
+The case runner (`EvalRunner.runCase` / `run_case` / `RunCase`, and the Rust
+`haikeilabs_agentware::evals::EvalRunner::run_case`) behaves the same in
+TypeScript, Python, Go and Rust. A case in the shared JSON case-file contract:
+
+```json
+{
+  "name": "no-weather-for-greetings",
+  "description": "a greeting must not trigger a weather lookup",
+  "systemPrompt": "You are a helpful assistant.",
+  "userMessage": "Say hello.",
+  "tools": [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}],
+  "expectedTool": "get_weather",
+  "expect": "no_call",
+  "expectedArgs": {"city": "Paris"},
+  "repeats": 3,
+  "minPassRate": 0.6,
+  "maxTurns": 3
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `expect` | `"call"` | `"call"`: a repeat passes when `expectedTool` is called. `"no_call"`: a repeat passes when `expectedTool` (with `expectedArgs`, if given) is NOT called; other tool calls run and the loop continues. |
+| `expectedArgs` | none | Partial match on the expected tool call's arguments: every key must be present with an equal value; extra arguments are allowed. With `"call"`, a call to the expected tool with other arguments fails the repeat. |
+| `repeats` | `1` | How many times the case runs. |
+| `minPassRate` | `1.0` | The case passes when `passes / repeats >= minPassRate` (0..1). |
+
+The result reports `passes` and `repeats`; `turns` and `tool_calls` cover
+every repeat. A failed repeated case's error reads `passed P/N repeats
+(minPassRate R): <first failing repeat's error>`. An unknown `expect`, a
+`repeats` below 1 or a `minPassRate` outside 0..1 fails the case before any
+model call. Saved reports add `passes` and `repeats` to a row only when the
+case ran more than once, so existing cases and reports are unchanged.
+
+Loading a case: TypeScript cases are the contract objects as-is; Go decodes
+the JSON into `EvalCase` (`MinPassRate` is a `*float64`, nil meaning 1.0);
+Python uses `case_from_contract(obj)` (snake_case fields `expect`,
+`expected_args`, `repeats`, `min_pass_rate`); Rust uses
+`EvalCase::from_json`. Each runner takes a model seam for offline runs:
+TypeScript `new EvalRunner(url, maxTurns, { clientFactory })`, Python
+`EvalRunner(url, client_factory=...)`, Go `EvalRunner.ClientFactory`, and in
+Rust any `llm::Backend`.
+
+The shared fixture `fixtures/evals/expectations/cases.json` scripts the model
+turns for each behaviour (call passes, no_call passes and fails, expectedArgs
+match and mismatch, repeats with a pass rate) and every language replays it.
+`python/src/evals` table suites (`agentware.eval-suite.v1`) keep their own
+format; these fields apply to the case runner.
+
 ## Custom Tool Executor
 
 The tool executor function receives tool name and arguments, returns a string result:

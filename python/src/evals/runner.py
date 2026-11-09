@@ -67,6 +67,60 @@ class EvalCase:
     allowed_tools: list[str] | None = None
     """When set, an agentware ``Policy`` allows only these tools; any other
     call gets a DENY tool result fed back to the model."""
+    expect: str = "call"
+    """``"call"`` (default): a repeat passes when ``expected_tool`` is called.
+    ``"no_call"``: a repeat passes when ``expected_tool`` (with
+    ``expected_args``, if given) is NOT called. ``run_case`` only."""
+    repeats: int = 1
+    """How many times ``run_case`` runs the case."""
+    min_pass_rate: float = 1.0
+    """The case passes when ``passes / repeats >= min_pass_rate`` (0..1)."""
+
+
+EXPECT_VALUES = ("call", "no_call")
+
+
+def validate_eval_case(case: EvalCase) -> str:
+    """Return an error message when the case's expectation fields are invalid."""
+    if case.expect not in EXPECT_VALUES:
+        return f"invalid expect {case.expect!r}: must be 'call' or 'no_call'"
+    if isinstance(case.repeats, bool) or not isinstance(case.repeats, int) or case.repeats < 1:
+        return f"invalid repeats {case.repeats!r}: must be an integer >= 1"
+    rate = case.min_pass_rate
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate <= 1:
+        return f"invalid minPassRate {rate!r}: must be between 0 and 1"
+    return ""
+
+
+def case_from_contract(obj: dict[str, Any]) -> EvalCase:
+    """Build an ``EvalCase`` from the shared JSON case-file contract.
+
+    Keys: ``name``, ``description``, ``systemPrompt``, ``userMessage``,
+    ``tools``, ``expectedTool``, ``expect`` (default ``"call"``),
+    ``expectedArgs`` (optional partial match), ``repeats`` (default 1),
+    ``minPassRate`` (default 1.0), ``maxTurns`` (default 10). Values are
+    validated when the case runs (``validate_eval_case``).
+    """
+    return EvalCase(
+        name=obj["name"],
+        description=obj.get("description", ""),
+        system_prompt=obj.get("systemPrompt", ""),
+        user_message=obj.get("userMessage", ""),
+        tools=list(obj.get("tools") or []),
+        expected_tool=obj.get("expectedTool"),
+        max_turns=obj.get("maxTurns", 10),
+        expected_args=dict(obj.get("expectedArgs") or {}),
+        expect=obj.get("expect", "call"),
+        repeats=obj.get("repeats", 1),
+        min_pass_rate=obj.get("minPassRate", 1.0),
+    )
+
+
+def args_match(expected: dict[str, Any], args: Any) -> bool:
+    """True when every key of ``expected`` is in ``args`` with an equal value."""
+    if not isinstance(args, dict):
+        return False
+    return all(key in args and args[key] == want for key, want in expected.items())
 
 
 def validate_tool_call(case: EvalCase, tool_name: str, raw_arguments: str) -> tuple[bool, str]:
@@ -235,6 +289,14 @@ class EvalResult:
     """The case could not be scored (model/transport error), as opposed to
     a scored failure."""
     final_text: str = ""
+    passes: int | None = None
+    """Repeats that passed (defaults to 1 for a success, else 0)."""
+    repeats: int = 1
+    """Repeats run."""
+
+    def __post_init__(self) -> None:
+        if self.passes is None:
+            self.passes = 1 if self.success else 0
 
 
 @dataclass
@@ -264,6 +326,7 @@ class EvalRunner:
         thinking: bool | None = None,
         top_p: float | None = None,
         top_k: int | None = None,
+        client_factory: Callable[[str], BaseModelClient] | None = None,
     ):
         self.base_url = base_url
         self.max_turns = max_turns
@@ -275,23 +338,89 @@ class EvalRunner:
         self.thinking = thinking
         self.top_p = top_p
         self.top_k = top_k
+        self.client_factory = client_factory
         self.results: list[EvalResult] = []
 
     def _client(self, model: str) -> BaseModelClient:
+        if self.client_factory is not None:
+            return self.client_factory(model)
         return create_model_client(self.backend, model, self.base_url, timeout=self.timeout)
 
     def run_case(
         self, case: EvalCase, model: str, tool_executor: Callable[[str, dict[str, Any]], str]
     ) -> EvalResult:
+        """Run ``case`` ``case.repeats`` times.
+
+        The case passes when ``passes / repeats >= case.min_pass_rate``.
+        ``turns`` and ``tool_calls`` cover every repeat.
+        """
         start = time.time()
+        tool_calls_made: list[dict[str, Any]] = []
+
+        invalid = validate_eval_case(case)
+        if invalid:
+            valid_repeats = isinstance(case.repeats, int) and case.repeats >= 1
+            return EvalResult(
+                case_name=case.name,
+                model_name=model,
+                success=False,
+                turns=0,
+                tool_calls=tool_calls_made,
+                error=invalid,
+                duration_ms=int((time.time() - start) * 1000),
+                passes=0,
+                repeats=case.repeats if valid_repeats else 1,
+            )
+
+        passes = 0
+        turns = 0
+        first_error = ""
+        for _ in range(case.repeats):
+            passed, repeat_turns, error = self._run_case_once(
+                case, model, tool_executor, tool_calls_made
+            )
+            turns += repeat_turns
+            if passed:
+                passes += 1
+            elif not first_error:
+                first_error = error
+
+        success = passes / case.repeats >= case.min_pass_rate
+        error = ""
+        if not success:
+            error = (
+                first_error
+                if case.repeats == 1
+                else f"passed {passes}/{case.repeats} repeats "
+                f"(minPassRate {case.min_pass_rate}): {first_error}"
+            )
+        return EvalResult(
+            case_name=case.name,
+            model_name=model,
+            success=success,
+            turns=turns,
+            tool_calls=tool_calls_made,
+            error=error,
+            duration_ms=int((time.time() - start) * 1000),
+            passes=passes,
+            repeats=case.repeats,
+        )
+
+    def _run_case_once(
+        self,
+        case: EvalCase,
+        model: str,
+        tool_executor: Callable[[str, dict[str, Any]], str],
+        tool_calls_made: list[dict[str, Any]],
+    ) -> tuple[bool, int, str]:
+        """One repeat of ``run_case``: returns ``(passed, turns, error)``."""
         client = self._client(model)
+        no_call = case.expect == "no_call"
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": case.system_prompt},
             {"role": "user", "content": case.user_message},
         ]
-
-        tool_calls_made: list[dict[str, Any]] = []
         turns = 0
 
         try:
@@ -307,25 +436,28 @@ class EvalRunner:
                         {"turn": turns, "name": tc["name"], "arguments": tc["arguments"]}
                     )
 
-                    if tc["name"] == case.expected_tool:
-                        ok, reason = validate_tool_call(case, tc["name"], tc["arguments"])
-                        duration_ms = int((time.time() - start) * 1000)
-                        # The expected tool was reached, so the case is
-                        # decided here either way: calling it with arguments
-                        # that fail the schema is a failure, not a retry.
-                        return EvalResult(
-                            case_name=case.name,
-                            model_name=model,
-                            success=ok,
-                            turns=turns,
-                            tool_calls=tool_calls_made,
-                            error="" if ok else f"invalid call to {tc['name']}: {reason}",
-                            duration_ms=duration_ms,
-                        )
-
                     try:
                         parsed_args = json.loads(tc["arguments"]) if tc["arguments"] else {}
                     except json.JSONDecodeError:
+                        parsed_args = None
+
+                    if tc["name"] == case.expected_tool:
+                        if no_call:
+                            if args_match(case.expected_args, parsed_args):
+                                return (
+                                    False,
+                                    turns,
+                                    f"Tool '{tc['name']}' was called but expect is no_call",
+                                )
+                        else:
+                            # The expected tool was reached, so the repeat is
+                            # decided here either way: calling it with
+                            # arguments that fail the schema is a failure,
+                            # not a retry.
+                            ok, reason = validate_tool_call(case, tc["name"], tc["arguments"])
+                            return ok, turns, "" if ok else f"invalid call to {tc['name']}: {reason}"
+
+                    if not isinstance(parsed_args, dict):
                         parsed_args = {}
                     tool_result = tool_executor(tc["name"], parsed_args)
                     messages.append(
@@ -346,28 +478,12 @@ class EvalRunner:
                         {"role": "tool", "tool_call_id": tc["id"], "content": tool_result}
                     )
 
-            duration_ms = int((time.time() - start) * 1000)
-            return EvalResult(
-                case_name=case.name,
-                model_name=model,
-                success=False,
-                turns=turns,
-                tool_calls=tool_calls_made,
-                error=f"Expected tool '{case.expected_tool}' not called in {turns} turns",
-                duration_ms=duration_ms,
-            )
+            if no_call:
+                return True, turns, ""
+            return False, turns, f"Expected tool '{case.expected_tool}' not called in {turns} turns"
 
         except Exception as e:
-            duration_ms = int((time.time() - start) * 1000)
-            return EvalResult(
-                case_name=case.name,
-                model_name=model,
-                success=False,
-                turns=turns,
-                tool_calls=tool_calls_made,
-                error=str(e),
-                duration_ms=duration_ms,
-            )
+            return False, turns, str(e)
 
     def run_table_case(
         self,
@@ -543,22 +659,32 @@ class EvalRunner:
                 {
                     "timestamp": report.timestamp,
                     "models": report.models,
-                    "results": [
-                        {
-                            "case": r.case_name,
-                            "model": r.model_name,
-                            "success": r.success,
-                            "turns": r.turns,
-                            "tool_calls": r.tool_calls,
-                            "error": r.error,
-                            "duration_ms": r.duration_ms,
-                        }
-                        for r in report.results
-                    ],
+                    "results": [report_row(r) for r in report.results],
                 },
                 f,
                 indent=2,
             )
+
+
+def report_row(r: EvalResult) -> dict[str, Any]:
+    """One result as a saved-report row.
+
+    ``passes`` and ``repeats`` are added only when the case ran more than
+    once, so single-run reports keep their shape.
+    """
+    row: dict[str, Any] = {
+        "case": r.case_name,
+        "model": r.model_name,
+        "success": r.success,
+        "turns": r.turns,
+        "tool_calls": r.tool_calls,
+        "error": r.error,
+        "duration_ms": r.duration_ms,
+    }
+    if r.repeats > 1:
+        row["passes"] = r.passes
+        row["repeats"] = r.repeats
+    return row
 
 
 _CONTINUE = "continue"

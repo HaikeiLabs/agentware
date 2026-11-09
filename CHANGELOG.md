@@ -9,6 +9,7 @@ one shared version across npm, PyPI, Go and crates.io.
 
 - Anthropic native Messages tool-use and tool-result formatting with signed and redacted thinking preservation in TypeScript, Python, Go and Rust.
 - Gemini 3 thought signatures: OpenAI-compatible backends round-trip per-tool-call provider extras (extra_content) in TS, Python, Go and Rust.
+- Eval runner expectations in TypeScript, Python, Go and Rust: `expect` (`"call"` | `"no_call"`), partial `expectedArgs`, `repeats` and `minPassRate`, with `passes`/`repeats` on each result, a model seam for offline runs, and the shared fixture `fixtures/evals/expectations` replayed by every language. Rust gains an `evals` module. Existing cases and reports are unchanged.
 
 ## [0.16.0] - 2026-11-08
 

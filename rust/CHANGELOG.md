@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add the `evals` module: `EvalCase` (shared JSON case-file contract, `expect`, `expectedArgs`, `repeats`, `minPassRate`), `EvalRunner` over any `llm::Backend`, `EvalReport` and the shared expectations fixture replay.
 - Add the `kei-proxy authorize` CLI fallback (`evaluator::CliClient`), the
   socket-or-CLI selector (`evaluator::select_authorization_client`) and the
   shared authorize-cases fixture replay.
