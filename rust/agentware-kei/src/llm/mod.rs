@@ -5,6 +5,7 @@
 //! mapping from `go/llm/proxy/convert.go` (`ToOpenAIMessages`), not Go's
 //! `serverBackend` default-field marshal; see `server.rs`.
 
+pub mod anthropic_native;
 pub mod backend;
 pub mod compact;
 pub mod context_window;
@@ -14,6 +15,9 @@ pub mod response;
 pub mod server;
 pub mod tokens;
 
+pub use anthropic_native::{
+    format_anthropic_messages, format_anthropic_tools, parse_anthropic_response,
+};
 pub use backend::Backend;
 pub use compact::{
     CompactError, CompactEvent, CompactionStrategy, PhaseReporter, TieredCompact, TokenCounter,

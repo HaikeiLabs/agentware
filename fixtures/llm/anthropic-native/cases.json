@@ -1,0 +1,411 @@
+[
+  {
+    "name": "signed thinking",
+    "tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping"
+      }
+    ],
+    "expected_tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "response": {
+      "id": "msg_test",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Let me look that up.",
+          "signature": "signed+opaque/==\nbytes"
+        },
+        {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "lookup",
+          "input": {
+            "q": "hello"
+          }
+        }
+      ],
+      "stop_reason": "tool_use"
+    },
+    "expected_messages": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "Let me look that up.",
+            "signature": "signed+opaque/==\nbytes"
+          },
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "lookup",
+            "input": {
+              "q": "hello"
+            }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "done"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "redacted thinking",
+    "tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping"
+      }
+    ],
+    "expected_tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "response": {
+      "id": "msg_test",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "redacted_thinking",
+          "data": "opaque+encrypted/=="
+        },
+        {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "lookup",
+          "input": {
+            "q": "hello"
+          }
+        }
+      ],
+      "stop_reason": "tool_use"
+    },
+    "expected_messages": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "redacted_thinking",
+            "data": "opaque+encrypted/=="
+          },
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "lookup",
+            "input": {
+              "q": "hello"
+            }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "done"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "no thinking",
+    "tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping"
+      }
+    ],
+    "expected_tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "response": {
+      "id": "msg_test",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "lookup",
+          "input": {
+            "q": "hello"
+          }
+        }
+      ],
+      "stop_reason": "tool_use"
+    },
+    "expected_messages": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "lookup",
+            "input": {
+              "q": "hello"
+            }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "done"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "interleaved blocks",
+    "tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping"
+      }
+    ],
+    "expected_tools": [
+      {
+        "name": "lookup",
+        "description": "Look up a record",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "ping",
+        "description": "Ping",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "response": {
+      "id": "msg_test",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "first",
+          "signature": "sig-1"
+        },
+        {
+          "type": "text",
+          "text": "Searching."
+        },
+        {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "lookup",
+          "input": {
+            "q": "hello"
+          }
+        },
+        {
+          "type": "redacted_thinking",
+          "data": "encoded-2"
+        },
+        {
+          "type": "tool_use",
+          "id": "tool-2",
+          "name": "lookup",
+          "input": {
+            "q": "second"
+          }
+        },
+        {
+          "type": "text",
+          "text": "Finished calls."
+        }
+      ],
+      "stop_reason": "tool_use"
+    },
+    "expected_messages": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "first",
+            "signature": "sig-1"
+          },
+          {
+            "type": "text",
+            "text": "Searching."
+          },
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "lookup",
+            "input": {
+              "q": "hello"
+            }
+          },
+          {
+            "type": "redacted_thinking",
+            "data": "encoded-2"
+          },
+          {
+            "type": "tool_use",
+            "id": "tool-2",
+            "name": "lookup",
+            "input": {
+              "q": "second"
+            }
+          },
+          {
+            "type": "text",
+            "text": "Finished calls."
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "done"
+          },
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-2",
+            "content": "done"
+          }
+        ]
+      }
+    ]
+  }
+]
