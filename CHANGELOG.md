@@ -7,6 +7,7 @@ one shared version across npm, PyPI, Go and crates.io.
 
 ### Added
 
+- Anthropic native Messages tool-use and tool-result formatting with signed and redacted thinking preservation in TypeScript, Python, Go and Rust.
 - Gemini 3 thought signatures: OpenAI-compatible backends round-trip per-tool-call provider extras (extra_content) in TS, Python, Go and Rust.
 
 ## [0.16.0] - 2026-11-08

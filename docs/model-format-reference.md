@@ -11,7 +11,7 @@ and the reasoning adapter handles its reasoning shape.
 | Family | Tool Definitions | Tool Calls (response) | Tool Result | Reasoning Field | Thinking Tags |
 |--------|------------------|----------------------|-------------|-----------------|---------------|
 | **OpenAI** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | none |
-| **Anthropic** | JSON function array (Generic) | XML: `<invoke tool="name">JSON</invoke>` | XML: `<result tool="name">` | `thinking` (content block) | none |
+| **Anthropic** | Native `tools` or JSON function array | Native `tool_use` blocks or XML `<invoke>` | Native `tool_result` blocks or XML | `thinking` (content block) | none |
 | **Qwen** | XML: `<tool_description><tool_name>` | XML: `<tool_call><tool name="name">JSON</tool>` | XML: `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>` |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
 | **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | none |
@@ -58,6 +58,25 @@ metadata is not reasoning display and must not be logged or displayed.
   }]
 }
 ```
+
+### Anthropic native Messages API
+
+Native-block formatters are available in all four ports alongside the
+OpenAI-compatible Gemini 3 provider-metadata path. `formatAnthropicTools` /
+`format_anthropic_tools` converts definitions, `parseAnthropicResponse` /
+`parse_anthropic_response` extracts tool uses, and `formatAnthropicMessages` /
+`format_anthropic_messages` produces assistant tool uses and user tool results.
+Go exports the corresponding `FormatAnthropicTools`, `ParseAnthropicResponse`,
+and `FormatAnthropicMessages` functions. Supply system instructions in the
+API's top-level `system` parameter and use an Anthropic HTTP transport to send
+the resulting blocks.
+
+Signed `thinking` and `redacted_thinking` blocks remain opaque in each tool
+call's `metadata`, and are replayed without alteration or logging. Interleaved
+content stays in order, and adjacent tool results are grouped in a user turn.
+These native formatters complement the legacy text-mode formatter below. See
+[Anthropic’s thinking documentation](https://platform.claude.com/docs/en/build-with-claude/thinking)
+for the Messages API replay requirements.
 
 ### Anthropic (`AnthropicFormatter` / `AnthropicFormatter` / `AnthropicFormatter`)
 

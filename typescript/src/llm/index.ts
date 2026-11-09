@@ -10,3 +10,4 @@ export {
   FetchLikeResponse,
   parseToolArguments,
 } from "./openai_backend.js";
+export { parseAnthropicResponse, formatAnthropicMessages, formatAnthropicTools } from './anthropic_native.js';
