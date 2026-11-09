@@ -47,5 +47,5 @@ jobs:
           output="$(python examples/python/minimal-harness/main.py --fake --audit "$audit_file")"
           printf '%s\n' "$output"
           printf '%s\n' "$output" | grep -Fq 'ALLOW tool=echo policy_id=fake-allow-echo'
-          printf '%s\n' "$output" | grep -Fq 'DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create'
+          printf '%s\n' "$output" | grep -Fq 'DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>'
           python -c 'import json, sys; rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]; assert len(rows) == 2, rows; assert [(row["tool"], row["decision"]) for row in rows] == [("echo", "permit"), ("delete_everything", "deny")], rows' "$audit_file"

@@ -133,7 +133,10 @@ async def test_echo_is_permitted_and_delete_is_denied_with_a_hint(
     denied = await client.authorize(session, tool="delete_everything")
     assert denied["decision"] == "deny"
     assert denied["reason_code"] == "no_matching_policy"
-    assert denied["hint"] == "Add a policy for this tool: kei policies create"
+    assert denied["hint"] == (
+        "Add a policy for this target: kei policy create"
+        " --group <group> --allow <target> --workspace <workspace>"
+    )
 
     unknown = await client.authorize(session, tool="unregistered_tool")
     assert unknown["decision"] == "deny"

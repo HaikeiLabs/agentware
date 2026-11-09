@@ -32,7 +32,7 @@ The example starts `fixtures/kei/fake-kei-proxy-socket.py`, then prints:
 
 ```text
 ALLOW tool=echo policy_id=fake-allow-echo
-DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this tool: kei policies create
+DENY tool=delete_everything reason_code=no_matching_policy hint=Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>
 ```
 
 Only proceed to the tool handler for an explicit allow. A denial is returned

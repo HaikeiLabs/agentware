@@ -37,7 +37,7 @@ export async function startFakeProxy(): Promise<FakeProxy> {
               decision: "deny",
               reason_code: "no_matching_policy",
               reason: "no policy permits this tool",
-              hint: "Add a policy for this tool: kei policies create",
+              hint: "Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>",
             }
           : body.tool === "subject_unlinked_tool"
             ? {

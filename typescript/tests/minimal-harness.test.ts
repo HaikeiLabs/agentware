@@ -16,7 +16,9 @@ describe("TypeScript minimal harness example", () => {
     expect(results[0]).toMatchObject({ tool: "echo", decision: Action.ALLOW, result: "hello" });
     expect(results[1]).toMatchObject({ tool: "delete_everything", decision: Action.DENY });
     expect(results[1].reason_code).toBe("no_matching_policy");
-    expect(results[1].hint).toBe("Add a policy for this tool: kei policies create");
+    expect(results[1].hint).toBe(
+      "Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>",
+    );
     expect(results[1].reason).toContain("no policy permits this tool");
     expect(audits).toHaveLength(2);
     expect(audits.map(({ tool, decision }) => [tool, decision])).toEqual([
@@ -25,7 +27,7 @@ describe("TypeScript minimal harness example", () => {
     ]);
     expect(audits[1]).toMatchObject({
       reason_code: "no_matching_policy",
-      hint: "Add a policy for this tool: kei policies create",
+      hint: "Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>",
     });
   }, 30_000);
 });

@@ -505,7 +505,7 @@ pub fn hint_for(code: Option<&str>) -> Option<String> {
             "OAuth credentials are only returned over TLS. Use HTTPS when connecting to the catalog."
         }
         "no_matching_policy" => {
-            "Add a policy for this source and target: kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit"
+            "Add a policy for this target: kei policy create --group <group> --allow <target> --workspace <workspace>"
         }
         "oauth_binding_mismatch" => {
             "The OAuth connection is bound to another scope. Reconnect the provider in the correct workspace on the console Connectors page."
@@ -520,7 +520,7 @@ pub fn hint_for(code: Option<&str>) -> Option<String> {
             "Reconnect the provider account on the console Connectors page; the connection needs to be refreshed."
         }
         "policy_deny" => {
-            "Add a permit policy for this subject and connector: kei policies create --name <name> --src-pattern <src> --dst-pattern <dst> --effect permit"
+            "Add a permit policy for this subject and connector: kei policy create --group <group> --allow <target> --workspace <workspace>"
         }
         "preflight_required" => {
             "Register the tool so the active policy bundle lists it (POST /v1/tools:register on the runtime socket, or kei harness sync --harness custom --manifest tools.json), then wait for the next bundle refresh."
