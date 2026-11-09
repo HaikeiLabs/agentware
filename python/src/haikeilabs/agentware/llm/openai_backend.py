@@ -1,9 +1,12 @@
 """OpenAI-compatible tool-call formatting and synchronous backend."""
 
-import json
-from typing import Any
+from __future__ import annotations
 
-import httpx
+import json
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import httpx
 
 from .request import Message, ToolDefinition
 from .response import Response, TokenUsage, ToolCall
@@ -64,7 +67,11 @@ class OpenAIBackend:
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.client = client or httpx.Client(timeout=60)
+        if client is None:
+            import httpx
+
+            client = httpx.Client(timeout=60)
+        self.client = client
         self.context_window = context_window
 
     def complete(
