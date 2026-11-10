@@ -5,6 +5,8 @@ one shared version across npm, PyPI, Go and crates.io.
 
 ## Unreleased
 
+## [0.17.0] - 2026-11-09
+
 ### Added
 
 - Anthropic native Messages tool-use and tool-result formatting with signed and redacted thinking preservation in TypeScript, Python, Go and Rust.
