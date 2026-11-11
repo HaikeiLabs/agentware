@@ -10,13 +10,21 @@ from pathlib import Path
 import version
 
 REPO = Path(__file__).resolve().parents[2]
+CARGO_LOCK = "rust/Cargo.lock"
+CRATE_ENTRY = 'name = "haikeilabs-agentware"\nversion = "{}"\n'
 
 
 def copy_targets(dst: Path) -> None:
     """Copy VERSION and every synced file into dst, keeping relative paths."""
-    for rel in ["VERSION", *(t.path for t in version.TARGETS)]:
+    for rel in {"VERSION", CARGO_LOCK, *(t.path for t in version.TARGETS)}:
         (dst / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO / rel, dst / rel)
+
+
+def _lock_version(text: str) -> str:
+    head = 'name = "haikeilabs-agentware"\nversion = "'
+    start = text.index(head) + len(head)
+    return text[start : text.index('"', start)]
 
 
 class Pep440Test(unittest.TestCase):
@@ -73,6 +81,17 @@ class CheckTest(unittest.TestCase):
         self.assertIn("rust/agentware-kei/Cargo.toml", errors[0])
         self.assertIn("1.9.9", errors[0])
 
+    def test_reports_a_cargo_lock_entry_that_drifted(self) -> None:
+        version.set_version(self.root, "2.0.0")
+        path = self.root / CARGO_LOCK
+        path.write_text(
+            path.read_text().replace(CRATE_ENTRY.format("2.0.0"), CRATE_ENTRY.format("1.9.9"))
+        )
+        errors = version.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn(CARGO_LOCK, errors[0])
+        self.assertIn("1.9.9", errors[0])
+
     def test_reports_a_missing_version_line(self) -> None:
         path = self.root / "go/kei/runtimelink/link.go"
         path.write_text("package runtimelink\n")
@@ -97,6 +116,16 @@ class CheckTest(unittest.TestCase):
         self.assertIn('\nversion = "3.1.0-rc.2"\n', cargo)
         lock = (self.root / "typescript/package-lock.json").read_text()
         self.assertEqual(lock.count('"version": "3.1.0-rc.2"'), 2)
+
+    def test_set_version_updates_only_the_crate_entry_in_cargo_lock(self) -> None:
+        path = self.root / CARGO_LOCK
+        before = path.read_text()
+        version.set_version(self.root, "3.1.0-rc.2")
+        # Only the haikeilabs-agentware entry changes; dependencies are untouched.
+        want = before.replace(
+            CRATE_ENTRY.format(_lock_version(before)), CRATE_ENTRY.format("3.1.0-rc.2")
+        )
+        self.assertEqual(path.read_text(), want)
 
     def test_set_version_rejects_an_invalid_version(self) -> None:
         with self.assertRaises(ValueError):

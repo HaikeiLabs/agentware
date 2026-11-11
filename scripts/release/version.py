@@ -56,6 +56,9 @@ TARGETS: tuple[Target, ...] = (
     Target("go/kei/runtimelink/link.go", r'^var sdkVersion = "([^"]*)"'),
     # Cargo carries the shared version in its own spelling (no PEP 440 rewrite).
     Target("rust/agentware-kei/Cargo.toml", r'^version = "([^"]*)"'),
+    # The workspace lock records the crate's own version; `cargo publish --locked`
+    # fails when it lags Cargo.toml. Edited in place: no `cargo update`, no network.
+    Target("rust/Cargo.lock", r'^name = "haikeilabs-agentware"\nversion = "([^"]*)"'),
 )
 
 
