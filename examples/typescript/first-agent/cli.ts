@@ -1,5 +1,5 @@
 import { OpenAIBackend } from '@haikeilabs/agentware';
-import { runCli } from './agent.ts';
+import { HN_BASE_URL, runCli } from './agent.ts';
 
 if (!process.env.OPENAI_API_KEY) throw new Error('Set OPENAI_API_KEY before running the agent');
 const backend = new OpenAIBackend({
@@ -8,4 +8,4 @@ const backend = new OpenAIBackend({
   model: process.env.MODEL ?? 'gpt-4o-mini',
 });
 // Summarize the top stories, then call hn_post_comment, which the local policy denies.
-await runCli(backend);
+await runCli(backend, fetch, console.log, process.env.HN_BASE_URL || HN_BASE_URL);

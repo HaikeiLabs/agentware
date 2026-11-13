@@ -4,14 +4,17 @@ import {
   type AsyncBackend, type AuditRecord,
 } from '@haikeilabs/agentware';
 
-const BASE = 'https://hacker-news.firebaseio.com/v0';
+/** The public Hacker News API. Set HN_BASE_URL to use another root, such as a local fixture. */
+export const HN_BASE_URL = 'https://hacker-news.firebaseio.com/v0';
 type FetchStories = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 export async function runAgent(
   backend: AsyncBackend,
   fetchStories: FetchStories = fetch,
   printAudit: (record: AuditRecord) => void = (record) => console.log('AUDIT', JSON.stringify(record)),
+  hnBaseUrl: string = HN_BASE_URL,
 ) {
+  const base = hnBaseUrl.replace(/\/+$/, '');
   const auditor = new InMemoryAuditor();
   const client = new AuditedToolClient('first-agent', async (name) => {
     if (name !== 'hn_top_stories') return [null, false, 'unknown tool'];
@@ -20,9 +23,9 @@ export async function runAgent(
       if (!response.ok) throw new Error(`Hacker News returned HTTP ${response.status}`);
       return response.json();
     };
-    const ids = await read(`${BASE}/topstories.json`);
+    const ids = await read(`${base}/topstories.json`);
     if (!Array.isArray(ids)) throw new Error('Invalid Hacker News story list');
-    const stories = await Promise.all(ids.slice(0, 5).map((id) => read(`${BASE}/item/${id}.json`)));
+    const stories = await Promise.all(ids.slice(0, 5).map((id) => read(`${base}/item/${id}.json`)));
     return [stories.map((story: any) => ({ title: story.title, url: story.url ?? `https://news.ycombinator.com/item?id=${story.id}` })), true, ''];
   }, {
     record(record) { auditor.record(record); printAudit(record); },
@@ -52,8 +55,13 @@ export async function runAgent(
 type Log = (line: string) => void;
 
 /** The `npm start` run: summarize the stories, then try a tool the local policy denies. */
-export async function runCli(backend: AsyncBackend, fetchStories: FetchStories = fetch, log: Log = console.log) {
-  const { result, client } = await runAgent(backend, fetchStories, (record) => log(`AUDIT ${JSON.stringify(record)}`));
+export async function runCli(
+  backend: AsyncBackend,
+  fetchStories: FetchStories = fetch,
+  log: Log = console.log,
+  hnBaseUrl: string = HN_BASE_URL,
+) {
+  const { result, client } = await runAgent(backend, fetchStories, (record) => log(`AUDIT ${JSON.stringify(record)}`), hnBaseUrl);
   log(result.final_response);
 
   // Now try a tool the policy denies. The same client checks and audits it.
