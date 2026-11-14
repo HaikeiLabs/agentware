@@ -1,7 +1,7 @@
-"""Contract test: the minimal governed harness example against the fake daemon.
+"""Contract test: the minimal policy-checked harness example against the fake daemon.
 
 Runs ``examples/python/minimal-harness/main.py --fake`` as a subprocess and
-asserts it prints a governed permit for ``echo`` and a governed deny for
+asserts it prints a policy permit for ``echo`` and a policy deny for
 ``delete_everything`` (with ``reason_code`` and ``hint`` as separate fields),
 and that the fake daemon wrote exactly two audit lines.
 """

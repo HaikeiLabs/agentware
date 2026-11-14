@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Minimal governed harness: one echo tool behind the kei-proxy socket client.
+"""Minimal policy-checked harness: one echo tool behind the kei-proxy socket client.
 
 Runs a single authorize round-trip against the kei-proxy runtime socket and
 prints the decision. With ``--fake`` it first starts the shared fake daemon
 (``fixtures/kei/fake-kei-proxy-socket.py``) on a temp socket, so you can see a
-governed allow and a governed deny in under a minute.
+policy allow and a policy deny in under a minute.
 """
 
 import argparse
@@ -67,7 +67,7 @@ async def _run_demo() -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Minimal governed harness.")
+    parser = argparse.ArgumentParser(description="Minimal policy-checked harness.")
     parser.add_argument(
         "--fake",
         action="store_true",
