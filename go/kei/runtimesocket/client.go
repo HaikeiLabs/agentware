@@ -63,6 +63,9 @@ type ReleaseRequest struct {
 	DelegationDepth int
 	Framework       string
 	ToolArgsDigest  string
+	// ToolArgs and ToolContext are local-only inputs for complete plan checks.
+	ToolArgs    map[string]any
+	ToolContext map[string]any
 }
 
 // Credential is a released connector credential value. It is short-lived
@@ -287,6 +290,12 @@ func (c *Client) Authorize(ctx context.Context, session Session, req evaluator.A
 	if req.DelegationDepth > 0 {
 		body["delegation_depth"] = req.DelegationDepth
 	}
+	if req.ToolArgs != nil {
+		body["tool_args"] = req.ToolArgs
+	}
+	if req.ToolContext != nil {
+		body["tool_context"] = req.ToolContext
+	}
 
 	for attempt := 0; attempt < 2; attempt++ {
 		resp, err := c.send(ctx, http.MethodPost, "/v1/authorize", session.SessionID, body, c.timeout())
@@ -349,6 +358,12 @@ func (c *Client) ReleaseCredential(ctx context.Context, session Session, req Rel
 	}
 	if req.DelegationDepth > 0 {
 		body["delegation_depth"] = req.DelegationDepth
+	}
+	if req.ToolArgs != nil {
+		body["tool_args"] = req.ToolArgs
+	}
+	if req.ToolContext != nil {
+		body["tool_context"] = req.ToolContext
 	}
 
 	for attempt := 0; attempt < 2; attempt++ {

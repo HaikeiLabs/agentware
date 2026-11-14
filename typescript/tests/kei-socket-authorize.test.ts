@@ -30,6 +30,7 @@ describe("KeiProxySocketAuthorizeClient", () => {
   let credentialReleaseDecision: string | undefined;
   let credentialReleaseResponse: Record<string, unknown> | undefined;
   let credentialReleaseBody: any = null;
+  let authorizeBody: any = null;
   let sessionMissingOnce = false;
   let stall = false;
   let onAuthorize: ((req: any) => void) | undefined;
@@ -39,7 +40,7 @@ describe("KeiProxySocketAuthorizeClient", () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "kei-socket-test-"));
     socketPath = join(dir, "runtime.sock");
-    sessions = 0; authorizations = 0; failStatus = 0; malformed = false; unauthorized = false; decision = "permit"; credentialReleaseDecision = undefined; credentialReleaseResponse = undefined; credentialReleaseBody = null; sessionMissingOnce = false; stall = false; onAuthorize = undefined; registrations = []; modelRequests = [];
+    sessions = 0; authorizations = 0; failStatus = 0; malformed = false; unauthorized = false; decision = "permit"; credentialReleaseDecision = undefined; credentialReleaseResponse = undefined; credentialReleaseBody = null; authorizeBody = null; sessionMissingOnce = false; stall = false; onAuthorize = undefined; registrations = []; modelRequests = [];
     server = createServer((req, res) => {
       if (unauthorized || req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
       const chunks: Buffer[] = [];
@@ -98,6 +99,7 @@ describe("KeiProxySocketAuthorizeClient", () => {
           return;
         }
         authorizations++;
+        authorizeBody = body;
         expect(req.headers["x-kei-session"]).toBeTruthy();
         if (stall) return;
         onAuthorize?.(req);
@@ -156,6 +158,16 @@ describe("KeiProxySocketAuthorizeClient", () => {
     expect(downError).toMatchObject({ reasonClass: "proxy_unavailable" });
   });
 
+  test("authorize sends local connector plan inputs", async () => {
+    const session = await client.openSession({ source: "teams", externalId: "aad-id" });
+    await client.authorize(session, {
+      tool: "github.get_issue", toolArgs: { repository: "acme/kei", issue_number: 7 }, toolContext: {},
+    });
+    expect(authorizations).toBe(1);
+    expect(authorizeBody.tool_args).toEqual({ repository: "acme/kei", issue_number: 7 });
+    expect(authorizeBody.tool_context).toEqual({});
+  });
+
   test("releaseCredential sends correct request body", async () => {
     const session = await client.openSession({ source: "teams", externalId: "aad-id" });
     await client.releaseCredential(session, {
@@ -164,6 +176,9 @@ describe("KeiProxySocketAuthorizeClient", () => {
       resource: "repo:owner/name",
       spanId: "span-1",
       framework: "jest",
+      tool: "github.get_issue",
+      toolArgs: { repository: "owner/name", issue_number: 7 },
+      toolContext: {},
     });
     expect(credentialReleaseBody).not.toBeNull();
     expect(credentialReleaseBody.schema).toBe("kei.credential-release-request/v1");
@@ -171,6 +186,8 @@ describe("KeiProxySocketAuthorizeClient", () => {
     expect(credentialReleaseBody.resource).toBe("repo:owner/name");
     expect(credentialReleaseBody.span_id).toBe("span-1");
     expect(credentialReleaseBody.framework).toBe("jest");
+    expect(credentialReleaseBody.tool_args).toEqual({ repository: "owner/name", issue_number: 7 });
+    expect(credentialReleaseBody.tool_context).toEqual({});
   });
 
   test("selects model profiles and never returns credential metadata", async () => {
