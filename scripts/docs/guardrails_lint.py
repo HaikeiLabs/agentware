@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Fail when user-facing docs say "governed" or "governance" in prose.
+"""Fail when user-facing docs say "govern*" in prose.
 
-Agentware docs say guardrails, not governance. Code identifiers keep their
-names, so a word inside inline backticks or a fenced code block is allowed:
-`governed_call` and the `governed-call-audit` job pass, "a governed call"
-fails.
+Agentware docs say guardrails, not governance. Every prose form -- govern,
+governed, governance, governs, ungoverned -- fails. Code identifiers keep
+their names, so a word inside inline backticks or a fenced code block is
+allowed: `governed_call` and the `governed-call-audit` job pass, "a governed
+call" fails. Identifiers without backticks also pass: `\bgoverned\b` does not
+match GovernedTool or governed_call. CHANGELOG files are history and are
+never scanned.
 
     python3 scripts/docs/guardrails_lint.py
 """
@@ -21,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # outside these globs keep their wording.
 DOC_GLOBS = (
     "README.md",
+    "AGENTS.md",
     "docs/**/*.md",
     "examples/**/README.md",
     "python/README.md",
@@ -30,7 +34,7 @@ DOC_GLOBS = (
 )
 EXCLUDES = ("docs/specs/",)
 
-_WORD_RE = re.compile(r"\b(governed|governance)\b", re.IGNORECASE)
+_WORD_RE = re.compile(r"\b(govern|governed|governance|governs|ungoverned)\b", re.IGNORECASE)
 _INLINE_CODE_RE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
@@ -83,7 +87,7 @@ def main() -> int:
         print(error, file=sys.stderr)
     if errors:
         return 1
-    print('docs say guardrails: no "governed" or "governance" in prose')
+    print('docs say guardrails: no "govern*" in prose')
     return 0
 
 

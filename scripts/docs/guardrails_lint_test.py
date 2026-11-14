@@ -27,8 +27,14 @@ class ProseHitsTest(unittest.TestCase):
         text = "Intro\n\n```go\n// governed call\n```\n\nAfter a governed call.\n"
         self.assertEqual(guardrails_lint.prose_hits(text), [(7, "governed")])
 
-    def test_other_word_forms_are_not_hits(self) -> None:
-        self.assertEqual(guardrails_lint.prose_hits("ungoverned governs govern\n"), [])
+    def test_governs_and_govern_are_hits(self) -> None:
+        self.assertEqual(guardrails_lint.prose_hits("Kei governs the call.\n"), [(1, "governs")])
+        self.assertEqual(guardrails_lint.prose_hits("We govern nothing.\n"), [(1, "govern")])
+        self.assertEqual(guardrails_lint.prose_hits("Ungoverned calls.\n"), [(1, "Ungoverned")])
+
+    def test_identifiers_are_not_hits(self) -> None:
+        self.assertEqual(guardrails_lint.prose_hits("GovernedTool and governed_call stay.\n"), [])
+        self.assertEqual(guardrails_lint.prose_hits("The governing rule.\n"), [])
 
 
 class CheckTest(unittest.TestCase):

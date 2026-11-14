@@ -22,7 +22,7 @@ control-plane boundary**:
 - Provider payloads/results, customer content, credentials, embeddings, and
   indexes **never enter Kei**.
 - Local agent execution stays possible without a direct ABAC connector
-  dependency; governed external operations use the proxy boundary.
+  dependency; policy-checked external operations use the proxy boundary.
 
 Never write docs that say ABAC serves credentials or that agentware sends
 customer data through the control plane.
