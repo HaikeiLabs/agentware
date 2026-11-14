@@ -209,8 +209,13 @@ func TestSettingsFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.BaseURL != DefaultBaseURL || s.APIKey != "k" || s.Model != "m" {
+	if s.BaseURL != DefaultBaseURL || s.APIKey != "k" || s.Model != "m" || s.HNBaseURL != HNBaseURL {
 		t.Errorf("unexpected settings %+v", s)
+	}
+
+	env["HN_BASE_URL"] = "http://127.0.0.1:9/v0"
+	if s, _ = SettingsFromEnv(func(k string) string { return env[k] }); s.HNBaseURL != "http://127.0.0.1:9/v0" {
+		t.Errorf("HN_BASE_URL not used: %+v", s)
 	}
 
 	env["OPENAI_BASE_URL"] = "http://localhost:8080/v1"

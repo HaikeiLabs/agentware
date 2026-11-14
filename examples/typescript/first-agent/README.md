@@ -70,3 +70,17 @@ Add a tool to the registry in `agent.ts`, give it a name, description and
 input schema, and route its execution through `client.execute`. Add its
 implementation and an allow rule to the local evaluator. Try a new prompt
 that asks the model to use it.
+
+## Run it offline
+
+CI runs this example with no network and no API key. From the repository
+root, after step 1:
+
+```sh
+scripts/ci/run-first-agent-offline.sh typescript
+```
+
+The script starts `fixtures/first-agent/fake-openai-hn.py`, a scripted model
+and Hacker News fixtures on one local port, and points the example at it with
+`OPENAI_BASE_URL` and `HN_BASE_URL`. `HN_BASE_URL` defaults to the public
+Hacker News API.

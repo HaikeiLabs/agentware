@@ -19,18 +19,26 @@ type Settings struct {
 	BaseURL string
 	APIKey  string
 	Model   string
+	// HNBaseURL is the Hacker News API root. CI points it at a local fixture.
+	HNBaseURL string
 }
 
 // SettingsFromEnv reads OPENAI_API_KEY and MODEL (both required) and
-// OPENAI_BASE_URL (optional) through getenv, usually os.Getenv.
+// OPENAI_BASE_URL and HN_BASE_URL (both optional) through getenv, usually
+// os.Getenv.
 func SettingsFromEnv(getenv func(string) string) (Settings, error) {
 	s := Settings{
 		BaseURL: strings.TrimSpace(getenv("OPENAI_BASE_URL")),
 		APIKey:  strings.TrimSpace(getenv("OPENAI_API_KEY")),
 		Model:   strings.TrimSpace(getenv("MODEL")),
+
+		HNBaseURL: strings.TrimSpace(getenv("HN_BASE_URL")),
 	}
 	if s.BaseURL == "" {
 		s.BaseURL = DefaultBaseURL
+	}
+	if s.HNBaseURL == "" {
+		s.HNBaseURL = HNBaseURL
 	}
 	var missing []string
 	if s.APIKey == "" {

@@ -1,0 +1,11 @@
+{
+  "topstories": [9001, 9002, 9003, 9004, 9005, 9006],
+  "items": {
+    "9001": {"id": 9001, "title": "Fixture story one", "url": "https://example.com/one", "score": 101},
+    "9002": {"id": 9002, "title": "Fixture story two", "url": "https://example.com/two", "score": 92},
+    "9003": {"id": 9003, "title": "Ask HN: Fixture story three", "score": 83},
+    "9004": {"id": 9004, "title": "Fixture story four", "url": "https://example.com/four", "score": 74},
+    "9005": {"id": 9005, "title": "Fixture story five", "url": "https://example.com/five", "score": 65},
+    "9006": {"id": 9006, "title": "Fixture story six", "url": "https://example.com/six", "score": 56}
+  }
+}

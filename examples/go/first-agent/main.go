@@ -32,7 +32,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	a := agent.New(agent.Config{Backend: backend, Model: settings.Model})
+	a := agent.New(agent.Config{Backend: backend, Model: settings.Model, HNBaseURL: settings.HNBaseURL})
 
 	report, err := a.Run(ctx, agent.Prompt)
 	if err != nil {

@@ -9,6 +9,8 @@ on:
       - 'testing/contracts/runtime-link/**'
       - 'fixtures/**'
       - 'examples/typescript/minimal-harness/**'
+      - 'examples/typescript/first-agent/**'
+      - 'scripts/ci/run-first-agent-offline.sh'
   pull_request:
     branches: [main]
     paths:
@@ -17,6 +19,8 @@ on:
       - 'testing/contracts/runtime-link/**'
       - 'fixtures/**'
       - 'examples/typescript/minimal-harness/**'
+      - 'examples/typescript/first-agent/**'
+      - 'scripts/ci/run-first-agent-offline.sh'
 
 jobs:
   typescript-test:
@@ -61,3 +65,9 @@ jobs:
         run: |
           cd examples/typescript/minimal-harness
           npm start -- --fake
+      - name: Install first-agent example dependency
+        run: |
+          cd examples/typescript/first-agent
+          npm ci
+      - name: Run TypeScript first-agent offline (scripted model, fixture Hacker News)
+        run: scripts/ci/run-first-agent-offline.sh typescript

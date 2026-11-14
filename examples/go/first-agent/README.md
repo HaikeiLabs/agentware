@@ -21,7 +21,7 @@ stories." Here is what happens:
 | `agent/agent.go` | The loop, the audited tool client and the audit line format |
 | `agent/hn.go` | The `hn_top_stories` and `hn_post_comment` tools |
 | `agent/policy.go` | The local rule that denies `hn_post_comment` |
-| `agent/settings.go` | Reads `OPENAI_API_KEY`, `OPENAI_BASE_URL` and `MODEL` |
+| `agent/settings.go` | Reads `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `MODEL` and `HN_BASE_URL` |
 | `agent/agent_test.go` | Runs the loop against a fake model and a fake Hacker News API |
 
 ## 1. Install
@@ -175,6 +175,16 @@ go test ./...
 
 The test runs the loop against a fake OpenAI-compatible server and a fake
 Hacker News API, so it needs no key and no network.
+
+CI also runs `go run .` end to end offline. From the repository root:
+
+```sh
+scripts/ci/run-first-agent-offline.sh go
+```
+
+The script starts `fixtures/first-agent/fake-openai-hn.py`, a scripted model
+and Hacker News fixtures on one local port, and points the example at it with
+`OPENAI_BASE_URL` and `HN_BASE_URL`.
 
 ## Next
 
