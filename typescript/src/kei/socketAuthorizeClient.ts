@@ -101,7 +101,11 @@ export type KeiProxySocketAuthorizeRequest = Pick<
       | "framework"
       | "toolArgsDigest"
     >
-  >;
+  > & {
+    /** Local-only inputs for the runtime's registered connector plan evaluator. */
+    toolArgs?: Record<string, unknown>;
+    toolContext?: Record<string, unknown>;
+  };
 
 /**
  * Fields for a credential release request. The ``resource`` and
@@ -117,6 +121,9 @@ export interface KeiProxySocketCredentialReleaseRequest {
   delegationDepth?: number;
   framework?: string;
   toolArgsDigest?: string;
+  /** Local-only inputs for complete connector-plan authorization. */
+  toolArgs?: Record<string, unknown>;
+  toolContext?: Record<string, unknown>;
 }
 
 export interface KeiProxySocketAuthorizeClientOptions {
@@ -251,6 +258,8 @@ export class KeiProxySocketAuthorizeClient {
     };
     for (const [key, value] of Object.entries(optional))
       if (value) request[key] = value;
+    if (input.toolArgs !== undefined) request.tool_args = input.toolArgs;
+    if (input.toolContext !== undefined) request.tool_context = input.toolContext;
 
     for (let attempt = 0; attempt < 2; attempt++) {
       let response: JsonObject;
@@ -323,6 +332,8 @@ export class KeiProxySocketAuthorizeClient {
     };
     for (const [key, value] of Object.entries(optional))
       if (value) request[key] = value;
+    if (input.toolArgs !== undefined) request.tool_args = input.toolArgs;
+    if (input.toolContext !== undefined) request.tool_context = input.toolContext;
 
     for (let attempt = 0; attempt < 2; attempt++) {
       let response: JsonObject;

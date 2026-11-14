@@ -84,7 +84,10 @@ type AuthorizeRequest struct {
 	AgentVersion    string
 	Framework       string
 	ToolArgsDigest  string
-	Resources       []string
+	// ToolArgs and ToolContext are local-only inputs for connector plan evaluation.
+	ToolArgs    map[string]any
+	ToolContext map[string]any
+	Resources   []string
 	// WorkspaceID is accepted for parity; kei-proxy derives workspace scope
 	// from the runtime token.
 	WorkspaceID string

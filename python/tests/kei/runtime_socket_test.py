@@ -137,6 +137,8 @@ def test_release_credential_sends_correct_request_body() -> None:
             resource="repo:owner/name",
             span_id="span-1",
             framework="openwebui",
+            tool_args={"repository": "acme/kei"},
+            tool_context={},
         )
     )
     bodies = daemon.bodies("/v1/credentials:release")
@@ -147,6 +149,8 @@ def test_release_credential_sends_correct_request_body() -> None:
     assert body["resource"] == "repo:owner/name"
     assert body["span_id"] == "span-1"
     assert body["framework"] == "openwebui"
+    assert body["tool_args"] == {"repository": "acme/kei"}
+    assert body["tool_context"] == {}
 
 
 def test_register_tools_posts_manifest_to_runtime_route() -> None:
@@ -390,6 +394,8 @@ async def test_authorize_serializes_an_exact_connector_target() -> None:
         resource="repos/owner/name",
         connector_id="connector-1",
         capability="repository.read",
+        tool_args={"repository": "owner/name"},
+        tool_context={},
     )
 
     [request] = [r for r in daemon.requests if r.url.path == "/v1/authorize"]
@@ -398,6 +404,8 @@ async def test_authorize_serializes_an_exact_connector_target() -> None:
         "tool": "github.read_repo",
         "connector": {"connector_id": "connector-1", "capability": "repository.read"},
         "resource": "repos/owner/name",
+        "tool_args": {"repository": "owner/name"},
+        "tool_context": {},
     }
     assert request.headers["X-Kei-Session"] == session.session_id
     assert "user_id" not in json.loads(request.content)
@@ -469,6 +477,8 @@ async def test_release_credential_sends_exact_target_and_returns_response(
         tool="github.read_repo",
         span_id="span-1",
         framework="openwebui",
+        tool_args={"repository": "owner/name"},
+        tool_context={},
     )
 
     assert response == released
@@ -481,6 +491,8 @@ async def test_release_credential_sends_exact_target_and_returns_response(
         "tool": "github.read_repo",
         "span_id": "span-1",
         "framework": "openwebui",
+        "tool_args": {"repository": "owner/name"},
+        "tool_context": {},
     }
     assert "secret-release-test" not in caplog.text
 

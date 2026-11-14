@@ -232,6 +232,8 @@ class KeiProxySocketAuthorizeClient:
         tool_args_digest: str = "",
         connector_id: str = "",
         capability: str = "",
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Ask the daemon for one decision in ``session``.
 
@@ -242,6 +244,8 @@ class KeiProxySocketAuthorizeClient:
         the authenticated session. Optionally, ``connector_id`` and
         ``capability`` together with a non-empty ``resource`` request an
         exact connector target using the daemon's strict ``connector`` object.
+        ``tool_args`` and ``tool_context`` are local-only inputs for a registered
+        connector plan; they are not sent to the control plane or audit stream.
         """
         if not session.source or not session.external_id or not session.session_id:
             raise ValueError("socket authorize needs an explicit named session")
@@ -267,6 +271,10 @@ class KeiProxySocketAuthorizeClient:
             "tool_args_digest": tool_args_digest,
         }
         request.update({k: v for k, v in optional.items() if v})
+        if tool_args is not None:
+            request["tool_args"] = dict(tool_args)
+        if tool_context is not None:
+            request["tool_context"] = dict(tool_context)
 
         for attempt in range(2):
             try:
@@ -307,12 +315,17 @@ class KeiProxySocketAuthorizeClient:
         delegation_depth: int = 0,
         framework: str = "",
         tool_args_digest: str = "",
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Pull a session credential from the daemon after an allow decision.
 
         A deny is returned as a dict with ``reason_code``, not raised.
         Transport failures raise :class:`KeiProxySocketError`. The credential
-        value must never be logged or printed.
+        value must never be logged or printed. For a registered connector tool,
+        ``tool_args`` and ``tool_context`` let the local runtime independently
+        re-derive and authorize the complete plan before releasing the token.
+        They remain on the tenant-local socket and are not included in audit.
         """
         if not session.source or not session.external_id or not session.session_id:
             raise ValueError("socket release_credential needs an explicit named session")
@@ -331,6 +344,10 @@ class KeiProxySocketAuthorizeClient:
             "tool_args_digest": tool_args_digest,
         }
         request.update({k: v for k, v in optional.items() if v})
+        if tool_args is not None:
+            request["tool_args"] = dict(tool_args)
+        if tool_context is not None:
+            request["tool_context"] = dict(tool_context)
 
         for attempt in range(2):
             try:

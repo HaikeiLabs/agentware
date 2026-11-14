@@ -99,6 +99,26 @@ func TestEvaluatorOverTheSocket(t *testing.T) {
 	})
 }
 
+func TestAuthorizeSendsLocalConnectorPlanInputs(t *testing.T) {
+	d := startDaemon(t, sessionAnswer, permitAnswer)
+	c := &Client{Env: tokenEnv(d.path)}
+	sess, err := c.OpenSession(context.Background(), Identity{Source: "test", ExternalID: "ada"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = c.Authorize(context.Background(), sess, evaluator.AuthorizeRequest{
+		Tool: "github.get_issue", ToolArgs: map[string]any{"repository": "acme/kei", "issue_number": 7}, ToolContext: map[string]any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests := d.requests()
+	body := requests[1].Body.(map[string]any)
+	if body["tool_args"].(map[string]any)["issue_number"] != float64(7) || body["tool_context"].(map[string]any) == nil {
+		t.Fatalf("plan inputs missing from socket request: %v", body)
+	}
+}
+
 func TestUnavailableSocketErrorIncludesPathAndInstallCommand(t *testing.T) {
 	const socketPath = "/run/custom/kei-proxy.sock"
 	client, err := SelectAuthorizationClient("openwebui", SelectOptions{
@@ -337,6 +357,9 @@ func TestReleaseCredential(t *testing.T) {
 			ConnectorID: "github",
 			Capability:  "read",
 			Resource:    "repo:owner/name",
+			Tool:        "github.get_issue",
+			ToolArgs:    map[string]any{"repository": "owner/name", "issue_number": 7},
+			ToolContext: map[string]any{},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -373,6 +396,9 @@ func TestReleaseCredential(t *testing.T) {
 		}
 		if body["resource"] != "repo:owner/name" {
 			t.Errorf("expected resource repo:owner/name, got %v", body["resource"])
+		}
+		if body["tool_args"].(map[string]any)["issue_number"] != float64(7) || body["tool_context"].(map[string]any) == nil {
+			t.Errorf("plan inputs missing from local release request: %v", body)
 		}
 		if body["span_id"] != nil {
 			t.Errorf("span_id should be omitted when empty, got %v", body["span_id"])
