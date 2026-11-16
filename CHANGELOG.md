@@ -5,6 +5,10 @@ one shared version across npm, PyPI, Go and crates.io.
 
 ## Unreleased
 
+### Added
+
+- Snowflake key-pair JWT helper for harness-side Snowflake SQL API auth, in Go (`connectors/snowflake`: `JWT`, `PublicKeyFingerprint`, `NormalizeAccountIdentifier`), Python (`haikeilabs.agentware.connectors.snowflake`, needs the new `snowflake` extra for `cryptography`) and TypeScript (`snowflakeJwt`, `snowflakePublicKeyFingerprint`, `normalizeSnowflakeAccountIdentifier`). The harness passes the private key PEM that the runtime releases; the helper mints an RS256 token with `exp` capped at one hour. It makes no network calls and refuses encrypted PEMs. The shared fixture `fixtures/snowflake/cases.v1.json` is replayed by all three languages.
+
 ## [0.17.0] - 2026-11-09
 
 ### Added

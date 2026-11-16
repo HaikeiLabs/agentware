@@ -1,0 +1,72 @@
+{
+  "schema": "agentware.snowflake-jwt-cases/v1",
+  "comment": "Shared parity cases for the Snowflake key-pair JWT helper (Go, Python, TypeScript). The keys in this directory are test-only and authorize nothing. expected_fingerprint was computed with: openssl rsa -in test-rsa-2048.p8.pem -pubout | openssl rsa -pubin -outform DER | openssl dgst -sha256 -binary | base64",
+  "keys": {
+    "pkcs8": "test-rsa-2048.p8.pem",
+    "pkcs1": "test-rsa-2048.pkcs1.pem",
+    "public": "test-rsa-2048.pub.pem",
+    "encrypted_pkcs8": "test-rsa-2048.encrypted.p8.pem",
+    "encrypted_pkcs1": "test-rsa-2048.encrypted.pkcs1.pem"
+  },
+  "expected_fingerprint": "SHA256:xHEFCecPwrI1OVExi8aNYe28oerKWClV+MTt3J8UpbQ=",
+  "claims": [
+    {
+      "name": "locator with region, 30 minute ttl",
+      "account": "xy12345.us-east-1",
+      "user": "svc_reader",
+      "now_unix": 1700000000,
+      "ttl_seconds": 1800,
+      "iss": "XY12345.SVC_READER.SHA256:xHEFCecPwrI1OVExi8aNYe28oerKWClV+MTt3J8UpbQ=",
+      "sub": "XY12345.SVC_READER",
+      "iat": 1700000000,
+      "exp": 1700001800
+    },
+    {
+      "name": "org-account form, ttl above one hour is capped",
+      "account": "myorg-myaccount",
+      "user": "SVC_READER",
+      "now_unix": 1700000000,
+      "ttl_seconds": 7200,
+      "iss": "MYORG-MYACCOUNT.SVC_READER.SHA256:xHEFCecPwrI1OVExi8aNYe28oerKWClV+MTt3J8UpbQ=",
+      "sub": "MYORG-MYACCOUNT.SVC_READER",
+      "iat": 1700000000,
+      "exp": 1700003600
+    },
+    {
+      "name": "exactly one hour is kept",
+      "account": "MYORG-MYACCOUNT",
+      "user": "svc_reader",
+      "now_unix": 1700000000,
+      "ttl_seconds": 3600,
+      "iss": "MYORG-MYACCOUNT.SVC_READER.SHA256:xHEFCecPwrI1OVExi8aNYe28oerKWClV+MTt3J8UpbQ=",
+      "sub": "MYORG-MYACCOUNT.SVC_READER",
+      "iat": 1700000000,
+      "exp": 1700003600
+    }
+  ],
+  "invalid_ttl_seconds": [0, -1],
+  "accounts": [
+    {"in": "xy12345", "out": "XY12345"},
+    {"in": "xy12345.us-east-1", "out": "XY12345"},
+    {"in": "xy12345.us-east-2.aws", "out": "XY12345"},
+    {"in": "myorg-myaccount", "out": "MYORG-MYACCOUNT"},
+    {"in": "  myorg-myaccount  ", "out": "MYORG-MYACCOUNT"},
+    {"in": "my_org-my_account", "out": "MY_ORG-MY_ACCOUNT"},
+    {"in": "myorg-myaccount.global", "out": "MYORG-MYACCOUNT-GLOBAL"}
+  ],
+  "invalid_accounts": [
+    "",
+    "   ",
+    ".us-east-1",
+    "xy12345.snowflakecomputing.com",
+    "myorg-myaccount.snowflakecomputing.com",
+    "my org",
+    "xy12345/abc",
+    "xy\n12345"
+  ],
+  "users": [
+    {"in": "svc_reader", "out": "SVC_READER"},
+    {"in": " svc_reader ", "out": "SVC_READER"}
+  ],
+  "invalid_users": ["", "   ", "svc\nreader"]
+}
