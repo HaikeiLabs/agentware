@@ -10,3 +10,4 @@ export * from "./toolspec/index.js";
 export * from "./memory/index.js";
 export * from "./reasoning/index.js";
 export * from "./kei/index.js";
+export * from "./connectors/index.js";

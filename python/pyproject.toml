@@ -46,7 +46,12 @@ inference = [
 evals = [
     "pyyaml>=6.0",
 ]
+# haikeilabs.agentware.connectors.snowflake: RS256 signing for the key-pair JWT.
+snowflake = [
+    "cryptography>=42.0",
+]
 dev = [
+    "cryptography>=42.0",
     "pyyaml>=6.0",
     "types-PyYAML>=6.0",
     "pytest>=7.0",
