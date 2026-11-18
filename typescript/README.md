@@ -152,3 +152,37 @@ Releases are deliberately manual and use npm staged publishing. Do not run
 
 The final npm approval is intentional: it is the human gate that makes the
 staged version publicly available.
+
+### Generated connector operations
+
+`OperationRunner` authorizes each operation through the local kei-proxy socket,
+releases its credential, and runs the generated queries against an HTTP or
+GraphQL connection. Configure each contract connector ID with its installed
+connector ID, connection name and kind, base URL, and operation bindings. Each
+binding supplies the generated request schema and a function that constructs
+its generated queries class. Pass an optional metadata-only audit callback as
+the fourth constructor argument. The runner records the operation ID,
+decision and outcome; it does not audit requests, responses or credentials.
+
+```ts
+const runner = new OperationRunner(client, session, {
+  github: {
+    connectorId: 'installed-github', connectionName: 'pat',
+    kind: 'http_bearer', baseURL: 'https://api.github.com',
+    operations: {
+      [OP_GET_ISSUE.id]: {
+        requestSchema: GetIssueRequestSchema,
+        queries: connection => new GithubQueries(connection),
+      },
+    },
+  },
+}, record => audit(record));
+const issue = await runner.run(caller, OP_GET_ISSUE, request, { tool: 'get_issue' });
+```
+
+A tool can supply `resourceTemplateOverride`; kei-proxy must validate the
+rendered resource against the policy bundle. SQL connection pools are a
+follow-up: SQL and unsupported connection kinds throw `UnsupportedConnection`.
+The current contracts dependency points to a local checkout of `v0.19.0`; build
+`gen/ts` there first and update the `file:` path for your machine. Registry
+publishing will provide the portable version pin.
