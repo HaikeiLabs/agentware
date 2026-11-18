@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { jest } from "@jest/globals";
 import { create } from "@bufbuild/protobuf";
+import type { HTTP } from "@haikeilabs/connector-contracts/kei/connection/index";
+import type { OperationSocketClient } from "../../src/operations/index.js";
 import { createServer, type Server } from "node:http";
 import {
   OP_GET_ISSUE,
@@ -26,7 +28,7 @@ let server: Server | undefined;
 afterEach(async () => {
   if (server) await new Promise<void>((r) => server!.close(() => r()));
   server = undefined;
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
 });
 async function setup(status = 200) {
   let requests = 0;
@@ -41,16 +43,16 @@ async function setup(status = 200) {
   await new Promise<void>((r) => server!.listen(0, "127.0.0.1", r));
   const port = (server.address() as { port: number }).port;
   const client = {
-    authorize: vi.fn().mockResolvedValue({ decision: "allow" }),
-    releaseCredential: vi
-      .fn()
+    authorize: jest.fn<OperationSocketClient["authorize"]>().mockResolvedValue({ decision: "allow" }),
+    releaseCredential: jest
+      .fn<OperationSocketClient["releaseCredential"]>()
       .mockResolvedValue({
         decision: "permit",
         credential: { access_token: secret },
       }),
   };
-  const audit = vi.fn();
-  const build = vi.fn((conn) => new GithubQueries(conn));
+  const audit = jest.fn();
+  const build = jest.fn((conn: HTTP) => new GithubQueries(conn));
   const connectors = {
     github: {
       connectorId: "installed-github",
@@ -130,10 +132,10 @@ describe("OperationRunner", () => {
             : ConnectRequired,
       );
       if (decision === "deny")
-        expect(error.reasonCode).toBe("connector_not_named");
+        expect((error as OperationDenied).reasonCode).toBe("connector_not_named");
       if (decision === "enrollment_required")
-        expect(error.enrollment).toBe(enrollment);
-      if (decision === "connect_required") expect(error.connect).toBe(connect);
+        expect((error as EnrollmentRequired).enrollment).toBe(enrollment);
+      if (decision === "connect_required") expect((error as ConnectRequired).connect).toBe(connect);
       expect(x.client.releaseCredential).not.toHaveBeenCalled();
       expect(x.build).not.toHaveBeenCalled();
       expect(x.requests()).toBe(0);
@@ -164,13 +166,13 @@ describe("OperationRunner", () => {
     async (status) => {
       const x = await setup(status);
       const logs: unknown[] = [];
-      vi.spyOn(console, "log").mockImplementation((...a) => {
+      jest.spyOn(console, "log").mockImplementation((...a) => {
         logs.push(a);
       });
-      vi.spyOn(console, "error").mockImplementation((...a) => {
+      jest.spyOn(console, "error").mockImplementation((...a) => {
         logs.push(a);
       });
-      vi.spyOn(console, "warn").mockImplementation((...a) => {
+      jest.spyOn(console, "warn").mockImplementation((...a) => {
         logs.push(a);
       });
       const error = await x.runner

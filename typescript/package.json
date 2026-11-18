@@ -33,8 +33,7 @@
     "check:package": "node scripts/check-package.mjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "test:operations": "vitest run"
+    "format": "prettier --write \"src/**/*.ts\""
   },
   "keywords": [
     "llm",
@@ -57,14 +56,13 @@
     "jest": "^29.7.0",
     "prettier": "^3.0.0",
     "ts-jest": "^29.1.0",
-    "typescript": "^5.3.0",
-    "vitest": "^3.2.4"
+    "typescript": "^5.3.0"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "2.17.0",
     "@haikeilabs/connector-contracts": "file:../../../../../../../private/tmp/agentware-ops-contracts-v019/gen/ts",
     "minimatch": "10.2.3",
-    "zod": "^4.6.7",
-    "@bufbuild/protobuf": "2.17.0"
+    "zod": "^4.6.7"
   },
   "overrides": {
     "deepmerge": "4.1.2"
