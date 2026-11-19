@@ -1,6 +1,8 @@
 """Inference loop wiring guardrails together."""
 
 import asyncio
+import inspect
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +23,8 @@ from haikeilabs.agentware.middleware.guardrails.response_validator import (
 from haikeilabs.agentware.middleware.guardrails.step_enforcer import StepEnforcer
 from haikeilabs.agentware.middleware.types import MessageMeta, MessageType
 from haikeilabs.agentware.reasoning import ContextTree, ReasoningAdapter, ReasoningError
+
+logger = logging.getLogger(__name__)
 
 
 class RetriesExhaustedError(Exception):
@@ -66,6 +70,21 @@ def _get_tool_names(specs: list[ToolDefinition]) -> list[str]:
     return [spec.name for spec in specs]
 
 
+def _accepts_tools(client: Backend) -> bool:
+    """Return True if the backend's complete() accepts a tools parameter.
+
+    Third-party backends written before the tools parameter keep working:
+    they are called without tools instead of raising TypeError.
+    """
+    try:
+        params = inspect.signature(client.complete).parameters
+    except (TypeError, ValueError):
+        return False
+    if "tools" in params:
+        return True
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 async def run_inference(
     messages: list[Message],
     cfg: InferenceConfig,
@@ -93,6 +112,17 @@ async def run_inference(
     tool_call_counter = 0
     attempts = 0
 
+    # Pass tools only to backends that accept them; older third-party
+    # backends keep running without native tools (one warning, not per call).
+    supports_tools = _accepts_tools(cfg.client)
+    if cfg.tool_specs and not supports_tools:
+        logger.warning(
+            "backend %s does not accept a tools parameter; "
+            "native tool calling is disabled for: %s",
+            cfg.client.model_name(),
+            ", ".join(_get_tool_names(cfg.tool_specs)),
+        )
+
     while attempts < cfg.max_attempts:
         attempts += 1
 
@@ -110,23 +140,12 @@ async def run_inference(
                 )
                 current_messages.append(warning_msg)
 
-        tool_specs_serialized = []
-        for spec in cfg.tool_specs:
-            tool_specs_serialized.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": spec.name,
-                        "description": spec.description,
-                        "parameters": spec.input_schema,
-                    },
-                }
-            )
-
         try:
             resp = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: cfg.client.complete(current_messages),
+                lambda: cfg.client.complete(current_messages, tools=cfg.tool_specs)
+                if supports_tools
+                else cfg.client.complete(current_messages),
             )
         except Exception as e:
             if cfg.error_tracker is not None:
