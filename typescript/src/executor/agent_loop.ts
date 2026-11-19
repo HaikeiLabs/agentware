@@ -17,7 +17,9 @@ import {
   NudgeKind,
   stepNudge,
 } from "../middleware/guardrails/nudge.js";
-import { MessageType } from "../middleware/types.js";
+import { Action, MessageType, createAllowDecision, createDenyDecision } from "../middleware/types.js";
+import type { CallerContext, Decision } from "../middleware/types.js";
+import type { Auditor } from "../middleware/audit.js";
 import {
   ReasoningAdapter,
   ReasoningError,
@@ -33,6 +35,12 @@ export enum AgentTerminationReason {
 }
 
 export interface AgentLoopConfig {
+  /** Optional policy evaluator. Without one, tools retain their existing unrestricted behavior. */
+  policy?: { evaluate(toolName: string, args: Record<string, unknown>, caller: CallerContext): Decision | Promise<Decision> };
+  /** Optional auditor for policy decisions. Arguments are omitted from audit records. */
+  auditor?: Auditor;
+  /** Authenticated caller supplied by the host; required when policy is configured. */
+  caller_context?: CallerContext;
   backend: AsyncBackend;
   registry: ToolRegistry;
   validator: ResponseValidator;
@@ -340,11 +348,41 @@ export class AgentLoop {
 
         toolCallsMade++;
 
-        let result: Result;
+        let decision: Decision;
         try {
-          result = await executeTool(tool, call.args);
-        } catch (err) {
-          result = new Result(false, null, toError(err).message);
+          decision = this.config.policy
+            ? this.config.caller_context
+              ? await this.config.policy.evaluate(call.tool, call.args, this.config.caller_context)
+              : createDenyDecision("missing caller context")
+            : createAllowDecision("no policy configured");
+          if (!decision || ![Action.ALLOW, Action.DENY, Action.FILTER].includes(decision.action) ||
+              (decision.action === Action.FILTER && !decision.redacted_args)) {
+            decision = createDenyDecision("invalid policy decision");
+          }
+        } catch {
+          decision = createDenyDecision("policy evaluation failed");
+        }
+        const caller = this.config.caller_context;
+        // Do not record arguments or one-time enrollment/connect links.
+        const auditDecision: Decision = {
+          action: decision.action, rule: decision.rule, reason: decision.reason,
+          timestamp: decision.timestamp, reason_code: decision.reason_code, hint: decision.hint,
+        };
+        this.config.auditor?.record({
+          session_id, tool_name: call.tool, args: {}, decision: auditDecision,
+          timestamp: new Date(), invoking_subject: caller?.invoking_subject,
+          parent_span: caller?.parent_span, delegation_depth: caller?.delegation_depth,
+        });
+
+        let result: Result;
+        if (decision.action === Action.DENY) {
+          result = new Result(false, null, `denied by policy: ${decision.reason}`);
+        } else {
+          try {
+            result = await executeTool(tool, decision.action === Action.FILTER ? decision.redacted_args! : call.args);
+          } catch (err) {
+            result = new Result(false, null, toError(err).message);
+          }
         }
 
         if (result.success) {
