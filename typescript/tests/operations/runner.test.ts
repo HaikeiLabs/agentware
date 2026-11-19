@@ -106,6 +106,24 @@ describe("OperationRunner", () => {
       outcome: "success",
     });
   });
+  it("authorizes the resource from the generated Op constant, not the descriptor", async () => {
+    const x = await setup();
+    // The generated Op constant carries its own resourceTemplate. It differs
+    // from the descriptor's ("repos/{owner}/{repository}"), so a runner that
+    // still read the descriptor would authorize "repos/acme/widgets" instead
+    // of the Op constant's "github:repo/acme/widgets".
+    const op = { ...OP_GET_ISSUE, resourceTemplate: "github:repo/{owner}/{repository}" };
+    const req = create(GetIssueRequestSchema, {
+      owner: "acme",
+      repository: "widgets",
+      issueNumber: 2n,
+    });
+    await x.runner.run(caller, op, req);
+    expect(x.client.authorize).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({ resource: "github:repo/acme/widgets" }),
+    );
+  });
   it.each(["deny", "enrollment_required", "connect_required"])(
     "%s never builds a connection",
     async (decision) => {

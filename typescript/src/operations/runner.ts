@@ -78,19 +78,28 @@ export class ConnectRequired extends Error {
   }
 }
 
-/** Resolve the generated metadata in one place until generated Op constants expose it. */
+/** Resolve operation metadata: generated Op constant fields win, the request descriptor's options remain the fallback. */
 export function operationMeta(op: Op, requestSchema: DescMessage) {
-  if (!hasOption(requestSchema, operation))
+  const meta = hasOption(requestSchema, operation)
+    ? getOption(requestSchema, operation)
+    : undefined;
+  if (meta && meta.id !== op.id) throw new OperationDenied("invalid_operation");
+  const connector = op.id.split(".")[0];
+  const resourceTemplate =
+    typeof op.resourceTemplate === "string" && op.resourceTemplate
+      ? op.resourceTemplate
+      : meta?.resourceTemplate;
+  const methodName =
+    typeof op.methodName === "string" && op.methodName
+      ? op.methodName
+      : meta?.methodName;
+  const connections =
+    Array.isArray(op.connections) && op.connections.length > 0
+      ? op.connections
+      : meta?.connections;
+  if (!connector || !resourceTemplate || !methodName || !connections)
     throw new OperationDenied("invalid_operation");
-  const meta = getOption(requestSchema, operation);
-  if (
-    meta.id !== op.id ||
-    !meta.connector ||
-    !meta.methodName ||
-    !meta.resourceTemplate
-  )
-    throw new OperationDenied("invalid_operation");
-  return meta;
+  return { id: op.id, connector, resourceTemplate, methodName, connections };
 }
 
 function renderResource(
