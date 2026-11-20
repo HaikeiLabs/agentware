@@ -61,6 +61,13 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.0",
 ]
+# haikeilabs.agentware.operations.adapters: optional framework adapters.
+langchain = [
+    "langchain-core>=0.3",
+]
+pydantic-ai = [
+    "pydantic-ai>=1.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/HaikeiLabs/agentware"
