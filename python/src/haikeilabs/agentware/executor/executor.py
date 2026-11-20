@@ -1,14 +1,18 @@
 """Executor - Agent inference loop."""
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol
 
 from ..llm import Backend, Message
-from ..llm.request import Role
+from ..llm.backend import accepts_tools
+from ..llm.request import Role, ToolDefinition
 from ..middleware import CallerContext
 from ..toolformat import ToolFormatter
 from ..tools import ToolRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class TerminationReason(str, Enum):
@@ -69,6 +73,19 @@ class InferenceExecutor:
     def __init__(self, config: InferenceExecutorConfig) -> None:
         self._config = config
 
+    def _llm_tools(self) -> list[ToolDefinition]:
+        """Map the registry's tools to llm tool definitions (mirrors #300)."""
+        tools: list[ToolDefinition] = []
+        for tool in self._config.registry.all():
+            schema: dict[str, Any] = {}
+            schema_fn = getattr(tool, "input_schema", None)
+            if callable(schema_fn):
+                schema = schema_fn()
+            tools.append(
+                ToolDefinition(name=tool.name, description=tool.description, input_schema=schema)
+            )
+        return tools
+
     def execute(self, req: ExecuteRequest) -> ExecuteResult:
         """Run the inference loop."""
         # Cross-language contract: the system prompt leads the conversation,
@@ -83,8 +100,25 @@ class InferenceExecutor:
 
         max_iters = req.max_iterations or self._config.max_iterations
 
+        # Pass tools only to backends that accept them; older third-party
+        # backends keep running without native tools (one warning, not per
+        # completion), mirroring run_inference.
+        tools = self._llm_tools()
+        supports_tools = accepts_tools(self._config.backend)
+        if tools and not supports_tools:
+            logger.warning(
+                "backend %s does not accept a tools parameter; "
+                "native tool calling is disabled for: %s",
+                self._config.backend.model_name(),
+                ", ".join(t.name for t in tools),
+            )
+
         while iterations < max_iters:
-            response = self._config.backend.complete(conversation)
+            response = (
+                self._config.backend.complete(conversation, tools=tools)
+                if supports_tools
+                else self._config.backend.complete(conversation)
+            )
 
             if not response.tool_calls:
                 final_response = response.content
