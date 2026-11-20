@@ -12,7 +12,13 @@ export interface KeiToolRegistration {
   route: KeiToolRoute;
   required_capabilities?: string[];
   resource_types?: KeiResourceType[];
+  /** Connector operation ids this tool covers (optional). */
+  operations?: string[];
 }
+
+// Operation ids in the optional operations array: at least three lowercase
+// segments separated by dots, e.g. github.issues.get.
+const operationsEntry = /^[a-z0-9_]+(\.[a-z0-9_]+){2,}$/;
 
 export interface KeiToolManifestV3 {
   schema: "kei.tool-manifest/v3";
@@ -24,6 +30,7 @@ export interface KeiToolManifestV3 {
     route: KeiToolRoute;
     required_capabilities?: string[];
     resource_types?: KeiResourceType[];
+    operations?: string[];
     description: string;
     enabled: boolean;
   }>;
@@ -72,7 +79,8 @@ export class ToolRegistry {
       this.validateRegistration(registration);
       const tool = this.tools.get(name)!;
       const common = { name, service: registration.service, source: registration.source,
-        operation_class: registration.operation_class, route: registration.route, description: tool.description, enabled: true };
+        operation_class: registration.operation_class, route: registration.route, description: tool.description, enabled: true,
+        ...((registration.operations?.length ?? 0) > 0 ? { operations: [...registration.operations!].sort() } : {}) };
       if ("connector_binding" in registration.route) return {
         ...common,
         required_capabilities: [...registration.required_capabilities!].sort(),
@@ -88,6 +96,9 @@ export class ToolRegistry {
     if (value.operation_class !== "read" && value.operation_class !== "write") throw new Error("invalid operation_class");
     if ("connector_binding" in value.route) {
       if (!value.route.connector_binding.agent_id?.trim() || !value.route.connector_binding.connector_id?.trim() || !value.required_capabilities?.length || value.required_capabilities.some((v) => !v.trim())) throw new Error("connector route requires binding and non-empty capabilities");
+      for (const op of value.operations ?? []) {
+        if (!operationsEntry.test(op)) throw new Error(`invalid operations entry: ${op}`);
+      }
     } else if (!value.route.harness_executor.executor?.trim() || !value.route.harness_executor.registration?.trim() || value.required_capabilities !== undefined || value.resource_types !== undefined) {
       throw new Error("harness route requires identity and omits connector-only fields");
     }
