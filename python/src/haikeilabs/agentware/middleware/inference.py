@@ -1,13 +1,12 @@
 """Inference loop wiring guardrails together."""
 
 import asyncio
-import inspect
 import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from haikeilabs.agentware.llm import Message, Role
-from haikeilabs.agentware.llm.backend import Backend
+from haikeilabs.agentware.llm.backend import Backend, accepts_tools
 from haikeilabs.agentware.llm.request import ToolDefinition
 from haikeilabs.agentware.llm.response import Response
 from haikeilabs.agentware.llm.response import ToolCall as LLMToolCall
@@ -70,21 +69,6 @@ def _get_tool_names(specs: list[ToolDefinition]) -> list[str]:
     return [spec.name for spec in specs]
 
 
-def _accepts_tools(client: Backend) -> bool:
-    """Return True if the backend's complete() accepts a tools parameter.
-
-    Third-party backends written before the tools parameter keep working:
-    they are called without tools instead of raising TypeError.
-    """
-    try:
-        params = inspect.signature(client.complete).parameters
-    except (TypeError, ValueError):
-        return False
-    if "tools" in params:
-        return True
-    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
-
-
 async def run_inference(
     messages: list[Message],
     cfg: InferenceConfig,
@@ -114,7 +98,7 @@ async def run_inference(
 
     # Pass tools only to backends that accept them; older third-party
     # backends keep running without native tools (one warning, not per call).
-    supports_tools = _accepts_tools(cfg.client)
+    supports_tools = accepts_tools(cfg.client)
     if cfg.tool_specs and not supports_tools:
         logger.warning(
             "backend %s does not accept a tools parameter; "
