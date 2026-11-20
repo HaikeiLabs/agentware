@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Protocol
 
-from .request import Message
+from .request import Message, ToolDefinition
 
 if TYPE_CHECKING:
     from .response import Response
@@ -11,8 +11,16 @@ if TYPE_CHECKING:
 class Backend(Protocol):
     """Protocol for LLM backends."""
 
-    def complete(self, messages: list[Message]) -> "Response":
-        """Send a conversation to the LLM and return its response."""
+    def complete(
+        self,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+    ) -> "Response":
+        """Send a conversation to the LLM and return its response.
+
+        ``tools`` carries the tool definitions the backend may offer to the
+        model natively (mirrors Go's ``llm.Request.Tools`` from #300).
+        """
         ...
 
     def supports_native_tool_calling(self) -> bool:
