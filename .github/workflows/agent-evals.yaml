@@ -97,13 +97,13 @@ env:
   # The grader below is pinned, so a pull request that changes python/src/evals
   # is still graded by the pinned runner, not by its own change.
   EVAL_GLOBAL_PATHS: "evals/model-profiles.yaml"
-  # HaikeiLabs/agentware main at 6b78122 (HAI-896), which holds the HAI-470
-  # runner (#177: the profile's temperature and seed on every request,
-  # --repeats, a suite score of passed runs / total runs) and #181 (thinking on
-  # for every profile, Qwen's thinking-mode sampling). The pin before it, the
-  # #177 head, predates #181. The GLM profile's base_url_env is still
+  # HaikeiLabs/agentware main at 075f54f (#337, HAI-1102): the Pedro Realtime
+  # mock tool executor the pedro-realtime suites need. Since the previous pin,
+  # 6b78122 (HAI-896: the HAI-470 runner, #177, and #181, thinking on for every
+  # profile), it also adds #315 (provider tool-call metadata) and #317 (case
+  # expectations in every runner). The GLM profile's base_url_env is still
   # EVAL_DEEPSEEK_BASE_URL: the name is historical and the runner env keeps it.
-  EVAL_RUNNER_REF: "6b78122cbdd3eb5c637fc73d0bd9c9f71d71f0e8"
+  EVAL_RUNNER_REF: "075f54fb796d865c45678baec6f4df283d330d16"
   # EDIT-END settings
   EVAL_THRESHOLD: "0.95"
   # EV-C1 §3 profile names; each needs its base_url_env set on the runner.
