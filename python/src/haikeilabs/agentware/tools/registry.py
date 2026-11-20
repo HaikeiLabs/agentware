@@ -1,7 +1,12 @@
 """Tool registry and deterministic Kei tool-manifest exporters."""
 
 import json
+import re
 from typing import Any, TypedDict
+
+# Operation ids in the optional operations array: at least three lowercase
+# segments separated by dots, e.g. github.issues.get.
+_OPERATIONS_ENTRY = re.compile(r"^[a-z0-9_]+(\.[a-z0-9_]+){2,}$")
 
 
 class KeiToolRegistration(TypedDict, total=False):
@@ -13,6 +18,7 @@ class KeiToolRegistration(TypedDict, total=False):
     route: dict[str, dict[str, str]]
     required_capabilities: list[str]
     resource_types: list[dict[str, str]]
+    operations: list[str]
 
 
 class ToolRegistry:
@@ -70,6 +76,8 @@ class ToolRegistry:
                         (dict(item) for item in registration["resource_types"]),
                         key=lambda item: (item["type"], item.get("parent_type", "")),
                     )
+            if registration.get("operations"):
+                entry["operations"] = sorted(registration["operations"])
             entries.append(entry)
         return json.dumps(
             {"schema": "kei.tool-manifest/v3", "tools": entries},
@@ -97,6 +105,9 @@ class ToolRegistry:
                 or any(not item.strip() for item in caps)
             ):
                 raise ValueError("connector route requires binding and non-empty capabilities")
+            for item in value.get("operations", ()):
+                if not _OPERATIONS_ENTRY.fullmatch(item):
+                    raise ValueError(f"invalid operations entry: {item!r}")
             return
         if (
             harness is None
