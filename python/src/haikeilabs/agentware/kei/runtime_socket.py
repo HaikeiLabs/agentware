@@ -232,6 +232,7 @@ class KeiProxySocketAuthorizeClient:
         tool_args_digest: str = "",
         connector_id: str = "",
         capability: str = "",
+        binding_version: str = "",
         tool_args: Mapping[str, Any] | None = None,
         tool_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -246,6 +247,9 @@ class KeiProxySocketAuthorizeClient:
         exact connector target using the daemon's strict ``connector`` object.
         ``tool_args`` and ``tool_context`` are local-only inputs for a registered
         connector plan; they are not sent to the control plane or audit stream.
+        ``binding_version`` is the optional version of the connector-to-tool
+        binding the caller was built against; when set, the daemon denies with
+        ``binding_stale`` if it serves a different binding.
         """
         if not session.source or not session.external_id or not session.session_id:
             raise ValueError("socket authorize needs an explicit named session")
@@ -269,6 +273,7 @@ class KeiProxySocketAuthorizeClient:
             "delegation_depth": delegation_depth,
             "framework": framework,
             "tool_args_digest": tool_args_digest,
+            "binding_version": binding_version,
         }
         request.update({k: v for k, v in optional.items() if v})
         if tool_args is not None:

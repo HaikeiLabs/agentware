@@ -74,6 +74,7 @@ class FakeSocketClient:
         resource: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
+        binding_version: str = "",
     ) -> dict[str, Any]:
         self.authorize_calls.append(
             {
@@ -82,6 +83,7 @@ class FakeSocketClient:
                 "resource": resource,
                 "parent_span": parent_span,
                 "delegation_depth": delegation_depth,
+                "binding_version": binding_version,
             }
         )
         if self.authorize_error is not None:
@@ -152,6 +154,12 @@ def make_queries_spy() -> tuple[Callable[[HttpConnection], Any], list[HttpConnec
     return build, calls
 
 
+def make_issue_comment_request() -> issues_pb2.CreateIssueCommentRequest:
+    return issues_pb2.CreateIssueCommentRequest(
+        owner="acme", repository="repo", issue_number=2, body="hello"
+    )
+
+
 def make_runner(
     client: FakeSocketClient,
     connectors: ConnectorConfig,
@@ -184,6 +192,7 @@ async def test_allow_then_call() -> None:
             "resource": "repos/acme/repo",
             "parent_span": "p",
             "delegation_depth": 1,
+            "binding_version": "",
         }
     ]
     assert socket.release_calls == [
@@ -199,6 +208,119 @@ async def test_allow_then_call() -> None:
     assert provider.requests == 1
     assert len(built) == 1
     assert audit == [OperationAudit("github.issues.get", "allow", "success")]
+
+
+async def test_authorizes_the_resource_from_the_generated_op_constant() -> None:
+    # The generated Op constant carries its own resource_template. It differs
+    # from the descriptor's ("repos/{owner}/{repository}"), so a runner that
+    # still read the descriptor would authorize "repos/acme/widgets" instead
+    # of the Op constant's "github:repo/acme/widgets".
+    queries, _ = make_queries_spy()
+    provider = Provider()
+    socket = FakeSocketClient()
+    runner = make_runner(socket, make_connectors(queries), provider)
+    op = ops.OP_GET_ISSUE._replace(resource_template="github:repo/{owner}/{repository}")
+
+    await runner.run(
+        CALLER, op, issues_pb2.GetIssueRequest(owner="acme", repository="widgets", issue_number=2)
+    )
+
+    assert socket.authorize_calls[0]["resource"] == "github:repo/acme/widgets"
+
+
+async def test_descriptor_option_is_the_fallback_for_empty_op_fields() -> None:
+    # Contracts generated before the Op constants carried metadata leave the
+    # fields empty; the request descriptor's operation option remains the
+    # fallback in that case only.
+    queries, _ = make_queries_spy()
+    provider = Provider()
+    socket = FakeSocketClient()
+    runner = make_runner(socket, make_connectors(queries), provider)
+    op = ops.OP_GET_ISSUE._replace(resource_template="", method_name="")
+
+    await runner.run(CALLER, op, make_request())
+
+    assert socket.authorize_calls[0]["resource"] == "repos/acme/repo"
+
+
+@pytest.mark.parametrize("version", ["", "v0.20.0"])
+async def test_sends_the_configured_binding_version(version: str) -> None:
+    queries, _ = make_queries_spy()
+    provider = Provider()
+    socket = FakeSocketClient()
+    entry = ConnectorEntry(
+        connector_id="installed-github",
+        connection_name="pat",
+        kind="http_bearer",
+        base_url=BASE_URL,
+        operations={
+            ops.OP_GET_ISSUE.id: OperationBinding(
+                issues_pb2.GetIssueRequest, queries, binding_version=version
+            )
+        },
+    )
+    runner = make_runner(socket, {"github": entry}, provider)
+
+    await runner.run(CALLER, ops.OP_GET_ISSUE, make_request())
+
+    assert socket.authorize_calls[0]["binding_version"] == version
+
+
+async def test_binding_stale_denied_before_release_and_provider() -> None:
+    # kei-proxy denies with reason_code=binding_stale when the authorize
+    # request names a binding version it does not serve. The runner passes
+    # the reason through untouched and never releases or executes.
+    queries, built = make_queries_spy()
+    provider = Provider()
+    socket = FakeSocketClient(authorize_result={"decision": "deny", "reason_code": "binding_stale"})
+    runner = make_runner(socket, make_connectors(queries), provider)
+
+    with pytest.raises(OperationDeniedError) as excinfo:
+        await runner.run(CALLER, ops.OP_GET_ISSUE, make_request())
+
+    assert excinfo.value.reason_code == "binding_stale"
+    assert socket.release_calls == []
+    assert built == []
+    assert provider.requests == 0
+
+
+async def test_wildcard_granted_read_works_and_write_deny_reason_untouched() -> None:
+    # A read-only .* wildcard grant allows the read end to end; the same
+    # policy set denies the write and the runner surfaces kei-proxy's deny
+    # reason code unchanged.
+    queries, _ = make_queries_spy()
+    provider = Provider()
+    entry = ConnectorEntry(
+        connector_id="installed-github",
+        connection_name="pat",
+        kind="http_bearer",
+        base_url=BASE_URL,
+        operations={
+            ops.OP_GET_ISSUE.id: OperationBinding(issues_pb2.GetIssueRequest, queries),
+            ops.OP_CREATE_ISSUE_COMMENT.id: OperationBinding(
+                issues_pb2.CreateIssueCommentRequest, queries
+            ),
+        },
+    )
+    read_socket = FakeSocketClient(authorize_result={"decision": "allow"})
+    read_runner = make_runner(read_socket, {"github": entry}, provider)
+
+    issue = await read_runner.run(CALLER, ops.OP_GET_ISSUE, make_request())
+
+    assert issue.title == "issue"
+    assert provider.requests == 1
+
+    write_socket = FakeSocketClient(
+        authorize_result={"decision": "deny", "reason_code": "write_not_granted"}
+    )
+    write_runner = make_runner(write_socket, {"github": entry}, provider)
+
+    with pytest.raises(OperationDeniedError) as excinfo:
+        await write_runner.run(CALLER, ops.OP_CREATE_ISSUE_COMMENT, make_issue_comment_request())
+
+    assert excinfo.value.reason_code == "write_not_granted"
+    assert write_socket.release_calls == []
+    assert provider.requests == 1
 
 
 async def test_deny_builds_no_connection() -> None:
