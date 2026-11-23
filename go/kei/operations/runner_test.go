@@ -105,7 +105,7 @@ func newProviderServer(t *testing.T) *providerServer {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id": 42, "number": 42, "title": "Synthetic issue"}`))
 	}))
-	t.Cleanup(p.Server.Close)
+	t.Cleanup(p.Close)
 	return p
 }
 
@@ -386,7 +386,7 @@ func TestReleaseFailureTimeoutUnavailableDeny(t *testing.T) {
 	})
 }
 
-func deniedWithCode(t *testing.T, err error, code string) *OperationDeniedError {
+func deniedWithCode(t *testing.T, err error, code string) {
 	t.Helper()
 	if err == nil {
 		t.Fatal("Run must deny")
@@ -398,7 +398,6 @@ func deniedWithCode(t *testing.T, err error, code string) *OperationDeniedError 
 	if denied.ReasonCode != code {
 		t.Fatalf("reason code = %q, want %q", denied.ReasonCode, code)
 	}
-	return denied
 }
 
 func TestRunnerNeverLogsCredential(t *testing.T) {
