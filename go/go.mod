@@ -10,4 +10,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-replace github.com/HaikeiLabs/kei-connector-contracts/gen/go => /Users/soypete/code/haikei/kei-connector-contracts-wt/opsgh/gen/go
+// Local build until registry publishing; the real version pin comes with it
+// (see the operations PR body).
+replace github.com/HaikeiLabs/kei-connector-contracts/gen/go => ../../../kei-connector-contracts-wt/ctmain2/gen/go

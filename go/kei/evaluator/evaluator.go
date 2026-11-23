@@ -81,9 +81,14 @@ type AuthorizeRequest struct {
 	InvokingSubject string
 	ParentSpan      string
 	DelegationDepth int
-	AgentVersion    string
-	Framework       string
-	ToolArgsDigest  string
+	// BindingVersion is the optional version of the installed tool binding
+	// (from the tool manifest's binding version); when set it is sent on
+	// authorize and kei-proxy denies binding_stale on a mismatch. Omitted
+	// when empty.
+	BindingVersion string
+	AgentVersion   string
+	Framework      string
+	ToolArgsDigest string
 	// ToolArgs and ToolContext are local-only inputs for connector plan evaluation.
 	ToolArgs    map[string]any
 	ToolContext map[string]any

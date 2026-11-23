@@ -53,6 +53,10 @@ type ConnectorConfig struct {
 	Conn *contracts.Connection
 	// BaseURL is the provider origin for built connections.
 	BaseURL string
+	// BindingVersion is the optional version of the installed tool binding
+	// (from the tool manifest's binding version); when set, the runner sends
+	// it on authorize and kei-proxy denies binding_stale on a mismatch.
+	BindingVersion string
 }
 
 // AuditRecord is metadata-only: it never carries arguments, responses or
@@ -224,6 +228,7 @@ func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middlew
 		Resource:        resource,
 		ParentSpan:      caller.ParentSpan,
 		DelegationDepth: caller.DelegationDepth,
+		BindingVersion:  r.cfg.BindingVersion,
 	})
 	if err != nil {
 		r.logger.WarnContext(ctx, "operation authorize failed", "operation", op.ID)

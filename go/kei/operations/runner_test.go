@@ -467,3 +467,171 @@ func TestConnectorNotNamedSurfacesReason(t *testing.T) {
 
 // compile-time: the runner must accept proto messages.
 var _ proto.Message = (*github.GetIssueResponse)(nil)
+
+// TestAuthorizeUsesTheGeneratedOpFields pins the metadata source: the
+// authorize resource is rendered from the generated Op constant the caller
+// passes, not from anywhere else.
+func TestAuthorizeUsesTheGeneratedOpFields(t *testing.T) {
+	fc, _, cfg := allowFlow(t)
+	r := NewRunner(fc, "user-1", cfg)
+	op := githubops.OpGetIssue
+	op.ResourceTemplate = "github:repo/{owner}/{repository}"
+
+	_, err := Run(context.Background(), r, testCaller(), op,
+		func(conn any) (*github.GetIssueResponse, error) { return &github.GetIssueResponse{}, nil },
+		&github.GetIssueRequest{Owner: "octo", Repository: "repo", IssueNumber: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if got := fc.authorizeReqs[0].Resource; got != "github:repo/octo/repo" {
+		t.Fatalf("authorize resource = %q, want github:repo/octo/repo", got)
+	}
+}
+
+// TestEmptyOpFieldsAreInvalidOperation pins the generated-metadata contract:
+// an Op whose required fields are empty denies before authorize.
+func TestEmptyOpFieldsAreInvalidOperation(t *testing.T) {
+	for name, mutate := range map[string]func(*connection.Op){
+		"no_resource_template": func(op *connection.Op) { op.ResourceTemplate = "" },
+		"no_method_name":       func(op *connection.Op) { op.MethodName = "" },
+		"no_connections":       func(op *connection.Op) { op.Connections = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			fc, p, cfg := allowFlow(t)
+			r := NewRunner(fc, "user-1", cfg)
+			op := githubops.OpGetIssue
+			mutate(&op)
+			_, err := Run(context.Background(), r, testCaller(), op,
+				func(conn any) (*github.GetIssueResponse, error) { return &github.GetIssueResponse{}, nil },
+				&github.GetIssueRequest{Owner: "octo", Repository: "repo", IssueNumber: 42})
+			if name == "no_connections" {
+				// An Op without connections is structurally valid metadata but
+				// the configured connection cannot be on it.
+				deniedWithCode(t, err, "invalid_connection")
+			} else {
+				deniedWithCode(t, err, "invalid_operation")
+			}
+			if p.count() != 0 {
+				t.Errorf("provider requests = %d, want 0", p.count())
+			}
+		})
+	}
+}
+
+// TestSendsTheConfiguredBindingVersion pins the optional binding version: the
+// runner sends it on authorize when its config carries one and never sends an
+// empty string.
+func TestSendsTheConfiguredBindingVersion(t *testing.T) {
+	t.Run("sent when the config carries one", func(t *testing.T) {
+		fc, _, cfg := allowFlow(t)
+		cfg.BindingVersion = "v0.20.0"
+		r := NewRunner(fc, "user-1", cfg)
+		_, err := Run(context.Background(), r, testCaller(), githubops.OpGetIssue,
+			func(conn any) (*github.GetIssueResponse, error) { return &github.GetIssueResponse{}, nil },
+			&github.GetIssueRequest{Owner: "octo", Repository: "repo", IssueNumber: 42})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fc.mu.Lock()
+		defer fc.mu.Unlock()
+		if got := fc.authorizeReqs[0].BindingVersion; got != "v0.20.0" {
+			t.Fatalf("authorize binding_version = %q, want v0.20.0", got)
+		}
+	})
+
+	t.Run("absent when unset", func(t *testing.T) {
+		fc, _, cfg := allowFlow(t)
+		r := NewRunner(fc, "user-1", cfg)
+		_, err := Run(context.Background(), r, testCaller(), githubops.OpGetIssue,
+			func(conn any) (*github.GetIssueResponse, error) { return &github.GetIssueResponse{}, nil },
+			&github.GetIssueRequest{Owner: "octo", Repository: "repo", IssueNumber: 42})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fc.mu.Lock()
+		defer fc.mu.Unlock()
+		if got := fc.authorizeReqs[0].BindingVersion; got != "" {
+			t.Fatalf("authorize binding_version = %q, want empty", got)
+		}
+	})
+}
+
+// TestBindingStaleDeniedBeforeReleaseAndProvider pins binding-version
+// enforcement: a binding_stale deny surfaces its reason code untouched, with
+// no credential release and no provider request.
+func TestBindingStaleDeniedBeforeReleaseAndProvider(t *testing.T) {
+	fc, p, cfg := allowFlow(t)
+	fc.authorize = func(ctx context.Context) (map[string]any, error) {
+		return map[string]any{"decision": "deny", "reason_code": "binding_stale"}, nil
+	}
+	r := NewRunner(fc, "user-1", cfg)
+	_, err := Run(context.Background(), r, testCaller(), githubops.OpGetIssue,
+		func(conn any) (*github.GetIssueResponse, error) { return &github.GetIssueResponse{}, nil },
+		&github.GetIssueRequest{Owner: "octo", Repository: "repo", IssueNumber: 42})
+	deniedWithCode(t, err, "binding_stale")
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if len(fc.releaseReqs) != 0 {
+		t.Errorf("release calls = %d, want 0", len(fc.releaseReqs))
+	}
+	if p.count() != 0 {
+		t.Errorf("provider requests = %d, want 0", p.count())
+	}
+}
+
+// TestWildcardGrantedReadWorksAndWriteDenyReasonUntouched pins the grant
+// semantics across read and write operations: a wildcard-granted read runs
+// end to end, and a write's deny reason passes through untouched.
+func TestWildcardGrantedReadWorksAndWriteDenyReasonUntouched(t *testing.T) {
+	t.Run("wildcard-granted read works", func(t *testing.T) {
+		fc, p, cfg := allowFlow(t)
+		r := NewRunner(fc, "user-1", cfg)
+		resp, err := Run(context.Background(), r, testCaller(), githubops.OpGetIssue,
+			func(conn any) (*github.GetIssueResponse, error) {
+				httpConn, ok := conn.(connection.HTTP)
+				if !ok {
+					return nil, errors.New("connection is not an HTTP connection")
+				}
+				status, _, body, err := httpConn.Do(context.Background(), "GET", "/repos/octo/repo/issues/42", nil, nil)
+				if err != nil {
+					return nil, err
+				}
+				if status != 200 {
+					return nil, errors.New("unexpected status")
+				}
+				out := &github.GetIssueResponse{}
+				if err := protojson.Unmarshal(body, out); err != nil {
+					return nil, err
+				}
+				return out, nil
+			}, &github.GetIssueRequest{Owner: "octo", Repository: "repo", IssueNumber: 42})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := resp.GetTitle(); got != "Synthetic issue" {
+			t.Errorf("response title = %q", got)
+		}
+		if p.count() != 1 {
+			t.Errorf("provider requests = %d, want 1", p.count())
+		}
+	})
+
+	t.Run("write deny reason passes through untouched", func(t *testing.T) {
+		fc, p, cfg := allowFlow(t)
+		fc.authorize = func(ctx context.Context) (map[string]any, error) {
+			return map[string]any{"decision": "deny", "reason_code": "write_not_granted"}, nil
+		}
+		r := NewRunner(fc, "user-1", cfg)
+		_, err := Run(context.Background(), r, testCaller(), githubops.OpCreateIssueComment,
+			func(conn any) (*github.CreateIssueCommentResponse, error) {
+				return &github.CreateIssueCommentResponse{}, nil
+			},
+			&github.CreateIssueCommentRequest{Owner: "octo", Repository: "repo", IssueNumber: 42, Body: "synthetic"})
+		deniedWithCode(t, err, "write_not_granted")
+		if p.count() != 0 {
+			t.Errorf("provider requests = %d, want 0", p.count())
+		}
+	})
+}
