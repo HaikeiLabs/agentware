@@ -301,3 +301,55 @@ def test_ungoverned_tool_protocol_check():
     """Ungoverned tools should NOT pass isinstance(GovernedTool)."""
     tool = UngovernedEchoTool()
     assert not isinstance(tool, GovernedTool)
+
+
+def test_manifest_exports_operations():
+    """A tool with operations exports them; a tool without omits the key."""
+    registry = ToolRegistry()
+    registry.register(
+        GovernedAddTool(),
+        {
+            "service": "github",
+            "source": "github",
+            "operation_class": "read",
+            "route": {"connector_binding": {"agent_id": "11111111-1111-4111-8111-111111111111", "connector_id": "22222222-2222-4222-8222-222222222222"}},
+            "required_capabilities": ["issue.read"],
+            "operations": ["github.issues.get", "github.issues.list"],
+        },
+    )
+    registry.register(
+        FixtureHarnessTool(),
+        {
+            "service": "codex",
+            "source": "codex",
+            "operation_class": "write",
+            "route": {"harness_executor": {"executor": "codex", "registration": "codex.shell"}},
+        },
+    )
+    manifest = json.loads(registry.export_kei_tool_manifest())
+    entries = {tool["name"]: tool for tool in manifest["tools"]}
+    assert entries["github.get_issue"]["operations"] == ["github.issues.get", "github.issues.list"]
+    assert "operations" not in entries["codex.shell"], "tools without operations must omit the key"
+
+
+def test_manifest_rejects_invalid_operations_entry():
+    """Each operations entry must be a dotted lowercase identifier (3+ segments)."""
+    for bad in ("GitHub.Issues", "issues.get", "github.issues."):
+        registry = ToolRegistry()
+        registry.register(
+            GovernedAddTool(),
+            {
+                "service": "github",
+                "source": "github",
+                "operation_class": "read",
+                "route": {"connector_binding": {"agent_id": "11111111-1111-4111-8111-111111111111", "connector_id": "22222222-2222-4222-8222-222222222222"}},
+                "required_capabilities": ["issue.read"],
+                "operations": [bad],
+            },
+        )
+        try:
+            registry.export_kei_tool_manifest(version=3)
+        except ValueError as exc:
+            assert "operations" in str(exc)
+        else:
+            raise AssertionError(f"invalid operations entry {bad!r} was exported")

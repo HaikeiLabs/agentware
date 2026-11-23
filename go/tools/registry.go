@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 	"errors"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -63,6 +64,11 @@ type ManifestVersion int
 
 const ManifestV3 ManifestVersion = 3
 
+// operationsEntry is the wire format for connector operation ids in the
+// manifest's optional operations array: at least three lowercase segments
+// separated by dots, e.g. github.issues.get.
+var operationsEntry = regexp.MustCompile(`^[a-z0-9_]+(\.[a-z0-9_]+){2,}$`)
+
 // KeiToolRegistration is trusted route metadata stored alongside a dispatch entry.
 type KeiToolRegistration struct {
 	Service              string            `json:"service"`
@@ -71,6 +77,7 @@ type KeiToolRegistration struct {
 	Route                ToolRoute         `json:"route"`
 	RequiredCapabilities []string          `json:"required_capabilities,omitempty"`
 	ResourceTypes        []KeiResourceType `json:"resource_types,omitempty"`
+	Operations           []string          `json:"operations,omitempty"`
 }
 
 type ToolRoute struct {
@@ -98,6 +105,7 @@ type manifestV3Entry struct {
 	Route                ToolRoute         `json:"route"`
 	RequiredCapabilities []string          `json:"required_capabilities,omitempty"`
 	ResourceTypes        []KeiResourceType `json:"resource_types,omitempty"`
+	Operations           []string          `json:"operations,omitempty"`
 	Description          string            `json:"description"`
 	Enabled              bool              `json:"enabled"`
 }
@@ -130,6 +138,15 @@ func (r *ToolRegistry) exportV3() ([]byte, error) {
 			return nil, errors.New("route must contain exactly one branch")
 		}
 		entry := manifestV3Entry{Name: name, Service: reg.Service, Source: reg.Source, OperationClass: reg.OperationClass, Route: reg.Route, Description: r.tools[name].Description(), Enabled: true}
+		if len(reg.Operations) > 0 {
+			for _, op := range reg.Operations {
+				if !operationsEntry.MatchString(op) {
+					return nil, errors.New("invalid operations entry: " + op)
+				}
+			}
+			entry.Operations = append([]string{}, reg.Operations...)
+			sort.Strings(entry.Operations)
+		}
 		if connector != nil {
 			if strings.TrimSpace(connector.AgentID) == "" || strings.TrimSpace(connector.ConnectorID) == "" || len(reg.RequiredCapabilities) == 0 {
 				return nil, errors.New("connector route requires binding and non-empty capabilities")

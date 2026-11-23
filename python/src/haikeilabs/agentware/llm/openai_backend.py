@@ -12,24 +12,49 @@ from .request import Message, ToolDefinition
 from .response import Response, TokenUsage, ToolCall
 
 
+def _decode_arguments(name: str, raw: Any) -> dict[str, Any]:
+    """Decode native tool-call arguments, failing closed (mirrors #300).
+
+    Arguments arrive as a JSON string (most servers) or an object (some
+    servers). Missing, empty or null arguments mean no arguments. Anything
+    else that is not a JSON object raises, so a malformed call is never run
+    with silently emptied arguments.
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        if not raw.strip():
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except ValueError as e:
+            raise ValueError(f"tool call {name!r} arguments: not valid JSON: {e}") from e
+        if not isinstance(parsed, dict):
+            raise ValueError(f"tool call {name!r} arguments: not a JSON object")
+        return parsed
+    raise ValueError(f"tool call {name!r} arguments: not a JSON object")
+
+
 def parse_tool_calls(raw: list[dict[str, Any]]) -> list[ToolCall]:
-    """Parse native calls and preserve opaque provider metadata."""
+    """Parse native calls, keeping ids and opaque provider metadata.
+
+    Fails closed (mirrors Go #300): a nameless call or arguments that are
+    not a JSON object raise ValueError instead of yielding a call with
+    silently emptied arguments.
+    """
     calls = []
     for tc in raw:
         function = tc.get("function") or {}
         name = function.get("name")
         if not name:
-            continue
-        args = function.get("arguments", "{}")
-        try:
-            parsed = json.loads(args) if isinstance(args, str) else args
-        except (ValueError, TypeError):
-            parsed = {}
+            raise ValueError("tool call without a name")
         calls.append(
             ToolCall(
                 id=tc.get("id", ""),
                 name=name,
-                arguments=parsed if isinstance(parsed, dict) else {},
+                arguments=_decode_arguments(name, function.get("arguments")),
                 metadata=tc.get("extra_content"),
                 _metadata_present="extra_content" in tc,
             )
