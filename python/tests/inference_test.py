@@ -26,7 +26,7 @@ class MockBackend:
     responses: list[Response]
     call_count: int = 0
 
-    def complete(self, messages: list[Message]) -> Response:
+    def complete(self, messages: list[Message], tools=None) -> Response:
         """Return sequential mock responses."""
         if self.call_count >= len(self.responses):
             return self.responses[-1]

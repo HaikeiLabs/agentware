@@ -223,10 +223,12 @@ pull request comment are the record; local runs are for tuning.
 
 **The CI gate** (`.github/workflows/agent-evals.yaml`, a copy of the
 HaikeiLabs/kei template; runbook: kei `docs/agent-evals-gate.md`) runs the
-suites a pull request changes once per case, at most 30 minutes per eval job
-(a timeout fails the check), and cancels the run when the pull request closes
-or merges. The nightly sweep of `main` (09:00 UTC, or by hand) runs every suite
-3 times per case; a failing sweep opens or updates the "Nightly agent evals
+only the suites a pull request changes once per case, at most 60 minutes per
+eval job (a timeout fails the check), and cancels the run when the pull
+request closes or merges. A change to the workflow or to
+`evals/model-profiles.yaml` alone runs no suite on a pull request. The nightly
+sweep of `main` (09:00 UTC, or by hand) is the only run of every suite, 3
+times per case; a failing sweep opens or updates the "Nightly agent evals
 below 95%" issue. While a pull request has the `evals:tuning` label nothing
 runs and the gate fails until the label is removed.
 

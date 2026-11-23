@@ -23,7 +23,7 @@ record is metadata only (operation id, decision, outcome).
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, NamedTuple, Protocol
 from urllib.parse import quote
 
 import httpx
@@ -77,6 +77,7 @@ class OperationSocketClient(Protocol):
         resource: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
+        binding_version: str = "",
     ) -> Mapping[str, Any]: ...
 
     async def release_credential(
@@ -94,10 +95,16 @@ class OperationSocketClient(Protocol):
 
 @dataclass(frozen=True)
 class OperationBinding:
-    """Binds a generated request message type to its generated queries class."""
+    """Binds a generated request message type to its generated queries class.
+
+    ``binding_version`` is the optional version of the installed tool binding
+    (from the tool manifest's binding version); when set, the runner sends it
+    on authorize and kei-proxy denies ``binding_stale`` on a mismatch.
+    """
 
     request_type: type[Message]
     queries: Callable[[HttpConnection], Any]
+    binding_version: str = ""
 
 
 @dataclass
@@ -155,19 +162,48 @@ class ConnectRequiredError(Exception):
         self.connect = connect
 
 
-def operation_meta(op: Op, request_type: type[Message]) -> Any:
-    """The generated ``operation`` option metadata for ``op`` on ``request_type``.
+class OperationMeta(NamedTuple):
+    """The operation metadata a run needs: the generated ``Op`` constant's
+    fields, with the request descriptor's operation option as the fallback for
+    any field the constant left empty (contracts generated before the fields
+    existed)."""
 
-    Raises :class:`OperationDeniedError` (``invalid_operation``) when the request
-    descriptor carries no operation option or one that does not name ``op``.
+    id: str
+    connector: str
+    resource_template: str
+    method_name: str
+    connections: tuple[str, ...]
+
+
+def operation_meta(op: Op, request_type: type[Message]) -> OperationMeta:
+    """The metadata for ``op``: the generated ``Op`` constant's fields first,
+    the descriptor option only as a fallback for fields it leaves empty.
+
+    Raises :class:`OperationDeniedError` (``invalid_operation``) when the two
+    sources disagree or a field is still empty.
     """
+    meta: Any = None
     try:
         meta = request_type.DESCRIPTOR.GetOptions().Extensions[options_pb2.operation]
     except (AttributeError, KeyError):
-        raise OperationDeniedError("invalid_operation") from None
-    if meta.id != op.id or not meta.connector or not meta.method_name or not meta.resource_template:
+        pass
+    if meta is not None and meta.id != op.id:
         raise OperationDeniedError("invalid_operation")
-    return meta
+    template = op.resource_template if isinstance(op.resource_template, str) else ""
+    method_name = op.method_name if isinstance(op.method_name, str) else ""
+    connections = tuple(op.connections) if op.connections else ()
+    template = template or getattr(meta, "resource_template", "")
+    method_name = method_name or getattr(meta, "method_name", "")
+    connections = connections or tuple(getattr(meta, "connections", ()) or ())
+    if not template or not method_name or not connections:
+        raise OperationDeniedError("invalid_operation")
+    return OperationMeta(
+        id=op.id,
+        connector=op.id.split(".")[0],
+        resource_template=template,
+        method_name=method_name,
+        connections=connections,
+    )
 
 
 def render_resource(template: str, request_type: type[Message], request: Message) -> str:
@@ -310,6 +346,7 @@ class OperationRunner:
                     resource=resource,
                     parent_span=parent_span,
                     delegation_depth=delegation_depth,
+                    binding_version=binding.binding_version,
                 )
             except Exception:
                 raise OperationDeniedError("proxy_unavailable") from None
