@@ -32,6 +32,8 @@ export interface OperationSocketClient {
 export interface OperationBinding {
   requestSchema: DescMessage;
   queries: (connection: HTTP) => object;
+  /** Version of the installed tool binding used for authorization. */
+  bindingVersion?: string;
 }
 /** Installed connector routing metadata, indexed by the contract connector ID. */
 export type ConnectorConfig = Record<
@@ -213,6 +215,7 @@ export class OperationRunner {
           tool: opts.tool ?? "",
           action: capability,
           resource,
+          ...(binding.bindingVersion === undefined ? {} : { bindingVersion: binding.bindingVersion }),
           ...context,
         });
       } catch {

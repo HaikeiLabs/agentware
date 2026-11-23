@@ -30,7 +30,7 @@ afterEach(async () => {
   server = undefined;
   jest.restoreAllMocks();
 });
-async function setup(status = 200) {
+async function setup(status = 200, bindingVersion?: string) {
   let requests = 0;
   server = createServer((req, res) => {
     requests++;
@@ -63,6 +63,7 @@ async function setup(status = 200) {
         [OP_GET_ISSUE.id]: {
           requestSchema: GetIssueRequestSchema,
           queries: build,
+          ...(bindingVersion === undefined ? {} : { bindingVersion }),
         },
       },
     },
@@ -71,6 +72,22 @@ async function setup(status = 200) {
   return { runner, client, audit, build, requests: () => requests, connectors };
 }
 describe("OperationRunner", () => {
+  it.each([undefined, "v2"])("sends the configured binding version %s", async (version) => {
+    const x = await setup(200, version);
+    await x.runner.run(caller, OP_GET_ISSUE, request);
+    const input = x.client.authorize.mock.calls[0][1];
+    if (version === undefined) expect(input).not.toHaveProperty("bindingVersion");
+    else expect(input).toHaveProperty("bindingVersion", version);
+  });
+  it("denies a stale binding before releasing credentials or calling the provider", async () => {
+    const x = await setup(200, "v2");
+    x.client.authorize.mockResolvedValue({ decision: "deny", reason_code: "binding_stale" });
+    const error = await x.runner.run(caller, OP_GET_ISSUE, request).catch((e) => e);
+    expect(error).toBeInstanceOf(OperationDenied);
+    expect((error as OperationDenied).reasonCode).toBe("binding_stale");
+    expect(x.client.releaseCredential).not.toHaveBeenCalled();
+    expect(x.requests()).toBe(0);
+  });
   it("authorizes then releases and calls a generated operation", async () => {
     const x = await setup();
     const result = await x.runner.run<typeof request, { title: string }>(
