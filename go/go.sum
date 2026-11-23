@@ -2,6 +2,8 @@ github.com/HaikeiLabs/kei-connector-contracts v0.10.8-0.20261024221321-dad7a39f2
 github.com/HaikeiLabs/kei-connector-contracts v0.10.8-0.20261024221321-dad7a39f22ed/go.mod h1:Y3GI1O5wqRFogqDGPiXcE20wQyEHX8rTGXw2U2VCKQw=
 github.com/HaikeiLabs/kei-connector-contracts/gen/go v0.20.0 h1:PFQIdVGC94IFXr74bDYDIyk6qOQoVLUnwp6he/OA6BU=
 github.com/HaikeiLabs/kei-connector-contracts/gen/go v0.20.0/go.mod h1:Gs22cepQwigMzdAQYIfYG7h2Q5uS+2nPCsgXumjPEMg=
+github.com/HaikeiLabs/kei-connector-contracts/gen/go v0.20.1 h1:R/JEYRxQoh1Isfo2U0Vt3SKJIb9/rGV6lNs+AxYkieQ=
+github.com/HaikeiLabs/kei-connector-contracts/gen/go v0.20.1/go.mod h1:Gs22cepQwigMzdAQYIfYG7h2Q5uS+2nPCsgXumjPEMg=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/soypete/ontology-go v0.0.0-20260730193222-0c5ba6ae2cd5 h1:4mePEU1WwbXK2MGIAcjOWX4gmNi261Go9QNg3sA6/mA=
