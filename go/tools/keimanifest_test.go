@@ -182,3 +182,57 @@ func TestExportKeiToolManifest_UngovernedExcluded(t *testing.T) {
 		t.Errorf("expected empty v3 manifest, got %#v", m)
 	}
 }
+
+func TestManifestExportsOperations(t *testing.T) {
+	registry := NewToolRegistry()
+	registry.Register(&plainTool{name: "github.get_issue", description: "Fetch an issue from a GitHub repository"}, KeiToolRegistration{
+		Service: "github", Source: "github", OperationClass: "read",
+		Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "11111111-1111-4111-8111-111111111111", ConnectorID: "22222222-2222-4222-8222-222222222222"}},
+		RequiredCapabilities: []string{"issue.read"},
+		Operations:           []string{"github.issues.get", "github.issues.list"},
+	})
+	registry.Register(&plainTool{name: "codex.shell", description: "Run a local harness action"}, KeiToolRegistration{
+		Service: "codex", Source: "codex", OperationClass: "write",
+		Route: ToolRoute{HarnessExecutor: &HarnessExecutorRoute{Executor: "codex", Registration: "codex.shell"}},
+	})
+
+	raw, err := registry.ExportKeiToolManifest()
+	if err != nil {
+		t.Fatalf("ExportKeiToolManifest() returned error: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+	tools := m["tools"].([]any)
+	if len(tools) != 2 {
+		t.Fatalf("expected 2 tools, got %d", len(tools))
+	}
+	entries := make(map[string]map[string]any)
+	for _, raw := range tools {
+		entry, _ := raw.(map[string]any)
+		entries[entry["name"].(string)] = entry
+	}
+	withOps, ok := entries["github.get_issue"]["operations"].([]any)
+	if !ok || len(withOps) != 2 || withOps[0] != "github.issues.get" || withOps[1] != "github.issues.list" {
+		t.Errorf("github.get_issue should export operations [github.issues.get github.issues.list], got %#v", entries["github.get_issue"]["operations"])
+	}
+	if _, present := entries["codex.shell"]["operations"]; present {
+		t.Errorf("tools without operations must omit the operations key, got %#v", entries["codex.shell"]["operations"])
+	}
+}
+
+func TestManifestRejectsInvalidOperationsEntry(t *testing.T) {
+	for _, bad := range []string{"GitHub.Issues", "issues.get", "github.issues."} {
+		registry := NewToolRegistry()
+		registry.Register(&plainTool{name: "github.get_issue", description: "Fetch an issue"}, KeiToolRegistration{
+			Service: "github", Source: "github", OperationClass: "read",
+			Route:                ToolRoute{ConnectorBinding: &ConnectorBindingRoute{AgentID: "11111111-1111-4111-8111-111111111111", ConnectorID: "22222222-2222-4222-8222-222222222222"}},
+			RequiredCapabilities: []string{"issue.read"},
+			Operations:           []string{bad},
+		})
+		if _, err := registry.ExportKeiToolManifest(); err == nil {
+			t.Errorf("expected an error for invalid operations entry %q", bad)
+		}
+	}
+}

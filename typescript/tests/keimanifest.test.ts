@@ -218,5 +218,28 @@ describe("KeiToolManifest", () => {
     expect(() => registry.exportKeiToolManifest(3)).toThrow("connector route requires binding");
   });
 
+  it("manifest exports operations", () => {
+    const registry = new ToolRegistry();
+    registry.register(new GovernedGetIssueTool(), { service: "github", source: "github", operation_class: "read",
+      route: { connector_binding: { agent_id: "agent-1", connector_id: "binding-1" } }, required_capabilities: ["issue.read"],
+      operations: ["github.issues.get", "github.issues.list"] });
+    registry.register(new GovernedSlackTool(), { service: "codex", source: "codex", operation_class: "write",
+      route: { harness_executor: { executor: "codex", registration: "codex.shell" } } });
+    const manifest = registry.exportKeiToolManifest(3);
+    const getIssue = manifest.tools.find((tool) => tool.name === "github.get_issue")!;
+    expect(getIssue.operations).toEqual(["github.issues.get", "github.issues.list"]);
+    const shell = manifest.tools.find((tool) => tool.name === "slack.post_message")!;
+    expect("operations" in shell).toBe(false);
+  });
+
+  it("rejects invalid operations entries", () => {
+    for (const bad of ["GitHub.Issues", "issues.get", "github.issues."]) {
+      const registry = new ToolRegistry();
+      registry.register(new GovernedGetIssueTool(), { service: "github", source: "github", operation_class: "read",
+        route: { connector_binding: { agent_id: "agent-1", connector_id: "binding-1" } }, required_capabilities: ["issue.read"],
+        operations: [bad] });
+      expect(() => registry.exportKeiToolManifest(3)).toThrow(/operations/);
+    }
+  });
 
 });
