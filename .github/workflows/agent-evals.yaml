@@ -6,10 +6,11 @@
 # keeps two copies with different `name:` values and file names.
 #
 # On a same-repository pull request it runs, once per model profile and once
-# per case (EVAL_REPEATS 1), the eval suites the pull request changes (all of
-# them when this workflow or an EVAL_GLOBAL_PATHS file changes; none, and a
-# green "no eval-relevant changes" comment, when no changed file maps to a
-# suite). It runs them on the self-hosted kei-agent-evals runners, which reach the model
+# per case (EVAL_REPEATS 1), only the eval suites that hold a changed file;
+# none, and a green "no eval-relevant changes" comment, when no changed file
+# maps to a suite. A change to this workflow or to an EVAL_GLOBAL_PATHS file
+# does not run every suite on a pull request; the nightly sweep covers that.
+# It runs them on the self-hosted kei-agent-evals runners, which reach the model
 # servers through Tailscale egress Services. It posts one sticky
 # <!-- agent-evals --> comment (suite x model table) and fails when any suite
 # is below EVAL_THRESHOLD or a model server does not answer ("models
@@ -26,7 +27,7 @@
 #
 # Closing or merging a pull request cancels its eval run, so a stale branch
 # never holds the kei-agent-evals runners. A pull request eval job stops after
-# 30 minutes and the nightly one after 110; an eval job that times out fails
+# 60 minutes and the nightly one after 110; an eval job that times out fails
 # agent-evals-report, never a silent pass.
 #
 # Every pull request gets the agent-evals-report check, so it can be a
@@ -93,7 +94,8 @@ env:
   # agentware.beta-tools: the beta governed-tool suite.
   EVAL_SUITES: "evals/suites/*.json"
   # evals/model-profiles.yaml is the canonical profile file (EV-C1 §3), and
-  # the probe reads it from this repository first: a change re-runs every suite.
+  # the probe reads it from this repository first. A change to it runs every
+  # suite in the nightly sweep; on a pull request it selects nothing by itself.
   # The grader below is pinned, so a pull request that changes python/src/evals
   # is still graded by the pinned runner, not by its own change.
   EVAL_GLOBAL_PATHS: "evals/model-profiles.yaml"
@@ -176,10 +178,6 @@ jobs:
             const globRe = (g) => new RegExp(`^${g.split(/(\*\*\/|\*\*|\*|\?)/)
               .map((t) => wild.get(t) ?? t.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('')}$`);
             const suiteGlobs = words(process.env.EVAL_SUITES).map((g) => globRe(g.replace(/\/+$/, '')));
-            const globalGlobs = words(process.env.EVAL_GLOBAL_PATHS).map(globRe);
-            // owner/repo/.github/workflows/<file>@<ref>: this workflow grades every suite.
-            const workflowFile = String(process.env.GITHUB_WORKFLOW_REF ?? '')
-              .replace(/^[^/]+\/[^/]+\//, '').replace(/@.*$/, '');
             const event = process.env.EVENT_NAME;
             const nightly = event === 'schedule' || event === 'workflow_dispatch';
 
@@ -230,10 +228,13 @@ jobs:
             let mode;
             let selected;
             let reason;
-            const global = changed.find((f) => f === workflowFile || globalGlobs.some((re) => re.test(f)));
-            if (nightly || global) {
+            // Only the nightly sweep runs every suite. On a pull request, a change
+            // to this workflow or an EVAL_GLOBAL_PATHS file selects nothing by
+            // itself (owner decision 2026-11-20): the pull request runs the
+            // suites it changes, and the nightly covers the rest.
+            if (nightly) {
               mode = 'all';
-              reason = nightly ? `nightly sweep (${event})` : `${global} changed`;
+              reason = `nightly sweep (${event})`;
               selected = [...new Set(allPaths().map(suiteOf).filter(Boolean))].filter(isSuite).sort();
             } else {
               selected = [...new Set(changed.map(suiteOf).filter(Boolean))].filter(isSuite).sort();
@@ -326,12 +327,13 @@ jobs:
         github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ${{ matrix.runner }}
     # A pull request runs one repeat of the suites it changes, split into
-    # shards of about EVAL_SHARD_RUNS runs, so 30 minutes is enough and a stuck
-    # job frees its runner soon. The nightly sweep (three repeats of every
-    # suite) gets 110, below the runner pod's activeDeadlineSeconds (2h). A
-    # job that times out uploads status.json "incomplete", which fails the
-    # report.
-    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 110 }}
+    # shards of about EVAL_SHARD_RUNS runs, and gets 60
+    # minutes: room for a busy model host (shards on a saturated host hit 30
+    # minutes without a score), and a stuck job still frees its runner within
+    # the hour. The nightly sweep (three repeats of every suite) gets 110,
+    # below the runner pod's activeDeadlineSeconds (2h). A job that times out
+    # uploads status.json "incomplete", which fails the report.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 60 || 110 }}
     strategy:
       fail-fast: false
       # One job per profile (EVAL_PROFILES) per shard of the scope job's
@@ -786,7 +788,7 @@ jobs:
               }
               if (!suites.length && !problems.length && scored) problems.push('no suite results were produced');
               const scopeLine = skipped
-                ? 'No eval-relevant changes: no changed file is in an eval suite, and neither this workflow nor an `EVAL_GLOBAL_PATHS` file changed. Nothing was run.'
+                ? 'No eval-relevant changes: no changed file is in an eval suite. Nothing was run; the nightly sweep runs every suite.'
                 : scopeMode === 'changed'
                   ? `Scope: changed suites only (${scopeSuites.map((s) => `\`${safePath(s)}\``).join(', ')})`
                   : scopeMode === 'all'
