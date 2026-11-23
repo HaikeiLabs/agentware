@@ -40,7 +40,7 @@ dependencies = [
     # Generated connector operation contracts (kei.connection, kei.connectors.*).
     # A local build until registry publishing; the real version pin comes with
     # it (see the operations PR body).
-    "haikeilabs-connector-contracts @ file:../../../kei-connector-contracts-wt/ctmain2/gen/python",
+    "haikeilabs-connector-contracts==0.20.1",
 ]
 
 [project.optional-dependencies]
