@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "description": "Shared response-validator cases: reasoning blocks are stripped before tool-call rescue, for every pair in the reasoning-tag constants (think, thinking, bracket THINK), single- and multi-line, case-insensitive. Each reasoning block drafts a tool2 call that must NOT be rescued. Replayed by every port's validator test; angle and square brackets of tags are written as \\u003c / \\u005b escapes so no file holds a literal tag.",
+  "tool_names": [
+    "tool1",
+    "tool2"
+  ],
+  "cases": [
+    {
+      "name": "think_single_line",
+      "response": "\u003cthink>draft {\"tool\": \"tool2\", \"args\": {}}\u003c/think>\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "think_multi_line",
+      "response": "\u003cthink>\nI could call\n{\"tool\": \"tool2\", \"args\": {}}\nbut tool1 fits.\n\u003c/think>\n\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "thinking_single_line",
+      "response": "\u003cthinking>draft {\"tool\": \"tool2\", \"args\": {}}\u003c/thinking>\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "thinking_multi_line",
+      "response": "\u003cthinking>\nI could call\n{\"tool\": \"tool2\", \"args\": {}}\nbut tool1 fits.\n\u003c/thinking>\n\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "bracket_think_single_line",
+      "response": "\u005bTHINK]draft {\"tool\": \"tool2\", \"args\": {}}\u005b/THINK]\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "bracket_think_multi_line",
+      "response": "\u005bTHINK]\nI could call\n{\"tool\": \"tool2\", \"args\": {}}\nbut tool1 fits.\n\u005b/THINK]\n\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "think_uppercase",
+      "response": "\u003cTHINK>draft {\"tool\": \"tool2\", \"args\": {}}\u003c/THINK>\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "thinking_mixed_case",
+      "response": "\u003cThinking>draft {\"tool\": \"tool2\", \"args\": {}}\u003c/Thinking>\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "reasoning_only_rescues_nothing",
+      "response": "\u003cthink>\nMaybe {\"tool\": \"tool2\", \"args\": {}}\n\u003c/think>",
+      "expected_tool_calls": []
+    }
+  ]
+}

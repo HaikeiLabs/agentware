@@ -2,8 +2,8 @@
   "family": "qwen",
   "description": "Qwen/QwQ reasoning model response format",
   "reasoning_field": "reasoning_content",
-  "thinking_tags": ["<thinking>", "</thinking>"],
-  "notes": "Qwen models with reasoning (QwQ, Qwen3) use 'reasoning_content' field in the API response. They may also include <thinking>...</thinking> tags inline in the content text. Both patterns are handled by the reasoning adapter.",
+  "thinking_tags": ["\u003cthinking>", "\u003c/thinking>", "\u003cthink>", "\u003c/think>"],
+  "notes": "Qwen models with reasoning (QwQ, Qwen3) use 'reasoning_content' field in the API response. They may also include <thinking>...</thinking> tags inline in the content text. Qwen3 served without a reasoning parser (llama.cpp, vLLM without --reasoning-parser) emits the plain think pair instead. All of these are handled by the reasoning adapter (see the reasoning-tag constants).",
   "examples": [
     {
       "name": "reasoning_content with thinking tags",
@@ -60,6 +60,67 @@
       },
       "expected_extracted_reasoning": "",
       "expected_clean_content": "Hello! How can I help you today?"
+    },
+    {
+      "name": "plain think tags in content",
+      "raw_response": {
+        "id": "chatcmpl-qwen-004",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\u003cthink>\nThe user wants weather for Tokyo. I'll call get_weather.\n\u003c/think>\n\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "The user wants weather for Tokyo. I'll call get_weather.",
+      "expected_clean_content": "\n\n{\"tool\": \"get_weather\", \"args\": {\"location\": \"Tokyo\"}}"
+    },
+    {
+      "name": "plain think tags in a text response",
+      "raw_response": "\u003cthink>Simple greeting, no tool needed.\u003c/think>\nHello! How can I help you today?",
+      "expected_extracted_reasoning": "Simple greeting, no tool needed.",
+      "expected_clean_content": "\nHello! How can I help you today?"
+    },
+    {
+      "name": "reasoning_content with plain think tags in content",
+      "raw_response": {
+        "id": "chatcmpl-qwen-005",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\u003cthink>Simple greeting, no tool needed.\u003c/think>\nHello!",
+              "reasoning_content": "Simple greeting, no tool needed."
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "Simple greeting, no tool needed.",
+      "expected_clean_content": "\nHello!"
+    },
+    {
+      "name": "unclosed think tag fails closed",
+      "raw_response": {
+        "id": "chatcmpl-qwen-006",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\u003cthink>The user wants weather for Tokyo and the output was cut off"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": null,
+      "expected_clean_content": null
     }
   ]
 }

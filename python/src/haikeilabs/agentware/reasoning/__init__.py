@@ -3,7 +3,8 @@
 The adapter recognizes three shapes of model output:
 
 - native ``reasoning_content`` fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
-- generic thinking tags (``<thinking>...</thinking>``, ``[THINK]...[/THINK]``)
+- generic reasoning tags (every pair in ``REASONING_TAG_PAIRS``: think,
+  thinking and bracket THINK; see ``tags.py``)
 - model-specific reasoning fields (registered per model name)
 
 Reasoning is stripped from the model output before ordinary tool-call parsing,
@@ -32,6 +33,15 @@ from .adapter import (
     TooManyNodesError,
     UnbalancedThinkingError,
 )
+from .tags import (
+    BRACKET_THINK_CLOSE,
+    BRACKET_THINK_OPEN,
+    REASONING_TAG_PAIRS,
+    THINK_CLOSE,
+    THINK_OPEN,
+    THINKING_CLOSE,
+    THINKING_OPEN,
+)
 from .types import (
     CONTRACT_VERSION,
     ContextTree,
@@ -59,4 +69,11 @@ __all__ = [
     "ReasoningTooLargeError",
     "TooManyNodesError",
     "TooDeepError",
+    "REASONING_TAG_PAIRS",
+    "THINK_OPEN",
+    "THINK_CLOSE",
+    "THINKING_OPEN",
+    "THINKING_CLOSE",
+    "BRACKET_THINK_OPEN",
+    "BRACKET_THINK_CLOSE",
 ]

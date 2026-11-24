@@ -3,7 +3,8 @@
 // The adapter recognizes three shapes of model output:
 //
 //   - native reasoning_content fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
-//   - generic thinking tags (<thinking>...</thinking>, [THINK]...[/THINK])
+//   - generic reasoning tags (every pair in TagPairs: think, thinking and
+//     bracket THINK; see tags.go)
 //   - model-specific reasoning fields (registered per model name)
 //
 // Reasoning is stripped from the model output before ordinary tool-call

@@ -6,7 +6,21 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from ...reasoning.tags import REASONING_TAG_PAIRS
 from .nudge import Nudge, retry_nudge, unknown_tool_nudge
+
+# A whole reasoning block for every pair in REASONING_TAG_PAIRS (think,
+# thinking, bracket THINK), case-insensitively and across newlines. Built from
+# the shared constants so the validator and the reasoning adapter recognize
+# the same tags; never type a reasoning tag literally here (see
+# reasoning/tags.py).
+_THINK_BLOCK_PATTERN = re.compile(
+    "|".join(
+        re.escape(open_tag) + ".*?" + re.escape(close_tag)
+        for open_tag, close_tag in REASONING_TAG_PAIRS
+    ),
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 @dataclass
@@ -46,7 +60,7 @@ class ResponseValidator:
         self.rescue_enabled = rescue_enabled
         self.retry_nudge_fn = retry_nudge_fn or retry_nudge
 
-        self._think_pattern = re.compile(r"(?i)\[THINK\].*?\[/THINK\]|<think>.*?</think>")
+        self._think_pattern = _THINK_BLOCK_PATTERN
         self._python_tag_pattern = re.compile(r"(?i)<\|python_tag\|>")
         self._code_fence_pattern = re.compile(r"```(?:json)?\s*\n?")
         self._rehearsal_pattern = re.compile(r"(\w+)\[ARGS\](\{.*?\})")

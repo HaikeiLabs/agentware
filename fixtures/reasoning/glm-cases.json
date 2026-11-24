@@ -2,8 +2,8 @@
   "family": "glm",
   "description": "GLM/ChatGLM reasoning model response format",
   "reasoning_field": "reasoning_content",
-  "thinking_tags": null,
-  "notes": "GLM-4 and ChatGLM models use 'reasoning_content' as the native field for chain-of-thought reasoning, following the same pattern as OpenAI and DeepSeek. No inline thinking tags are used; reasoning is always in the structured field. GLM-5.3-Flash served by vLLM (nvidia/GLM-5.3-Flash-FP4-Local, verified 2026-10-29) puts reasoning in 'reasoning' instead (message.reasoning, and delta.reasoning when streaming); 'reasoning_content' is absent. With thinking disabled (chat_template_kwargs.enable_thinking=false) 'reasoning' is null and the model's reasoning text can appear untagged in 'content', so it cannot be separated.",
+  "thinking_tags": ["\u003cthink>", "\u003c/think>"],
+  "notes": "GLM-4 and ChatGLM models use 'reasoning_content' as the native field for chain-of-thought reasoning, following the same pattern as OpenAI and DeepSeek. With a reasoning parser the reasoning is in the structured field; served without one, GLM emits the plain think pair inline in content. GLM-5.3-Flash served by vLLM (nvidia/GLM-5.3-Flash-FP4-Local, verified 2026-10-29) puts reasoning in 'reasoning' instead (message.reasoning, and delta.reasoning when streaming); 'reasoning_content' is absent. With thinking disabled (chat_template_kwargs.enable_thinking=false) 'reasoning' is null and the model's reasoning text can appear untagged in 'content', so it cannot be separated.",
   "reasoning_field_by_model": {
     "glm-4": "reasoning_content",
     "glm-5.3-flash (vLLM)": "reasoning"
@@ -123,6 +123,37 @@
       "raw_response": "Hello! How can I help you today?",
       "expected_extracted_reasoning": "",
       "expected_clean_content": "Hello! How can I help you today?"
+    },
+    {
+      "name": "glm-5.3 plain think tags in content",
+      "raw_response": {
+        "id": "chatcmpl-glm53-004",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\u003cthink>17 * 23 = 391\u003c/think>391",
+              "reasoning": null
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "17 * 23 = 391",
+      "expected_clean_content": "391"
+    },
+    {
+      "name": "plain think tags in a text response",
+      "raw_response": "\u003cthink>\nCheck the weather data for Tokyo.\n\u003c/think>\n\nThe weather in Tokyo is 22°C and sunny.",
+      "expected_extracted_reasoning": "Check the weather data for Tokyo.",
+      "expected_clean_content": "\n\nThe weather in Tokyo is 22°C and sunny."
+    },
+    {
+      "name": "stray think close tag fails closed",
+      "raw_response": "The weather in Tokyo is 22°C and sunny.\u003c/think>",
+      "expected_extracted_reasoning": null,
+      "expected_clean_content": null
     }
   ]
 }
