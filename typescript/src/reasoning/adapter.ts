@@ -2,7 +2,8 @@
 //
 // The adapter recognizes three shapes of model output:
 //   - native reasoning_content fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
-//   - generic thinking tags (<thinking>...</thinking>, [THINK]...[/THINK])
+//   - generic reasoning tags (every pair in REASONING_TAG_PAIRS: think,
+//     thinking and bracket THINK; see tags.ts)
 //   - model-specific reasoning fields (registered per model name)
 //
 // Reasoning is stripped before ordinary tool-call parsing, and the extracted
@@ -24,6 +25,7 @@ import {
   UnbalancedThinkingError,
 } from "./errors.js";
 import { normalizeOptions, ReasoningOptions } from "./options.js";
+import { escapeRegExp, REASONING_TAG_PAIRS } from "./tags.js";
 import { CONTRACT_VERSION, ContextTree, Format, Node, NodeKind, NodeStatus } from "./types.js";
 
 export { ReasoningError };
@@ -46,8 +48,11 @@ const RECOGNIZED_KEYS = new Set([
   "reasoning",
 ]);
 
-const THINKING_OPEN = /<thinking>|\[THINK\]/i;
-const THINKING_CLOSE = /<\/thinking>|\[\/THINK\]/i;
+// Any recognized reasoning open or close tag (every pair in
+// REASONING_TAG_PAIRS), case-insensitively. Built from the shared constants in
+// tags.ts; never type a reasoning tag literally here.
+const THINKING_OPEN = new RegExp(REASONING_TAG_PAIRS.map((p) => escapeRegExp(p.open)).join("|"), "i");
+const THINKING_CLOSE = new RegExp(REASONING_TAG_PAIRS.map((p) => escapeRegExp(p.close)).join("|"), "i");
 
 const PARAGRAPH_SEP = /\n[ \t]*\n/;
 const LIST_ORNAMENT = /^\s*(?:[-*+•]|\d+[.)])\s+/;

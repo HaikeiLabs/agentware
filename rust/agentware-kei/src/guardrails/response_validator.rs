@@ -9,6 +9,7 @@
 use serde_json::{Map, Value};
 
 use super::nudge::{Nudge, retry_nudge, unknown_tool_nudge};
+use crate::reasoning::tags::REASONING_TAG_PAIRS;
 
 /// One tool call the model produced (Go `ToolCall`).
 #[derive(Debug, Clone, PartialEq)]
@@ -125,12 +126,17 @@ impl ResponseValidator {
     }
 
     fn strip_think_tags(&self, text: &str) -> String {
+        // A whole reasoning block for every pair in REASONING_TAG_PAIRS (think,
+        // thinking, bracket THINK), case-insensitively and across newlines.
+        // Built from the shared constants so the validator and the reasoning
+        // adapter recognize the same tags; never type a reasoning tag
+        // literally here (see reasoning/tags.rs).
         static THINK: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-            regex::Regex::new(
-                r"(?i)\[THINK\].*?\[/THINK\]|<think>.*?
-</think>",
-            )
-            .expect("static regex")
+            let alts: Vec<String> = REASONING_TAG_PAIRS
+                .iter()
+                .map(|p| format!("{}.*?{}", regex::escape(p.open), regex::escape(p.close)))
+                .collect();
+            regex::Regex::new(&format!("(?is){}", alts.join("|"))).expect("static regex")
         });
         THINK.replace_all(text, "").into_owned()
     }

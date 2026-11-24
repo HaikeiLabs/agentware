@@ -1,3 +1,4 @@
+import { escapeRegExp, REASONING_TAG_PAIRS } from "../../reasoning/tags.js";
 import { Nudge, retryNudge, unknownToolNudge } from "./nudge.js";
 
 export interface ToolCall {
@@ -31,7 +32,15 @@ export class ResponseValidator {
     this.rescueEnabled = rescueEnabled;
     this.retryNudgeFn = retryNudgeFn ?? retryNudge;
 
-    this.thinkPattern = new RegExp("\\[THINK\\].*?\\[/THINK\\]|<think>.*?</think>", "gi");
+    // A whole reasoning block for every pair in REASONING_TAG_PAIRS (think,
+    // thinking, bracket THINK), case-insensitively and across newlines. Built
+    // from the shared constants so the validator and the reasoning adapter
+    // recognize the same tags; never type a reasoning tag literally here (see
+    // src/reasoning/tags.ts).
+    this.thinkPattern = new RegExp(
+      REASONING_TAG_PAIRS.map((p) => `${escapeRegExp(p.open)}[\\s\\S]*?${escapeRegExp(p.close)}`).join("|"),
+      "gi",
+    );
     this.pythonTagPattern = new RegExp("\\<\\|python_tag\\|\\>", "gi");
     this.codeFencePattern = new RegExp("```(?:json)?\\s*\\n?", "g");
     this.rehearsalPattern = new RegExp("(\\w+)\\[ARGS\\](\\{.*?\\})", "g");

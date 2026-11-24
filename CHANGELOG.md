@@ -8,6 +8,11 @@ one shared version across npm, PyPI, Go and crates.io.
 ### Added
 
 - Snowflake key-pair JWT helper for harness-side Snowflake SQL API auth, in Go (`connectors/snowflake`: `JWT`, `PublicKeyFingerprint`, `NormalizeAccountIdentifier`), Python (`haikeilabs.agentware.connectors.snowflake`, needs the new `snowflake` extra for `cryptography`) and TypeScript (`snowflakeJwt`, `snowflakePublicKeyFingerprint`, `normalizeSnowflakeAccountIdentifier`). The harness passes the private key PEM that the runtime releases; the helper mints an RS256 token with `exp` capped at one hour. It makes no network calls and refuses encrypted PEMs. The shared fixture `fixtures/snowflake/cases.v1.json` is replayed by all three languages.
+- Shared reasoning-tag constants in Go (`reasoning.ThinkOpen` … `reasoning.TagPairs()`), Python (`haikeilabs.agentware.reasoning`: `THINK_OPEN` … `REASONING_TAG_PAIRS`), TypeScript (`THINK_OPEN` … `REASONING_TAG_PAIRS`) and Rust (`reasoning::THINK_OPEN` … `reasoning::REASONING_TAG_PAIRS`): open/close pairs for think, thinking and bracket THINK, each built from parts so no source file types a reasoning tag literally (HAI-1120).
+
+### Fixed
+
+- The reasoning adapter, in every language, now recognizes the plain think tag pair that Qwen3, QwQ and GLM emit when served without a reasoning parser; it previously handled only the thinking and bracket THINK pairs. The guardrails response validator now strips all three pairs too (it missed the thinking pair), across newlines (multi-line blocks were left in place), and the Rust validator's think pattern no longer has a stray newline that kept it from matching. Both paths use the shared constants. New shared fixtures: plain think cases in `fixtures/reasoning/{qwen,glm}-cases.json` and `fixtures/reasoning/validator-rescue.v1.json` (HAI-1120).
 
 ## [0.17.0] - 2026-11-09
 
