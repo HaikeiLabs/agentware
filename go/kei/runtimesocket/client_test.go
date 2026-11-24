@@ -119,6 +119,39 @@ func TestAuthorizeSendsLocalConnectorPlanInputs(t *testing.T) {
 	}
 }
 
+func TestAuthorizeSerializesTheOptionalBindingVersion(t *testing.T) {
+	openAndAuthorize := func(t *testing.T, d *fakeDaemon, req evaluator.AuthorizeRequest) map[string]any {
+		t.Helper()
+		c := &Client{Env: tokenEnv(d.path)}
+		sess, err := c.OpenSession(context.Background(), Identity{Source: "test", ExternalID: "ada"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.Authorize(context.Background(), sess, req); err != nil {
+			t.Fatal(err)
+		}
+		return d.requests()[1].Body.(map[string]any)
+	}
+
+	t.Run("sent when set", func(t *testing.T) {
+		d := startDaemon(t, sessionAnswer, permitAnswer)
+		body := openAndAuthorize(t, d, evaluator.AuthorizeRequest{
+			Tool: "github.get_issue", BindingVersion: "v0.20.0",
+		})
+		if body["binding_version"] != "v0.20.0" {
+			t.Fatalf("binding_version = %v, want v0.20.0", body["binding_version"])
+		}
+	})
+
+	t.Run("omitted, never empty, when unset", func(t *testing.T) {
+		d := startDaemon(t, sessionAnswer, permitAnswer)
+		body := openAndAuthorize(t, d, evaluator.AuthorizeRequest{Tool: "github.get_issue"})
+		if _, ok := body["binding_version"]; ok {
+			t.Fatalf("binding_version must be omitted when unset: %v", body)
+		}
+	})
+}
+
 func TestUnavailableSocketErrorIncludesPathAndInstallCommand(t *testing.T) {
 	const socketPath = "/run/custom/kei-proxy.sock"
 	client, err := SelectAuthorizationClient("openwebui", SelectOptions{
