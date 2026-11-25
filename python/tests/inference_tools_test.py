@@ -94,3 +94,24 @@ async def test_run_inference_sends_tool_definitions_to_backend():
     assert result is not None
     assert len(backend.complete_calls) == 1
     assert backend.complete_calls[0]["tools"] == [tool_def]
+
+
+@pytest.mark.asyncio
+async def test_run_inference_sends_tools_on_every_attempt():
+    tool_def = ToolDefinition(
+        name="lookup", description="Look up data", input_schema={"type": "object"}
+    )
+
+    class RetryBackend(RecordingBackend):
+        def complete(self, messages, tools=None):
+            self.complete_calls.append({"messages": messages, "tools": tools})
+            content = "" if len(self.complete_calls) == 1 else "done"
+            return Response(content=content, usage_tokens=TokenUsage(1, 1, 2))
+
+    backend = RetryBackend()
+    cfg = InferenceConfig(client=backend, tool_specs=[tool_def], max_attempts=2)
+    result = await run_inference([Message(role=Role.USER, content="go")], cfg)
+
+    assert result is not None
+    assert len(backend.complete_calls) == 2
+    assert [call["tools"] for call in backend.complete_calls] == [[tool_def], [tool_def]]

@@ -3,7 +3,7 @@ import type { ToolDefinition } from "./request.js";
 import type { Response } from "./response.js";
 
 export interface Backend {
-  complete(messages: Message[]): Response;
+  complete(messages: Message[], tools?: ToolDefinition[]): Response;
   supportsNativeToolCalling(): boolean;
   modelName(): string;
   contextWindowSize(): number;
