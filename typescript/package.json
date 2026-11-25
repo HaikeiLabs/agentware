@@ -12,7 +12,9 @@
     "url": "https://github.com/HaikeiLabs/agentware/issues"
   },
   "main": "dist/index.js",
-  "bin": { "agentware-lint-tools": "dist/tools/lint-cli.js" },
+  "bin": {
+    "agentware-lint-tools": "dist/tools/lint-cli.js"
+  },
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
@@ -57,6 +59,8 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "2.17.0",
+    "@haikeilabs/connector-contracts": "^0.20.2",
     "minimatch": "10.2.3",
     "zod": "^4.6.7"
   },

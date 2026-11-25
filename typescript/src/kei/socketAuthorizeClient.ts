@@ -102,6 +102,8 @@ export type KeiProxySocketAuthorizeRequest = Pick<
       | "toolArgsDigest"
     >
   > & {
+    /** Version of the tool binding to authorize against. */
+    bindingVersion?: string;
     /** Local-only inputs for the runtime's registered connector plan evaluator. */
     toolArgs?: Record<string, unknown>;
     toolContext?: Record<string, unknown>;
@@ -255,6 +257,7 @@ export class KeiProxySocketAuthorizeClient {
       delegation_depth: input.delegationDepth,
       framework: input.framework,
       tool_args_digest: input.toolArgsDigest,
+      binding_version: input.bindingVersion,
     };
     for (const [key, value] of Object.entries(optional))
       if (value) request[key] = value;

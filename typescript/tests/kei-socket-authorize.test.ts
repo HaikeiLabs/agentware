@@ -121,6 +121,14 @@ describe("KeiProxySocketAuthorizeClient", () => {
     expect(sessions).toBe(1);
   });
 
+  test("serializes the optional binding version", async () => {
+    const session = await client.openSession({ source: "teams", externalId: "aad-id" });
+    await client.authorize(session, { ...request, bindingVersion: "v2" });
+    expect(authorizeBody.binding_version).toBe("v2");
+    await client.authorize(session, request);
+    expect(authorizeBody).not.toHaveProperty("binding_version");
+  });
+
   test("releaseCredential allow returns credential", async () => {
     decision = "permit";
     const session = await client.openSession({ source: "teams", externalId: "aad-id" });
