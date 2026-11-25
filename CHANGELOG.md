@@ -12,6 +12,8 @@ one shared version across npm, PyPI, Go and crates.io.
 
 ### Fixed
 
+- On a validation retry, the inference loop in Python, Go and TypeScript now appends the failed assistant turn before the retry nudge, so the next request ends with a user message. Current Claude models reject a request that ends with an assistant turn (they do not support assistant-message prefill), and a model otherwise reads the correction before the answer it corrects. The failed turn is kept only when it has presentable content; its tool calls are dropped (unanswered tool calls are rejected by the native APIs) and the nudge names the failed call instead. An empty or whitespace-only failed turn is skipped entirely.
+
 - Pass TypeScript tool definitions to synchronous inference backends on every attempt.
 
 - The operation runner (Go `kei/operations`, Python `haikeilabs.agentware.operations`) now authorizes a connector_binding tool the way kei-proxy (proxy-v0.11.0 and later) decides it. Authorize sends the tool name and the tool call's `tool_args`/`tool_context`, and no `connector:<op>` action. The credential release capability is the bare operation id (`github.pulls.list`) and carries the same tool arguments. Before this fix, every planned call was denied `preflight_required` at authorize and `operation_plan_invalid` at release. Additive API: Python `OperationRunner.run(..., tool_args=, tool_context=)`; Go `Run(..., WithToolCall(tool, args, context))` and `ConnectorConfig.InstalledConnectorID`, the installed connector's bundle id for the release. Go now also sends the tool name on authorize and release. `fixtures/kei/fake-control-plane.py` gains an opt-in `operation-plan` bundle and the identity-mode credential route for end-to-end tests against a real `kei-proxy serve`.

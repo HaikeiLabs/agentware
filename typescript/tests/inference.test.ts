@@ -5,6 +5,7 @@ import { ContextWindowManager } from "../src/llmcontext/context_window.js";
 import { ResponseValidator } from "../src/middleware/guardrails/response_validator.js";
 import { ErrorTracker } from "../src/middleware/guardrails/error_tracker.js";
 import { StepEnforcer } from "../src/middleware/guardrails/step_enforcer.js";
+import { MessageType } from "../src/middleware/types.js";
 import { Format } from "../src/reasoning/index.js";
 import {
   InferenceConfig,
@@ -68,6 +69,27 @@ describe("runInference", () => {
     modelName: () => "mock",
     contextWindowSize: () => 8192,
   });
+
+  // Records the messages of every request so tests can assert on the retry
+  // history the backend actually sees.
+  const createRecordingBackend = (): MockBackend & { requests: Message[][] } => {
+    const requests: Message[][] = [];
+    return {
+      requests,
+      complete: (messages: Message[]): Response => {
+        requests.push([...messages]);
+        if (callCount >= mockResponses.length) {
+          return mockResponses[mockResponses.length - 1];
+        }
+        const resp = mockResponses[callCount];
+        callCount++;
+        return resp;
+      },
+      supportsNativeToolCalling: () => true,
+      modelName: () => "mock",
+      contextWindowSize: () => 8192,
+    };
+  };
 
   it("should return inference result on successful tool call", async () => {
     const messages: Message[] = [{ role: Role.USER, content: "test" }];
@@ -492,6 +514,170 @@ describe("runInference", () => {
       };
 
       await expect(runInference(messages, cfg)).rejects.toThrow(RetriesExhaustedError);
+    });
+  });
+
+  describe("retry history order", () => {
+    // The failed assistant turn must precede the retry nudge, so the next
+    // request ends with a user message (current Claude models reject a request
+    // that ends with an assistant turn, and the model reads the correction
+    // before the answer it corrects). A failed reply that carries tool_calls
+    // contributes no unanswered tool_calls to the history, and an empty or
+    // whitespace-only failed turn is skipped entirely.
+    it("appends the failed assistant turn before the nudge", async () => {
+      const messages: Message[] = [{ role: Role.USER, content: "test" }];
+      const toolDef = createToolDefinition("test_tool");
+
+      mockResponses = [
+        createMockResponse("Tokyo is warmer at 22 degrees today."),
+        createMockResponse("", [{ id: "1", name: "test_tool", arguments: {} }]),
+      ];
+
+      const backend = createRecordingBackend();
+      const validator = new ResponseValidator(["test_tool"], false);
+
+      const cfg: InferenceConfig = {
+        client: backend,
+        toolSpecs: [toolDef],
+        validator,
+        maxAttempts: 3,
+        stepIndex: 0,
+      };
+
+      const result = await runInference(messages, cfg);
+
+      expect(result).not.toBeNull();
+      expect(result!.attempts).toBe(2);
+      expect(backend.requests).toHaveLength(2);
+
+      const second = backend.requests[1];
+      const tail = second.slice(-2);
+      expect(tail[0].role).toBe(Role.ASSISTANT);
+      expect(tail[0].content).toBe("Tokyo is warmer at 22 degrees today.");
+      expect(tail[0].meta?.type).toBe(MessageType.TEXT_RESPONSE);
+      expect(tail[1].role).toBe(Role.USER);
+      expect(tail[1].content).toContain("not a valid tool call");
+      expect(tail[1].meta?.type).toBe(MessageType.RETRY_NUDGE);
+
+      // The returned history carries the same order.
+      expect(result!.newMessages.slice(-2)).toEqual(tail);
+    });
+
+    it("skips an empty assistant turn on retry", async () => {
+      const messages: Message[] = [{ role: Role.USER, content: "test" }];
+      const toolDef = createToolDefinition("test_tool");
+
+      mockResponses = [
+        createMockResponse("", [{ id: "1", name: "weather_lookup", arguments: {} }]),
+        createMockResponse("", [{ id: "2", name: "test_tool", arguments: {} }]),
+      ];
+
+      const backend = createRecordingBackend();
+      const validator = new ResponseValidator(["test_tool"], false);
+
+      const cfg: InferenceConfig = {
+        client: backend,
+        toolSpecs: [toolDef],
+        validator,
+        maxAttempts: 3,
+        stepIndex: 0,
+      };
+
+      const result = await runInference(messages, cfg);
+
+      expect(result).not.toBeNull();
+      expect(result!.attempts).toBe(2);
+      expect(backend.requests).toHaveLength(2);
+
+      const second = backend.requests[1];
+      for (const msg of second) {
+        if (msg.role === Role.ASSISTANT) {
+          expect(msg.content.trim()).not.toBe("");
+        }
+      }
+      const last = second[second.length - 1];
+      expect(last.role).toBe(Role.USER);
+      // The nudge names the failed call, the only record of it left.
+      expect(last.content).toContain("weather_lookup");
+      expect(result!.newMessages[result!.newMessages.length - 1]).toBe(last);
+    });
+
+    it("skips a whitespace-only assistant turn on retry", async () => {
+      const messages: Message[] = [{ role: Role.USER, content: "test" }];
+      const toolDef = createToolDefinition("test_tool");
+
+      mockResponses = [
+        createMockResponse("   \n\t  "),
+        createMockResponse("", [{ id: "1", name: "test_tool", arguments: {} }]),
+      ];
+
+      const backend = createRecordingBackend();
+      const validator = new ResponseValidator(["test_tool"], false);
+
+      const cfg: InferenceConfig = {
+        client: backend,
+        toolSpecs: [toolDef],
+        validator,
+        maxAttempts: 3,
+        stepIndex: 0,
+      };
+
+      const result = await runInference(messages, cfg);
+
+      expect(result).not.toBeNull();
+      expect(backend.requests).toHaveLength(2);
+
+      const second = backend.requests[1];
+      for (const msg of second) {
+        if (msg.role === Role.ASSISTANT) {
+          expect(msg.content.trim()).not.toBe("");
+        }
+      }
+      expect(second[second.length - 1].role).toBe(Role.USER);
+      expect(result!.newMessages[result!.newMessages.length - 1].role).toBe(Role.USER);
+    });
+
+    it("carries no unanswered tool_calls in the retry history", async () => {
+      const messages: Message[] = [{ role: Role.USER, content: "test" }];
+      const toolDef = createToolDefinition("test_tool");
+
+      // Text response with content AND a native tool call to an unknown tool:
+      // the turn is kept for its text but the tool_calls are dropped.
+      mockResponses = [
+        createMockResponse("Let me check the weather first.", [
+          { id: "1", name: "weather_lookup", arguments: {} },
+        ]),
+        createMockResponse("", [{ id: "2", name: "test_tool", arguments: {} }]),
+      ];
+
+      const backend = createRecordingBackend();
+      const validator = new ResponseValidator(["test_tool"], false);
+
+      const cfg: InferenceConfig = {
+        client: backend,
+        toolSpecs: [toolDef],
+        validator,
+        maxAttempts: 3,
+        stepIndex: 0,
+      };
+
+      const result = await runInference(messages, cfg);
+
+      expect(result).not.toBeNull();
+      expect(backend.requests).toHaveLength(2);
+
+      const second = backend.requests[1];
+      for (const msg of second) {
+        if (msg.role === Role.ASSISTANT) {
+          expect(msg.tool_calls ?? []).toHaveLength(0);
+        }
+      }
+      const tail = second.slice(-2);
+      expect(tail[0].role).toBe(Role.ASSISTANT);
+      expect(tail[0].content).toBe("Let me check the weather first.");
+      expect(tail[1].role).toBe(Role.USER);
+      expect(tail[1].content).toContain("weather_lookup");
+      expect(result!.newMessages.slice(-2)).toEqual(tail);
     });
   });
 });

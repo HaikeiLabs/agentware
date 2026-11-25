@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/haikeilabs/agentware/go/llm"
@@ -336,6 +337,31 @@ func TestRunInference_NativeReasoningField(t *testing.T) {
 	}
 }
 
+// recordingBackend replays scripted responses in order and records the
+// messages of every request, so tests can assert on the retry history.
+type recordingBackend struct {
+	responses []*llm.Response
+	callCount int
+	requests  [][]llm.Message
+}
+
+func (m *recordingBackend) Complete(ctx context.Context, req *llm.Request) (*llm.Response, error) {
+	msgs := make([]llm.Message, len(req.Messages))
+	copy(msgs, req.Messages)
+	m.requests = append(m.requests, msgs)
+	m.callCount++
+	if m.callCount > len(m.responses) {
+		return m.responses[len(m.responses)-1], nil
+	}
+	return m.responses[m.callCount-1], nil
+}
+
+func (m *recordingBackend) SupportsNativeToolCalling() bool { return true }
+
+func (m *recordingBackend) ModelName() string { return "test-model" }
+
+func (m *recordingBackend) ContextWindowSize() int { return 8192 }
+
 func TestRunInference_FailsClosedOnUnbalancedReasoning(t *testing.T) {
 	backend := &mockBackend{
 		resp: &llm.Response{
@@ -362,5 +388,242 @@ func TestRunInference_FailsClosedOnUnbalancedReasoning(t *testing.T) {
 	// Malformed reasoning never produces a tool call from a partial parse.
 	if _, err := RunInference(context.Background(), messages, cfg); err == nil {
 		t.Fatal("expected an error (fail closed on unbalanced reasoning)")
+	}
+}
+
+func TestRunInference_RetryOrder_AssistantThenNudge(t *testing.T) {
+	backend := &recordingBackend{
+		responses: []*llm.Response{
+			{
+				Content:      "Tokyo is warmer at 22 degrees today.",
+				ToolCalls:    nil,
+				FinishReason: "stop",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+			{
+				Content:      "",
+				ToolCalls:    []llm.ToolCall{{ID: "1", Name: "test_tool", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+		},
+	}
+
+	validator := guardrails.NewResponseValidator([]string{"test_tool"}, false)
+	cfg := InferenceConfig{
+		Client:      backend,
+		Validator:   validator,
+		ToolSpecs:   []llm.ToolDefinition{{Name: "test_tool", Description: "A test tool", InputSchema: map[string]any{}}},
+		MaxAttempts: 3,
+		StepIndex:   0,
+	}
+
+	messages := []llm.Message{
+		{Role: llm.RoleUser, Content: "Hello", Meta: llm.MessageMeta{Type: llm.MessageTypeUserInput}},
+	}
+
+	result, err := RunInference(context.Background(), messages, cfg)
+	if err != nil {
+		t.Fatalf("expected no error on retry, got %v", err)
+	}
+	if result.Attempts != 2 {
+		t.Errorf("expected 2 attempts, got %d", result.Attempts)
+	}
+	if len(backend.requests) != 2 {
+		t.Fatalf("expected 2 recorded requests, got %d", len(backend.requests))
+	}
+
+	second := backend.requests[1]
+	tail := second[len(second)-2:]
+	if tail[0].Role != llm.RoleAssistant || tail[0].Content != "Tokyo is warmer at 22 degrees today." {
+		t.Errorf("expected the failed assistant turn before the nudge, got role %v content %q", tail[0].Role, tail[0].Content)
+	}
+	if tail[0].Meta.Type != llm.MessageTypeTextResponse {
+		t.Errorf("expected text_response meta on the failed turn, got %v", tail[0].Meta.Type)
+	}
+	if tail[1].Role != llm.RoleUser {
+		t.Errorf("expected the retry to end with a user message, got %v", tail[1].Role)
+	}
+	if tail[1].Meta.Type != llm.MessageTypeRetryNudge {
+		t.Errorf("expected retry_nudge meta on the last message, got %v", tail[1].Meta.Type)
+	}
+
+	// The returned history carries the same order.
+	resultTail := result.NewMessages[len(result.NewMessages)-2:]
+	if resultTail[0].Role != llm.RoleAssistant || resultTail[1].Role != llm.RoleUser {
+		t.Errorf("expected result.NewMessages tail [assistant, user], got [%v, %v]", resultTail[0].Role, resultTail[1].Role)
+	}
+}
+
+func TestRunInference_RetrySkipsEmptyAssistantTurn(t *testing.T) {
+	backend := &recordingBackend{
+		responses: []*llm.Response{
+			{
+				Content:      "",
+				ToolCalls:    []llm.ToolCall{{ID: "1", Name: "weather_lookup", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+			{
+				Content:      "",
+				ToolCalls:    []llm.ToolCall{{ID: "2", Name: "test_tool", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+		},
+	}
+
+	validator := guardrails.NewResponseValidator([]string{"test_tool"}, false)
+	cfg := InferenceConfig{
+		Client:      backend,
+		Validator:   validator,
+		ToolSpecs:   []llm.ToolDefinition{{Name: "test_tool", Description: "A test tool", InputSchema: map[string]any{}}},
+		MaxAttempts: 3,
+		StepIndex:   0,
+	}
+
+	messages := []llm.Message{
+		{Role: llm.RoleUser, Content: "Hello", Meta: llm.MessageMeta{Type: llm.MessageTypeUserInput}},
+	}
+
+	result, err := RunInference(context.Background(), messages, cfg)
+	if err != nil {
+		t.Fatalf("expected no error on retry, got %v", err)
+	}
+	if len(backend.requests) != 2 {
+		t.Fatalf("expected 2 recorded requests, got %d", len(backend.requests))
+	}
+
+	second := backend.requests[1]
+	for _, msg := range second {
+		if msg.Role == llm.RoleAssistant && msg.Content == "" {
+			t.Error("retry history must not contain an empty assistant message")
+		}
+	}
+	last := second[len(second)-1]
+	if last.Role != llm.RoleUser {
+		t.Errorf("expected the retry to end with a user message, got %v", last.Role)
+	}
+	// The nudge names the failed call, the only record of it left.
+	if !strings.Contains(last.Content, "weather_lookup") {
+		t.Errorf("expected the nudge to name the failed call, got %q", last.Content)
+	}
+	if result.NewMessages[len(result.NewMessages)-1].Role != llm.RoleUser {
+		t.Errorf("expected result.NewMessages to end with a user message")
+	}
+}
+
+func TestRunInference_RetrySkipsWhitespaceOnlyAssistantTurn(t *testing.T) {
+	backend := &recordingBackend{
+		responses: []*llm.Response{
+			{
+				Content:      "   \n\t  ",
+				ToolCalls:    nil,
+				FinishReason: "stop",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+			{
+				Content:      "",
+				ToolCalls:    []llm.ToolCall{{ID: "1", Name: "test_tool", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+		},
+	}
+
+	validator := guardrails.NewResponseValidator([]string{"test_tool"}, false)
+	cfg := InferenceConfig{
+		Client:      backend,
+		Validator:   validator,
+		ToolSpecs:   []llm.ToolDefinition{{Name: "test_tool", Description: "A test tool", InputSchema: map[string]any{}}},
+		MaxAttempts: 3,
+		StepIndex:   0,
+	}
+
+	messages := []llm.Message{
+		{Role: llm.RoleUser, Content: "Hello", Meta: llm.MessageMeta{Type: llm.MessageTypeUserInput}},
+	}
+
+	result, err := RunInference(context.Background(), messages, cfg)
+	if err != nil {
+		t.Fatalf("expected no error on retry, got %v", err)
+	}
+	if len(backend.requests) != 2 {
+		t.Fatalf("expected 2 recorded requests, got %d", len(backend.requests))
+	}
+
+	second := backend.requests[1]
+	for _, msg := range second {
+		if msg.Role == llm.RoleAssistant && strings.TrimSpace(msg.Content) == "" {
+			t.Error("retry history must not contain a whitespace-only assistant message")
+		}
+	}
+	if second[len(second)-1].Role != llm.RoleUser {
+		t.Errorf("expected the retry to end with a user message, got %v", second[len(second)-1].Role)
+	}
+	if result.NewMessages[len(result.NewMessages)-1].Role != llm.RoleUser {
+		t.Errorf("expected result.NewMessages to end with a user message")
+	}
+}
+
+func TestRunInference_RetryHistoryHasNoOrphanToolCalls(t *testing.T) {
+	backend := &recordingBackend{
+		responses: []*llm.Response{
+			{
+				// Text response with content AND a native tool call to an
+				// unknown tool: the turn is kept for its text but the
+				// tool_calls are dropped.
+				Content:      "Let me check the weather first.",
+				ToolCalls:    []llm.ToolCall{{ID: "1", Name: "weather_lookup", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+			{
+				Content:      "",
+				ToolCalls:    []llm.ToolCall{{ID: "2", Name: "test_tool", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			},
+		},
+	}
+
+	validator := guardrails.NewResponseValidator([]string{"test_tool"}, false)
+	cfg := InferenceConfig{
+		Client:      backend,
+		Validator:   validator,
+		ToolSpecs:   []llm.ToolDefinition{{Name: "test_tool", Description: "A test tool", InputSchema: map[string]any{}}},
+		MaxAttempts: 3,
+		StepIndex:   0,
+	}
+
+	messages := []llm.Message{
+		{Role: llm.RoleUser, Content: "Hello", Meta: llm.MessageMeta{Type: llm.MessageTypeUserInput}},
+	}
+
+	result, err := RunInference(context.Background(), messages, cfg)
+	if err != nil {
+		t.Fatalf("expected no error on retry, got %v", err)
+	}
+	if len(backend.requests) != 2 {
+		t.Fatalf("expected 2 recorded requests, got %d", len(backend.requests))
+	}
+
+	second := backend.requests[1]
+	for _, msg := range second {
+		if msg.Role == llm.RoleAssistant && len(msg.ToolCalls) > 0 {
+			t.Error("retry history must not carry unanswered tool_calls")
+		}
+	}
+	last := second[len(second)-1]
+	if last.Role != llm.RoleUser || !strings.Contains(last.Content, "weather_lookup") {
+		t.Errorf("expected the retry to end with a nudge naming the failed call, got %v %q", last.Role, last.Content)
+	}
+	previous := second[len(second)-2]
+	if previous.Role != llm.RoleAssistant || previous.Content != "Let me check the weather first." {
+		t.Errorf("expected the failed assistant turn (text kept, calls dropped), got role %v content %q", previous.Role, previous.Content)
+	}
+	resultTail := result.NewMessages[len(result.NewMessages)-2:]
+	if resultTail[0].Role != llm.RoleAssistant || resultTail[1].Role != llm.RoleUser {
+		t.Errorf("expected result.NewMessages tail [assistant, user], got [%v, %v]", resultTail[0].Role, resultTail[1].Role)
 	}
 }
