@@ -22,12 +22,18 @@ _SLASH: Final = "/"
 _THINK: Final = "think"
 _THINKING: Final = _THINK + "ing"
 _BRACKET_THINK: Final = _THINK.upper()
+_MM_THINK: Final = "mm:" + _THINK
 
 #: Opens the plain think block that Qwen3, QwQ, DeepSeek-R1 and GLM emit when
 #: served without a reasoning parser.
 THINK_OPEN: Final = _LT + _THINK + _GT
 #: Closes a :data:`THINK_OPEN` block.
 THINK_CLOSE: Final = _LT + _SLASH + _THINK + _GT
+
+#: Opens the mm:think block that MiniMax M3 emits inline in content.
+MMTHINK_OPEN: Final = _LT + _MM_THINK + _GT
+#: Closes a :data:`MMTHINK_OPEN` block.
+MMTHINK_CLOSE: Final = _LT + _SLASH + _MM_THINK + _GT
 
 #: Opens the generic thinking block.
 THINKING_OPEN: Final = _LT + _THINKING + _GT
@@ -40,10 +46,11 @@ BRACKET_THINK_OPEN: Final = _LB + _BRACKET_THINK + _RB
 BRACKET_THINK_CLOSE: Final = _LB + _SLASH + _BRACKET_THINK + _RB
 
 #: Every ``(open, close)`` reasoning-tag pair the adapter and the validator
-#: recognize, in a fixed order: think, thinking, bracket THINK. Matching is
-#: case-insensitive.
+#: recognize, in a fixed order: think, mm:think, thinking, bracket THINK.
+#: Matching is case-insensitive.
 REASONING_TAG_PAIRS: Final[tuple[tuple[str, str], ...]] = (
     (THINK_OPEN, THINK_CLOSE),
+    (MMTHINK_OPEN, MMTHINK_CLOSE),
     (THINKING_OPEN, THINKING_CLOSE),
     (BRACKET_THINK_OPEN, BRACKET_THINK_CLOSE),
 )
@@ -51,6 +58,8 @@ REASONING_TAG_PAIRS: Final[tuple[tuple[str, str], ...]] = (
 __all__ = [
     "BRACKET_THINK_CLOSE",
     "BRACKET_THINK_OPEN",
+    "MMTHINK_CLOSE",
+    "MMTHINK_OPEN",
     "REASONING_TAG_PAIRS",
     "THINKING_CLOSE",
     "THINKING_OPEN",

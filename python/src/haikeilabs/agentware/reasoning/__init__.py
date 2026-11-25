@@ -4,7 +4,7 @@ The adapter recognizes three shapes of model output:
 
 - native ``reasoning_content`` fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
 - generic reasoning tags (every pair in ``REASONING_TAG_PAIRS``: think,
-  thinking and bracket THINK; see ``tags.py``)
+  mm:think, thinking and bracket THINK; see ``tags.py``)
 - model-specific reasoning fields (registered per model name)
 
 Reasoning is stripped from the model output before ordinary tool-call parsing,
@@ -36,6 +36,8 @@ from .adapter import (
 from .tags import (
     BRACKET_THINK_CLOSE,
     BRACKET_THINK_OPEN,
+    MMTHINK_CLOSE,
+    MMTHINK_OPEN,
     REASONING_TAG_PAIRS,
     THINK_CLOSE,
     THINK_OPEN,
@@ -72,6 +74,8 @@ __all__ = [
     "REASONING_TAG_PAIRS",
     "THINK_OPEN",
     "THINK_CLOSE",
+    "MMTHINK_OPEN",
+    "MMTHINK_CLOSE",
     "THINKING_OPEN",
     "THINKING_CLOSE",
     "BRACKET_THINK_OPEN",

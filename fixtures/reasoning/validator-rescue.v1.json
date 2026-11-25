@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Shared response-validator cases: reasoning blocks are stripped before tool-call rescue, for every pair in the reasoning-tag constants (think, thinking, bracket THINK), single- and multi-line, case-insensitive. Each reasoning block drafts a tool2 call that must NOT be rescued. Replayed by every port's validator test; angle and square brackets of tags are written as \\u003c / \\u005b escapes so no file holds a literal tag.",
+  "description": "Shared response-validator cases: reasoning blocks are stripped before tool-call rescue, for every pair in the reasoning-tag constants (think, mm:think, thinking, bracket THINK), single- and multi-line, case-insensitive. Each reasoning block drafts a tool2 call that must NOT be rescued. Replayed by every port's validator test; angle and square brackets of tags are written as \\u003c / \\u005b escapes so no file holds a literal tag.",
   "tool_names": [
     "tool1",
     "tool2"
@@ -93,6 +93,18 @@
     {
       "name": "thinking_mixed_case",
       "response": "\u003cThinking>draft {\"tool\": \"tool2\", \"args\": {}}\u003c/Thinking>\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
+      "expected_tool_calls": [
+        {
+          "tool": "tool1",
+          "args": {
+            "key": "value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "mmthink_single_line",
+      "response": "\u003cmm:think>draft {\"tool\": \"tool2\", \"args\": {}}\u003c/mm:think>\n{\"tool\": \"tool1\", \"args\": {\"key\": \"value\"}}",
       "expected_tool_calls": [
         {
           "tool": "tool1",

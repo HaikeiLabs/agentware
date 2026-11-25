@@ -65,7 +65,11 @@ describe("shared reasoning fixtures", () => {
     const fixturePath = `reasoning/${file}`;
     const data = JSON.parse(readFileSync(resolve(reasoningRoot, file), "utf8")) as Record<string, any>;
     for (const c of data.examples) {
-      const adapter = new ReasoningAdapter();
+      // A per-example options field carries non-default adapter options;
+      // today the only key is implicit_open (see minimax-cases.json).
+      const adapter = new ReasoningAdapter(
+        c.options?.implicit_open ? { implicitOpen: true } : undefined,
+      );
       const raw = c.raw_response;
       if (c.expected_extracted_reasoning === null) {
         expect(() => adapter.parse(raw)).toThrow();

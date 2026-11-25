@@ -1,0 +1,66 @@
+{
+  "family": "minimax",
+  "description": "MiniMax reasoning response format",
+  "reasoning_field": "none",
+  "thinking_tags": ["\u003cmm:think>", "\u003c/mm:think>", "\u003cthink>", "\u003c/think>"],
+  "notes": "MiniMax M3 emits an mm:think pair inline in content; without a server-side split the reasoning leaks into content, so the reasoning adapter strips the pair like every other pair in the reasoning-tag constants. MiniMax M2 often omits the opening think tag and emits only the close: the adapter treats everything before a leading think or mm:think close tag as reasoning only when the caller opts in with implicit_open (default false, so a stray close tag still fails closed).",
+  "examples": [
+    {
+      "name": "mm:think pair around reasoning then content",
+      "raw_response": "\u003cmm:think>x\u003c/mm:think>Hi",
+      "expected_extracted_reasoning": "x",
+      "expected_clean_content": "Hi"
+    },
+    {
+      "name": "mm:think pair in a chat completion",
+      "raw_response": {
+        "id": "chatcmpl-minimax-001",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\u003cmm:think>x\u003c/mm:think>Hi"
+            },
+            "finish_reason": "stop"
+          }
+        ]
+      },
+      "expected_extracted_reasoning": "x",
+      "expected_clean_content": "Hi"
+    },
+    {
+      "name": "think close only with the implicit_open option",
+      "raw_response": "x\u003c/think>Hi",
+      "options": { "implicit_open": true },
+      "expected_extracted_reasoning": "x",
+      "expected_clean_content": "Hi"
+    },
+    {
+      "name": "mm:think close only with the implicit_open option",
+      "raw_response": "x\u003c/mm:think>Hi",
+      "options": { "implicit_open": true },
+      "expected_extracted_reasoning": "x",
+      "expected_clean_content": "Hi"
+    },
+    {
+      "name": "think close only without the option fails closed",
+      "raw_response": "x\u003c/think>Hi",
+      "expected_extracted_reasoning": null,
+      "expected_clean_content": null
+    },
+    {
+      "name": "thinking close only does not trigger the implicit_open option",
+      "raw_response": "x\u003c/thinking>Hi",
+      "options": { "implicit_open": true },
+      "expected_extracted_reasoning": null,
+      "expected_clean_content": null
+    },
+    {
+      "name": "unclosed mm:think open fails closed",
+      "raw_response": "\u003cmm:think>x",
+      "expected_extracted_reasoning": null,
+      "expected_clean_content": null
+    }
+  ]
+}

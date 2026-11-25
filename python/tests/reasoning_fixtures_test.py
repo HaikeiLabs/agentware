@@ -25,6 +25,7 @@ from conformance import record
 from haikeilabs.agentware.reasoning import (
     ReasoningAdapter,
     ReasoningError,
+    ReasoningOptions,
 )
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -47,8 +48,6 @@ def _reasoning_fixtures() -> list[tuple[str, dict]]:
     ids=[f for f, _ in _reasoning_fixtures()],
 )
 def test_reasoning_fixtures(fixture: str, data: dict) -> None:
-    adapter = ReasoningAdapter()
-
     for case in data.get("examples") or []:
         if f"{fixture}#{case['name']}" in EXCLUDED:
             continue
@@ -56,6 +55,13 @@ def test_reasoning_fixtures(fixture: str, data: dict) -> None:
         raw = case["raw_response"]
         expected_reasoning = case["expected_extracted_reasoning"]
         expected_clean = case["expected_clean_content"]
+
+        # A per-example options field carries non-default adapter options;
+        # today the only key is implicit_open (see minimax-cases.json).
+        options = case.get("options") or {}
+        adapter = ReasoningAdapter(
+            ReasoningOptions(implicit_open=bool(options.get("implicit_open", False)))
+        )
 
         if expected_reasoning is None and expected_clean is None:
             # Fail-closed case: the adapter must raise.

@@ -19,11 +19,17 @@ const SLASH = "/";
 const THINK = "think";
 const THINKING = THINK + "ing";
 const BRACKET_THINK = THINK.toUpperCase();
+const MM_THINK = "mm:" + THINK;
 
 /** Opens the plain think block that Qwen3, QwQ, DeepSeek-R1 and GLM emit when served without a reasoning parser. */
 export const THINK_OPEN = LT + THINK + GT;
 /** Closes a {@link THINK_OPEN} block. */
 export const THINK_CLOSE = LT + SLASH + THINK + GT;
+
+/** Opens the mm:think block that MiniMax M3 emits inline in content. */
+export const MMTHINK_OPEN = LT + MM_THINK + GT;
+/** Closes a {@link MMTHINK_OPEN} block. */
+export const MMTHINK_CLOSE = LT + SLASH + MM_THINK + GT;
 
 /** Opens the generic thinking block. */
 export const THINKING_OPEN = LT + THINKING + GT;
@@ -43,10 +49,11 @@ export interface ReasoningTagPair {
 
 /**
  * Every reasoning-tag pair the adapter and the validator recognize, in a
- * fixed order: think, thinking, bracket THINK. Frozen.
+ * fixed order: think, mm:think, thinking, bracket THINK. Frozen.
  */
 export const REASONING_TAG_PAIRS: readonly ReasoningTagPair[] = Object.freeze([
   Object.freeze({ open: THINK_OPEN, close: THINK_CLOSE }),
+  Object.freeze({ open: MMTHINK_OPEN, close: MMTHINK_CLOSE }),
   Object.freeze({ open: THINKING_OPEN, close: THINKING_CLOSE }),
   Object.freeze({ open: BRACKET_THINK_OPEN, close: BRACKET_THINK_CLOSE }),
 ]);

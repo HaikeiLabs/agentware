@@ -20,6 +20,7 @@ const (
 	nameThink    = "think"
 	nameThinking = nameThink + "ing"
 	nameTHINK    = "THINK"
+	nameMMThink  = "mm:" + nameThink
 )
 
 const (
@@ -28,6 +29,12 @@ const (
 	ThinkOpen = tagLT + nameThink + tagGT
 	// ThinkClose closes a ThinkOpen block.
 	ThinkClose = tagLT + tagSlash + nameThink + tagGT
+
+	// MMThinkOpen opens the mm:think block that MiniMax M3 emits inline in
+	// content.
+	MMThinkOpen = tagLT + nameMMThink + tagGT
+	// MMThinkClose closes a MMThinkOpen block.
+	MMThinkClose = tagLT + tagSlash + nameMMThink + tagGT
 
 	// ThinkingOpen opens the generic thinking block.
 	ThinkingOpen = tagLT + nameThinking + tagGT
@@ -47,11 +54,12 @@ type TagPair struct {
 }
 
 // TagPairs returns every reasoning-tag pair the adapter and the validator
-// recognize, in a fixed order: think, thinking, bracket THINK. It returns a
-// new slice on each call, so callers may modify it freely.
+// recognize, in a fixed order: think, mm:think, thinking, bracket THINK. It
+// returns a new slice on each call, so callers may modify it freely.
 func TagPairs() []TagPair {
 	return []TagPair{
 		{Open: ThinkOpen, Close: ThinkClose},
+		{Open: MMThinkOpen, Close: MMThinkClose},
 		{Open: ThinkingOpen, Close: ThinkingClose},
 		{Open: BracketThinkOpen, Close: BracketThinkClose},
 	}

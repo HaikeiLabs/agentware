@@ -21,6 +21,13 @@ type Options struct {
 	MaxSummaryChars int
 	// Clock supplies timestamps for tree and nodes. Zero uses time.Now.
 	Clock func() time.Time
+	// ImplicitOpen opts in to close-tag-only reasoning (MiniMax M2, which
+	// emits the closing tag without the opening one): when true, everything
+	// before a leading think or mm:think close tag counts as reasoning.
+	// Only those two closes may open implicitly; every other close tag, and
+	// a second stray close, stays unbalanced and fails closed. Zero means
+	// false.
+	ImplicitOpen bool
 }
 
 // DefaultOptions returns the adapter limits used when no Options are given.

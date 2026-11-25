@@ -21,6 +21,11 @@ type reasoningFixture struct {
 		RawResponse                any     `json:"raw_response"`
 		ExpectedCleanContent       *string `json:"expected_clean_content"`
 		ExpectedExtractedReasoning *string `json:"expected_extracted_reasoning"`
+		// Options carries non-default adapter options for one example;
+		// today the only key is implicit_open (see minimax-cases.json).
+		Options *struct {
+			ImplicitOpen bool `json:"implicit_open"`
+		} `json:"options"`
 	} `json:"examples"`
 }
 
@@ -63,6 +68,9 @@ func TestReasoningFixtures(t *testing.T) {
 				}
 				conformance.Record(t, fixtureName, "examples", ex.Name)
 				a := New()
+				if ex.Options != nil && ex.Options.ImplicitOpen {
+					a = New(Options{ImplicitOpen: true})
+				}
 				an, err := a.analyze(ex.RawResponse, "")
 
 				failClosed := ex.ExpectedCleanContent == nil && ex.ExpectedExtractedReasoning == nil

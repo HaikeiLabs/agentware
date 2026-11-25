@@ -254,7 +254,7 @@ func (a *Adapter) analyzeStructured(m map[string]any, model string) (*analysis, 
 	// A native reasoning field means the content is already clean, but
 	// thinking tags may still be embedded in it.
 	if reasoning != "" {
-		clean, rerr := stripThinkingTags(content)
+		clean, rerr := stripThinkingTags(content, a.opts.ImplicitOpen)
 		if rerr != nil {
 			return nil, rerr
 		}
@@ -262,7 +262,7 @@ func (a *Adapter) analyzeStructured(m map[string]any, model string) (*analysis, 
 	}
 
 	// No native reasoning field: fall back to thinking tags in the content.
-	clean, tags, rerr := splitThinkingTags(content)
+	clean, tags, rerr := splitThinkingTags(content, a.opts.ImplicitOpen)
 	if rerr != nil {
 		return nil, rerr
 	}
@@ -355,7 +355,7 @@ func (a *Adapter) extractReasoningField(m map[string]any, model string) (string,
 
 // analyzeText inspects plain text for generic thinking tags.
 func (a *Adapter) analyzeText(s string) (*analysis, error) {
-	clean, tags, err := splitThinkingTags(s)
+	clean, tags, err := splitThinkingTags(s, a.opts.ImplicitOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -379,9 +379,12 @@ func hasRecognizedKey(m map[string]any) bool {
 // thinkingOpen and thinkingClose match any recognized reasoning open or
 // close tag (every pair in TagPairs), case-insensitively. They are built from
 // the shared constants in tags.go; never type a reasoning tag literally here.
+// implicitClose matches only the closes that may open implicitly under the
+// ImplicitOpen option: the plain think and mm:think closes.
 var (
 	thinkingOpen  = tagAlternation(func(p TagPair) string { return p.Open })
 	thinkingClose = tagAlternation(func(p TagPair) string { return p.Close })
+	implicitClose = tagAlternationOf([]string{ThinkClose, MMThinkClose})
 )
 
 // tagAlternation compiles a case-insensitive alternation of one side of every
@@ -395,10 +398,23 @@ func tagAlternation(side func(TagPair) string) *regexp.Regexp {
 	return regexp.MustCompile(`(?i)` + strings.Join(alts, "|"))
 }
 
+// tagAlternationOf compiles a case-insensitive alternation of the given tags.
+func tagAlternationOf(tags []string) *regexp.Regexp {
+	alts := make([]string, len(tags))
+	for i, t := range tags {
+		alts[i] = regexp.QuoteMeta(t)
+	}
+	return regexp.MustCompile(`(?i)` + strings.Join(alts, "|"))
+}
+
 // splitThinkingTags extracts embedded thinking blocks from text and returns
 // the clean text and the joined reasoning. It fails closed on unbalanced
 // tags: an open tag without a matching close is an error, not partial output.
-func splitThinkingTags(s string) (clean, reasoning string, err error) {
+// With implicitOpen set (MiniMax M2, which emits the closing tag without the
+// opening one), everything before a leading think or mm:think close tag
+// counts as reasoning; only those two closes may open implicitly, and only
+// once, so any other stray close stays unbalanced and fails closed.
+func splitThinkingTags(s string, implicitOpen bool) (clean, reasoning string, err error) {
 	if !thinkingOpen.MatchString(s) && !thinkingClose.MatchString(s) {
 		return s, "", nil
 	}
@@ -406,15 +422,28 @@ func splitThinkingTags(s string) (clean, reasoning string, err error) {
 	var b strings.Builder
 	var reason strings.Builder
 	rest := s
+	implicitPending := implicitOpen
 	for {
 		loc := thinkingOpen.FindStringIndex(rest)
 		if loc == nil {
-			// No more open tags; any remaining close tag is unbalanced.
-			if thinkingClose.MatchString(rest) {
+			// No more open tags; any remaining close tag must either open
+			// implicitly (once, if it is an eligible close) or is unbalanced.
+			closeLoc := thinkingClose.FindStringIndex(rest)
+			if closeLoc == nil {
+				b.WriteString(rest)
+				break
+			}
+			eligible := implicitClose.FindStringIndex(rest)
+			if !implicitPending || eligible == nil || eligible[0] != closeLoc[0] {
 				return "", "", ErrUnbalancedThinking
 			}
-			b.WriteString(rest)
-			break
+			implicitPending = false
+			if reason.Len() > 0 {
+				reason.WriteByte('\n')
+			}
+			reason.WriteString(rest[:closeLoc[0]])
+			rest = rest[closeLoc[1]:]
+			continue
 		}
 		b.WriteString(rest[:loc[0]])
 		inner := rest[loc[1]:]
@@ -433,8 +462,8 @@ func splitThinkingTags(s string) (clean, reasoning string, err error) {
 }
 
 // stripThinkingTags removes thinking blocks and returns the remaining text.
-func stripThinkingTags(s string) (string, error) {
-	clean, _, err := splitThinkingTags(s)
+func stripThinkingTags(s string, implicitOpen bool) (string, error) {
+	clean, _, err := splitThinkingTags(s, implicitOpen)
 	return clean, err
 }
 

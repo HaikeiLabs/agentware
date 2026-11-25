@@ -4,7 +4,7 @@
 //!
 //!   - native reasoning fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
 //!   - generic reasoning tags (every pair in [`REASONING_TAG_PAIRS`]: think,
-//!     thinking and bracket THINK; see `tags.rs`)
+//!     mm:think, thinking and bracket THINK; see `tags.rs`)
 //!   - model-specific reasoning fields (registered per model name)
 //!
 //! Reasoning is stripped from the model output before ordinary tool-call
@@ -18,7 +18,7 @@
 //! than configured) return errors instead of emitting partial reasoning.
 
 use crate::reasoning::options::Options;
-use crate::reasoning::tags::{REASONING_TAG_PAIRS, TagPair};
+use crate::reasoning::tags::{MMTHINK_CLOSE, REASONING_TAG_PAIRS, THINK_CLOSE, TagPair};
 use crate::reasoning::types::{CONTRACT_VERSION, ContextTree, Format};
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -34,6 +34,18 @@ use std::sync::LazyLock;
 static THINKING_OPEN: LazyLock<Regex> = LazyLock::new(|| tag_alternation(|p| p.open));
 
 static THINKING_CLOSE: LazyLock<Regex> = LazyLock::new(|| tag_alternation(|p| p.close));
+
+/// Closes eligible for the implicit-open opt-in (MiniMax M2 emits the close
+/// tag without the opening one): only the plain think and mm:think closes
+/// count. Built from the shared constants in tags.rs; never type a reasoning
+/// tag literally here.
+static IMPLICIT_OPEN_CLOSE: LazyLock<Regex> = LazyLock::new(|| {
+    let alts: Vec<String> = [THINK_CLOSE, MMTHINK_CLOSE]
+        .iter()
+        .map(|tag| regex::escape(tag))
+        .collect();
+    Regex::new(&format!("(?i){}", alts.join("|"))).expect("valid regex")
+});
 
 /// Compiles a case-insensitive alternation of one side of every
 /// reasoning-tag pair.
@@ -284,7 +296,7 @@ impl Adapter {
         // A native reasoning field means the content is already clean, but
         // thinking tags may still be embedded in it.
         if !reasoning.is_empty() {
-            let clean = strip_thinking_tags(&content)?;
+            let clean = strip_thinking_tags(&content, self.opts.implicit_open)?;
             return Ok(Analysis {
                 reasoning,
                 clean,
@@ -294,7 +306,7 @@ impl Adapter {
 
         // No native reasoning field: fall back to thinking tags in the
         // content.
-        let (clean, tags) = split_thinking_tags(&content)?;
+        let (clean, tags) = split_thinking_tags(&content, self.opts.implicit_open)?;
         if !tags.is_empty() {
             return Ok(Analysis {
                 reasoning: tags,
@@ -362,7 +374,7 @@ impl Adapter {
 
     /// Inspects plain text for generic thinking tags.
     fn analyze_text(&self, text: &str) -> Result<Analysis, ReasoningError> {
-        let (clean, tags) = split_thinking_tags(text)?;
+        let (clean, tags) = split_thinking_tags(text, self.opts.implicit_open)?;
         if !tags.is_empty() {
             return Ok(Analysis {
                 reasoning: tags,
@@ -471,10 +483,17 @@ fn json_type_name(value: &Value) -> &'static str {
     }
 }
 
-/// Extracts embedded thinking blocks from text and returns the clean text and
+/// Extracts embedded thinking blocks from text, returning the clean text and
 /// the joined reasoning. It fails closed on unbalanced tags: an open tag
-/// without a matching close is an error, not partial output.
-fn split_thinking_tags(text: &str) -> Result<(String, String), ReasoningError> {
+/// without a matching close is an error, not partial output. With
+/// `implicit_open` set (MiniMax M2, which emits the closing tag without the
+/// opening one), everything before a leading think or mm:think close tag
+/// counts as reasoning; only those two closes may open implicitly, and only
+/// once, so any other stray close stays unbalanced and fails closed.
+fn split_thinking_tags(
+    text: &str,
+    implicit_open: bool,
+) -> Result<(String, String), ReasoningError> {
     if !THINKING_OPEN.is_match(text) && !THINKING_CLOSE.is_match(text) {
         return Ok((text.to_owned(), String::new()));
     }
@@ -482,14 +501,32 @@ fn split_thinking_tags(text: &str) -> Result<(String, String), ReasoningError> {
     let mut clean = String::new();
     let mut reason = String::new();
     let mut rest = text;
+    let mut implicit_pending = implicit_open;
     loop {
         let Some(open) = THINKING_OPEN.find(rest) else {
-            // No more open tags; any remaining close tag is unbalanced.
-            if THINKING_CLOSE.is_match(rest) {
-                return Err(ReasoningError::UnbalancedThinking);
+            // No more open tags; any remaining close tag must either open
+            // implicitly (once, if it is an eligible close) or is unbalanced.
+            let Some(close) = THINKING_CLOSE.find(rest) else {
+                clean.push_str(rest);
+                break;
+            };
+            let eligible = if implicit_pending {
+                IMPLICIT_OPEN_CLOSE.find(rest)
+            } else {
+                None
+            };
+            match eligible {
+                Some(hit) if hit.start() == close.start() => {
+                    implicit_pending = false;
+                    if !reason.is_empty() {
+                        reason.push('\n');
+                    }
+                    reason.push_str(&rest[..close.start()]);
+                    rest = &rest[close.end()..];
+                }
+                _ => return Err(ReasoningError::UnbalancedThinking),
             }
-            clean.push_str(rest);
-            break;
+            continue;
         };
         clean.push_str(&rest[..open.start()]);
         let inner = &rest[open.end()..];
@@ -507,6 +544,6 @@ fn split_thinking_tags(text: &str) -> Result<(String, String), ReasoningError> {
 }
 
 /// Removes thinking blocks and returns the remaining text.
-fn strip_thinking_tags(text: &str) -> Result<String, ReasoningError> {
-    Ok(split_thinking_tags(text)?.0)
+fn strip_thinking_tags(text: &str, implicit_open: bool) -> Result<String, ReasoningError> {
+    Ok(split_thinking_tags(text, implicit_open)?.0)
 }
