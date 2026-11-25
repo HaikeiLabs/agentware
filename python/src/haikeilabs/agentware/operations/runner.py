@@ -7,9 +7,12 @@ behaviour with Python idioms. For one operation call the runner:
    only, no credentials),
 2. reads the operation's resource template from the generated op descriptor
    and renders the request's fields into it,
-3. asks the kei-proxy daemon for one decision (``connector:<op.id>`` on the
-   rendered resource) in the caller's session,
-4. on an explicit allow, releases the session credential,
+3. asks the kei-proxy daemon for one decision on the tool call in the
+   caller's session, sending the tool's arguments and context so the daemon
+   can derive and authorize the registered operation plan itself,
+4. on an explicit allow, releases the session credential for the bare
+   operation id (``github.pulls.list``) on the rendered resource, with the
+   same tool arguments so the daemon re-derives the plan before releasing,
 5. builds the provider connection with the released token and calls the
    generated operation.
 
@@ -78,6 +81,8 @@ class OperationSocketClient(Protocol):
         parent_span: str = "",
         delegation_depth: int = 0,
         binding_version: str = "",
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]: ...
 
     async def release_credential(
@@ -90,6 +95,8 @@ class OperationSocketClient(Protocol):
         tool: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]: ...
 
 
@@ -306,8 +313,23 @@ class OperationRunner:
         *,
         tool: str = "",
         resource_template_override: str | None = None,
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> Any:
-        """Authorize, release and execute ``op`` for ``caller``."""
+        """Authorize, release and execute ``op`` for ``caller``.
+
+        Args:
+            tool: The registered tool name the call is authorized as.
+            tool_args: The tool call's arguments, exactly as the model sent
+                them. For a ``connector_binding`` tool they must satisfy the
+                bundle plan's ``args_schema``: kei-proxy derives the operation
+                from them and denies ``preflight_required`` without them. The
+                runner cannot derive them from ``request``.
+            tool_context: The tool call's context (``context_schema``).
+                Defaults to ``{}`` on the daemon when ``tool_args`` is set.
+
+        Both stay on the tenant-local socket; neither reaches an audit record.
+        """
         decision: Literal["allow", "deny"] = "deny"
         outcome: Literal["success", "denied", "error"] = "denied"
         try:
@@ -335,18 +357,27 @@ class OperationRunner:
                 else resource_template_override
             )
             resource = render_resource(template, binding.request_type, request)
-            capability = f"connector:{op.id}"
+            # The release capability is the bare operation id: the runtime's
+            # capability pattern (^[a-z0-9_]+(\.[a-z0-9_]+)*$) rejects ':'.
+            capability = op.id
             parent_span = caller.parent_span
             delegation_depth = caller.delegation_depth
+            # Sent only when given, so an OperationSocketClient written before
+            # these parameters existed keeps working for non-plan tools.
+            plan_inputs: dict[str, Any] = {}
+            if tool_args is not None:
+                plan_inputs["tool_args"] = tool_args
+            if tool_context is not None:
+                plan_inputs["tool_context"] = tool_context
             try:
                 result = await self._client.authorize(
                     self._session,
                     tool=tool,
-                    action=capability,
                     resource=resource,
                     parent_span=parent_span,
                     delegation_depth=delegation_depth,
                     binding_version=binding.binding_version,
+                    **plan_inputs,
                 )
             except Exception:
                 raise OperationDeniedError("proxy_unavailable") from None
@@ -360,6 +391,7 @@ class OperationRunner:
                     tool=tool,
                     parent_span=parent_span,
                     delegation_depth=delegation_depth,
+                    **plan_inputs,
                 )
             except Exception:
                 raise OperationDeniedError("credential_release_failed") from None

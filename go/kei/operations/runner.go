@@ -44,8 +44,13 @@ type Authorizer interface {
 // Conn is the connector's connection spec (kind and header name); BaseURL
 // is the provider origin the generated operations target.
 type ConnectorConfig struct {
-	// ConnectorID is the contract connector id, e.g. "github".
+	// ConnectorID is the contract connector id, e.g. "github": the operation
+	// id's prefix the runner serves.
 	ConnectorID string
+	// InstalledConnectorID is the installed connector's id in the policy
+	// bundle (policy_set.connectors[].id), sent as the credential release's
+	// connector_id. Empty falls back to ConnectorID.
+	InstalledConnectorID string
 	// ConnectionName is the connection the runner uses, e.g. "user_oauth".
 	// It must be listed on the operation's descriptor Connections.
 	ConnectionName string
@@ -174,14 +179,41 @@ func safeReason(raw, fallback string) string {
 	return fallback
 }
 
+// RunOption customizes one Run.
+type RunOption func(*runConfig)
+
+type runConfig struct {
+	tool        string
+	toolArgs    map[string]any
+	toolContext map[string]any
+}
+
+// WithToolCall names the registered tool the call is authorized as and
+// forwards the tool call's arguments and context. For a connector_binding
+// tool, args must satisfy the bundle plan's args_schema and toolContext its
+// context_schema: kei-proxy derives the operation from them, denies
+// preflight_required without them, and re-derives the plan before releasing
+// the credential. The runner cannot derive them from the request message.
+// Both stay on the tenant-local socket and never reach an audit record.
+func WithToolCall(tool string, args, toolContext map[string]any) RunOption {
+	return func(c *runConfig) {
+		c.tool, c.toolArgs, c.toolContext = tool, args, toolContext
+	}
+}
+
 // Run authorizes and executes one operation call.
 //
 // op is the generated operation descriptor (resource template, method
 // name, connections and transport). call receives the released, already
 // authenticated connection and performs the provider call. req is the
-// request message the resource template renders from.
-func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middleware.CallerContext, op connection.Op, call func(conn any) (Resp, error), req Req) (Resp, error) {
+// request message the resource template renders from. Pass WithToolCall for
+// a tool registered as a connector_binding in a v2 policy bundle.
+func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middleware.CallerContext, op connection.Op, call func(conn any) (Resp, error), req Req, opts ...RunOption) (Resp, error) {
 	var zero Resp
+	var rc runConfig
+	for _, opt := range opts {
+		opt(&rc)
+	}
 
 	decision, outcome := "deny", "denied"
 	defer func() {
@@ -220,15 +252,19 @@ func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middlew
 		return zero, denied("invalid_resource")
 	}
 
-	capability := "connector:" + op.ID
+	// The release capability is the bare operation id: the runtime's
+	// capability pattern (^[a-z0-9_]+(\.[a-z0-9_]+)*$) rejects ':'.
+	capability := op.ID
 	authz, err := r.client.Authorize(ctx, evaluator.AuthorizeRequest{
 		UserID:          r.userID,
 		InvokingSubject: r.userID,
-		Action:          capability,
+		Tool:            rc.tool,
 		Resource:        resource,
 		ParentSpan:      caller.ParentSpan,
 		DelegationDepth: caller.DelegationDepth,
 		BindingVersion:  r.cfg.BindingVersion,
+		ToolArgs:        rc.toolArgs,
+		ToolContext:     rc.toolContext,
 	})
 	if err != nil {
 		r.logger.WarnContext(ctx, "operation authorize failed", "operation", op.ID)
@@ -240,12 +276,19 @@ func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middlew
 		return zero, err
 	}
 
+	connectorID := r.cfg.InstalledConnectorID
+	if connectorID == "" {
+		connectorID = r.cfg.ConnectorID
+	}
 	rel, err := r.client.ReleaseCredential(ctx, r.userID, runtimesocket.ReleaseRequest{
-		ConnectorID:     r.cfg.ConnectorID,
+		Tool:            rc.tool,
+		ConnectorID:     connectorID,
 		Capability:      capability,
 		Resource:        resource,
 		ParentSpan:      caller.ParentSpan,
 		DelegationDepth: caller.DelegationDepth,
+		ToolArgs:        rc.toolArgs,
+		ToolContext:     rc.toolContext,
 	})
 	if err != nil {
 		r.logger.WarnContext(ctx, "credential release failed", "operation", op.ID)

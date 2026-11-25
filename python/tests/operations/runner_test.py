@@ -9,7 +9,7 @@ an audit record.
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import httpx
@@ -35,6 +35,8 @@ SECRET = "credential-DO-NOT-LEAK"
 SESSION = KeiProxySocketSession("test", "user", "s")
 CALLER = CallerContext(trusted=False, parent_span="p", delegation_depth=1)
 BASE_URL = "http://github.test"
+TOOL_ARGS = {"owner": "acme", "repository": "repo", "issue_number": 2}
+TOOL_CONTEXT = {"channel": "c1"}
 
 
 def make_request() -> issues_pb2.GetIssueRequest:
@@ -75,6 +77,8 @@ class FakeSocketClient:
         parent_span: str = "",
         delegation_depth: int = 0,
         binding_version: str = "",
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.authorize_calls.append(
             {
@@ -84,6 +88,8 @@ class FakeSocketClient:
                 "parent_span": parent_span,
                 "delegation_depth": delegation_depth,
                 "binding_version": binding_version,
+                "tool_args": tool_args,
+                "tool_context": tool_context,
             }
         )
         if self.authorize_error is not None:
@@ -100,6 +106,8 @@ class FakeSocketClient:
         tool: str = "",
         parent_span: str = "",
         delegation_depth: int = 0,
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.release_calls.append(
             {
@@ -109,6 +117,8 @@ class FakeSocketClient:
                 "tool": tool,
                 "parent_span": parent_span,
                 "delegation_depth": delegation_depth,
+                "tool_args": tool_args,
+                "tool_context": tool_context,
             }
         )
         if self.release_error is not None:
@@ -182,27 +192,41 @@ async def test_allow_then_call() -> None:
     socket = FakeSocketClient()
     audit: list[OperationAudit] = []
     runner = make_runner(socket, make_connectors(queries), provider, audit)
-    result = await runner.run(CALLER, ops.OP_GET_ISSUE, make_request(), tool="issue")
+    result = await runner.run(
+        CALLER,
+        ops.OP_GET_ISSUE,
+        make_request(),
+        tool="issue",
+        tool_args=TOOL_ARGS,
+        tool_context=TOOL_CONTEXT,
+    )
 
     assert result.title == "issue"
+    # No action: the runtime derives the operation from the registered plan.
     assert socket.authorize_calls == [
         {
             "tool": "issue",
-            "action": "connector:github.issues.get",
+            "action": "",
             "resource": "repos/acme/repo",
             "parent_span": "p",
             "delegation_depth": 1,
             "binding_version": "",
+            "tool_args": TOOL_ARGS,
+            "tool_context": TOOL_CONTEXT,
         }
     ]
+    # The release capability is the bare operation id (the runtime's
+    # capability pattern rejects ':'), with the same tool arguments.
     assert socket.release_calls == [
         {
             "connector_id": "installed-github",
-            "capability": "connector:github.issues.get",
+            "capability": "github.issues.get",
             "resource": "repos/acme/repo",
             "tool": "issue",
             "parent_span": "p",
             "delegation_depth": 1,
+            "tool_args": TOOL_ARGS,
+            "tool_context": TOOL_CONTEXT,
         }
     ]
     assert provider.requests == 1
@@ -466,3 +490,79 @@ async def test_unsupported_sql_connection_rejected_before_release() -> None:
     assert socket.release_calls == []
     assert built == []
     assert provider.requests == 0
+
+
+class WireDaemon:
+    """A daemon behind the real socket client: records every JSON body sent."""
+
+    def __init__(self) -> None:
+        self.bodies: dict[str, dict[str, Any]] = {}
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        self.bodies[request.url.path] = body
+        if request.url.path == "/v1/authorize":
+            return httpx.Response(
+                200, json={"schema": "kei.authorize-response/v1", "decision": "permit"}
+            )
+        return httpx.Response(
+            200,
+            json={
+                "schema": "kei.credential-release-response/v1",
+                "decision": "permit",
+                "credential": {"access_token": SECRET},
+            },
+        )
+
+
+async def test_wire_bodies_carry_bare_op_id_and_tool_arguments() -> None:
+    # The real socket client, so the assertion is on what reaches kei-proxy:
+    # kei-connector-runtime proxy-v0.11.0 decides a connector_binding tool only
+    # from tool_args (decideV2ConnectorPlan) and releases only for a capability
+    # matching ^[a-z0-9_]+(\.[a-z0-9_]+)*$ that the tool's plan requires.
+    from haikeilabs.agentware.kei import KeiProxySocketAuthorizeClient
+
+    daemon = WireDaemon()
+    client = KeiProxySocketAuthorizeClient(
+        env={"KEI_RUNTIME_TOKEN": "kh_test"}, transport=httpx.MockTransport(daemon.handle)
+    )
+    queries, _ = make_queries_spy()
+    runner = make_runner(client, make_connectors(queries), Provider())  # type: ignore[arg-type]
+    await runner.run(
+        CALLER,
+        ops.OP_GET_ISSUE,
+        make_request(),
+        tool="github.get_issue",
+        tool_args=TOOL_ARGS,
+        tool_context=TOOL_CONTEXT,
+    )
+
+    authorize = daemon.bodies["/v1/authorize"]
+    release = daemon.bodies["/v1/credentials:release"]
+    assert authorize["tool"] == "github.get_issue"
+    assert "action" not in authorize
+    assert "connector" not in authorize
+    assert authorize["tool_args"] == TOOL_ARGS
+    assert authorize["tool_context"] == TOOL_CONTEXT
+    assert release["connector"] == {
+        "connector_id": "installed-github",
+        "capability": "github.issues.get",
+    }
+    assert release["resource"] == "repos/acme/repo"
+    assert release["tool"] == "github.get_issue"
+    assert release["tool_args"] == TOOL_ARGS
+    assert release["tool_context"] == TOOL_CONTEXT
+    assert "connector:" not in json.dumps(daemon.bodies)
+
+
+async def test_without_tool_arguments_none_are_sent() -> None:
+    # Additive: a caller that passes no tool arguments sends none (the daemon
+    # rejects tool_args on a tool that is not a registered connector_binding).
+    queries, _ = make_queries_spy()
+    socket = FakeSocketClient()
+    runner = make_runner(socket, make_connectors(queries), Provider())
+    await runner.run(CALLER, ops.OP_GET_ISSUE, make_request(), tool="issue")
+    assert socket.authorize_calls[0]["tool_args"] is None
+    assert socket.authorize_calls[0]["action"] == ""
+    assert socket.release_calls[0]["tool_args"] is None
+    assert socket.release_calls[0]["capability"] == "github.issues.get"

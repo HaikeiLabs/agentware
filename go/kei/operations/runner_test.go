@@ -220,8 +220,8 @@ func TestAllowThenCall(t *testing.T) {
 		t.Fatalf("authorize calls = %d, want 1", len(fc.authorizeReqs))
 	}
 	ar := fc.authorizeReqs[0]
-	if ar.Action != "connector:github.issues.get" {
-		t.Errorf("authorize action = %q", ar.Action)
+	if ar.Action != "" {
+		t.Errorf("authorize action = %q, want none (the runtime derives the operation)", ar.Action)
 	}
 	if ar.Resource != "repos/octo/repo" {
 		t.Errorf("authorize resource = %q, want rendered template", ar.Resource)
@@ -236,7 +236,7 @@ func TestAllowThenCall(t *testing.T) {
 		t.Fatalf("release calls = %d, want 1", len(fc.releaseReqs))
 	}
 	rr := fc.releaseReqs[0]
-	if rr.ConnectorID != "github" || rr.Capability != "connector:github.issues.get" || rr.Resource != "repos/octo/repo" {
+	if rr.ConnectorID != "github" || rr.Capability != "github.issues.get" || rr.Resource != "repos/octo/repo" {
 		t.Errorf("release req = %+v", rr)
 	}
 	if fc.releaseUsers[0] != "user-1" {

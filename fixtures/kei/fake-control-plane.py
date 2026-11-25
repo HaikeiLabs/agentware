@@ -15,11 +15,24 @@ Usage:
     python3 fixtures/kei/fake-control-plane.py
     # prints the ephemeral port on stdout, then serves until killed
 
+Set FAKE_CONTROL_PLANE_BUNDLE=operation-plan to serve, in addition to the
+default bundle's tools, one catalog-shaped connector_binding tool
+(``github.list_pulls`` with a plan and args_schema) bound to a shared GitHub
+connector, for the OperationRunner end-to-end tests. kei-proxy releases that
+connector's credential through
+
+    POST /api/v1/connectorCredentials/{connector_id}:resolve
+
+(run kei-proxy serve with KEI_CREDENTIAL_RELEASE=identity and
+KEI_CREDENTIAL_RELEASE_URL pointing here); the token it returns is
+FAKE_CONTROL_PLANE_CONNECTOR_TOKEN (default ``fake-connector-token``).
+
 Set FAKE_CONTROL_PLANE_AUDIT_LOG to a file path to keep the decision records
 kei-proxy's audit collector flushes: one JSON record per line, in the order
 received.
 """
 
+import copy
 import hashlib
 import http.server
 import json
@@ -185,6 +198,110 @@ POLICY_BUNDLE: dict[str, Any] = {
     },
     "agent_model_profiles": [],
 }
+
+# The operation-plan variant: one connector_binding tool whose plan derives a
+# single github.pulls.list operation on repos/{owner}/{repository} from the
+# tool arguments, under an args_schema that admits exactly owner + repository.
+OPERATION_CONNECTOR_ID = "conn-github-ci"
+OPERATION_TOOL = "github.list_pulls"
+OPERATION_CAPABILITY = "github.pulls.list"
+
+
+def operation_plan_bundle() -> dict[str, Any]:
+    bundle = copy.deepcopy(POLICY_BUNDLE)
+    policy_set = bundle["policy_set"]
+    policy_set["tools"].append(
+        {
+            "name": OPERATION_TOOL,
+            "source": "ci",
+            "operation_class": "read",
+            "route": {
+                "connector_binding": {
+                    "connector_id": OPERATION_CONNECTOR_ID,
+                    "resource_template": "repos/{owner}/{repository}",
+                    "version": "v1",
+                }
+            },
+            "required_capabilities": [OPERATION_CAPABILITY],
+            "resource_types": [{"type": "repository", "parent_type": "owner"}],
+            "plan": {
+                "args_schema": {
+                    "type": "object",
+                    "properties": {
+                        "owner": {"type": "string"},
+                        "repository": {"type": "string"},
+                    },
+                    "required": ["owner", "repository"],
+                    "additionalProperties": False,
+                },
+                "context_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                },
+                "operations": [
+                    {
+                        "id": "list",
+                        "capability": OPERATION_CAPABILITY,
+                        "resource": {
+                            "type": "repository",
+                            "id": {"from": "args", "pointer": "/repository", "type": "string"},
+                            "parent": {
+                                "type": "owner",
+                                "id": {"from": "args", "pointer": "/owner", "type": "string"},
+                            },
+                        },
+                        "provider_resource_template": "repos/{parent.id}/{resource.id}",
+                        "provider_input": {},
+                    }
+                ],
+            },
+        }
+    )
+    # A connector plan is decided per operation against the policy set's
+    # checks (EvaluateV2Plan), not its tool_policies.
+    policy_set["checks"].append(
+        {
+            "policy_id": "policy-allow-list-pulls",
+            "name": "allow github.list_pulls",
+            "effect": "permit",
+            "priority": 100,
+            "scope": {"org_id": "ci-org", "workspace_id": "ci-ws", "agent_id": "ci-agent"},
+            "selector": {
+                "source_principal": "user:u-ci-user",
+                "source": "ci",
+                "tool": OPERATION_TOOL,
+                "connector_id": OPERATION_CONNECTOR_ID,
+                "capability": OPERATION_CAPABILITY,
+            },
+        }
+    )
+    policy_set["connectors"] = [
+        {
+            "id": OPERATION_CONNECTOR_ID,
+            "provider": "github",
+            "credential_source": "oauth",
+            "account_model": "shared",
+            "capabilities": [{"name": OPERATION_CAPABILITY, "mutating": False}],
+        }
+    ]
+    # Identity-mode release presents the session's subject token to the
+    # credential service; an identity without one releases no_session.
+    for identity in bundle["identities"]:
+        if identity["source"] == "ci":
+            identity["subject_token"] = "fake-subject-token-ci-user"
+    bundle["agent_connector_bindings"] = [
+        {
+            "agent_id": "ci-agent",
+            "connector_id": OPERATION_CONNECTOR_ID,
+            "capabilities": [OPERATION_CAPABILITY],
+        }
+    ]
+    return bundle
+
+
+if os.environ.get("FAKE_CONTROL_PLANE_BUNDLE") == "operation-plan":
+    POLICY_BUNDLE = operation_plan_bundle()
 
 POLICY_BUNDLE_BYTES: bytes = json.dumps(POLICY_BUNDLE, indent=2).encode("utf-8")
 POLICY_BUNDLE_ETAG = '"sha256:' + hashlib.sha256(POLICY_BUNDLE_BYTES).hexdigest() + '"'
@@ -391,8 +508,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if self.path == "/api/v1/runtime/audit:flush":
             return self._handle_audit_flush(body_bytes)
+        if self.path == "/api/v1/connectorCredentials:resolve":
+            return self._send_json(200, {"credentials": [], "failures": []})
+        if self.path == f"/api/v1/connectorCredentials/{OPERATION_CONNECTOR_ID}:resolve":
+            return self._handle_connector_credential(body_bytes)
 
         self._send_json(404, {"error": "not_found"})
+
+    def _handle_connector_credential(self, body_bytes: bytes) -> None:
+        """The shared connector credential kei-proxy releases in identity mode."""
+        try:
+            resource = json.loads(body_bytes or b"{}").get("resource", "")
+        except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
+            return self._send_json(400, {"error": "invalid_json"})
+        self._send_json(
+            200,
+            {
+                "connector_id": OPERATION_CONNECTOR_ID,
+                "issuer": "https://github.com",
+                "resource": resource,
+                "account_model": "shared",
+                "credential": {
+                    "access_token": os.environ.get(
+                        "FAKE_CONTROL_PLANE_CONNECTOR_TOKEN", "fake-connector-token"
+                    ),
+                    "token_type": "Bearer",
+                    "expire_time": "2099-01-01T00:00:00Z",
+                },
+            },
+        )
 
     def _handle_audit_flush(self, body_bytes: bytes) -> None:
         """Decision records from kei-proxy's audit collector.
