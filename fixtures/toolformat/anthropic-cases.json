@@ -1,26 +1,110 @@
 {
   "family": "anthropic",
-  "description": "Anthropic Claude XML tool-use format (text-mode <function_calls>)",
+  "description": "Anthropic Claude tool use in text mode: definitions are {name, description, input_schema}; calls are tool_use blocks {type, id, name, input} (the legacy <function_calls><invoke> form is the fallback); results are tool_result blocks {type, tool_use_id, content, is_error}. Without a call id the result carries tool_name in place of tool_use_id.",
   "format_definitions": [
     {
       "name": "two tools",
-      "expected": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name, e.g. 'Tokyo'\"},\"unit\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"default\":\"celsius\"}},\"required\":[\"location\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"search_web\",\"description\":\"Search the web for information\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"}},\"required\":[\"query\"]}}}]"
+      "expected": "[{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name, e.g. 'Tokyo'\"},\"unit\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"default\":\"celsius\"}},\"required\":[\"location\"]}},{\"name\":\"search_web\",\"description\":\"Search the web for information\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"}},\"required\":[\"query\"]}}]"
     }
   ],
   "parse_calls": [
     {
+      "name": "tool_use block",
+      "input": "{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"get_weather\",\"input\":{\"location\":\"Tokyo\",\"unit\":\"celsius\"}}",
+      "expected": [
+        {
+          "id": "toolu_01A",
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
+      ]
+    },
+    {
+      "name": "content array with text and two tool_use blocks",
+      "input": "\n[{\"type\":\"text\",\"text\":\"Checking both.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}},{\"type\":\"tool_use\",\"id\":\"toolu_01B\",\"name\":\"search_web\",\"input\":{\"query\":\"weather forecast\"}}]\n",
+      "expected": [
+        {
+          "id": "toolu_01A",
+          "name": "get_weather",
+          "args": {
+            "location": "Paris"
+          }
+        },
+        {
+          "id": "toolu_01B",
+          "name": "search_web",
+          "args": {
+            "query": "weather forecast"
+          }
+        }
+      ]
+    },
+    {
+      "name": "tool_use with empty input",
+      "input": "{\"type\":\"tool_use\",\"id\":\"toolu_01C\",\"name\":\"search_web\",\"input\":{}}",
+      "expected": [
+        {
+          "id": "toolu_01C",
+          "name": "search_web",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "name": "JSON without tool_use blocks",
+      "input": "[{\"type\":\"text\",\"text\":\"No tools needed.\"}]",
+      "expected": []
+    },
+    {
+      "name": "malformed tool_use blocks are skipped",
+      "input": "[{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"get_weather\",\"input\":{\"location\":\"Oslo\"}},{\"type\":\"tool_use\",\"name\":\"search_web\",\"input\":{}},{\"type\":\"tool_use\",\"id\":\"toolu_01C\",\"name\":\"search_web\",\"input\":\"weather\"}]",
+      "expected": [
+        {
+          "id": "toolu_01A",
+          "name": "get_weather",
+          "args": {
+            "location": "Oslo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "only malformed tool_use blocks: no invoke fallback",
+      "input": "{\"type\":\"tool_use\",\"id\":\"\",\"name\":\"get_weather\",\"input\":{}}",
+      "expected": []
+    },
+    {
       "name": "single call",
       "input": "<function_calls><invoke tool=\"get_weather\">{\"location\":\"Tokyo\",\"unit\":\"celsius\"}</invoke></function_calls>",
       "expected": [
-        {"name": "get_weather", "args": {"location": "Tokyo", "unit": "celsius"}}
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
       ]
     },
     {
       "name": "multiple calls",
       "input": "<function_calls><invoke tool=\"get_weather\">{\"location\":\"Paris\"}</invoke><invoke tool=\"search_web\">{\"query\":\"weather forecast\"}</invoke></function_calls>",
       "expected": [
-        {"name": "get_weather", "args": {"location": "Paris"}},
-        {"name": "search_web", "args": {"query": "weather forecast"}}
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Paris"
+          }
+        },
+        {
+          "name": "search_web",
+          "args": {
+            "query": "weather forecast"
+          }
+        }
       ]
     },
     {
@@ -36,21 +120,99 @@
   ],
   "format_result": [
     {
-      "name": "success",
+      "name": "success with call id",
       "tool_name": "get_weather",
-      "result": {"success": true, "output": "Sunny, 22°C"},
-      "expected": "<function_results><result tool=\"get_weather\">Sunny, 22°C</result></function_results>"
+      "call_id": "toolu_01A",
+      "result": {
+        "success": true,
+        "output": "Sunny, 22°C"
+      },
+      "expected": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01A\",\"content\":\"Sunny, 22°C\"}"
     },
     {
-      "name": "error",
+      "name": "error with call id",
       "tool_name": "get_weather",
-      "result": {"success": false, "error": "API unavailable"},
-      "expected": "<function_results><result tool=\"get_weather\">Error: API unavailable</result></function_results>"
+      "call_id": "toolu_01A",
+      "result": {
+        "success": false,
+        "error": "API unavailable"
+      },
+      "expected": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01A\",\"content\":\"API unavailable\",\"is_error\":true}"
+    },
+    {
+      "name": "success without call id",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": "Sunny, 22°C"
+      },
+      "expected": "{\"type\":\"tool_result\",\"tool_name\":\"get_weather\",\"content\":\"Sunny, 22°C\"}"
+    },
+    {
+      "name": "error without call id",
+      "tool_name": "get_weather",
+      "result": {
+        "success": false,
+        "error": "API unavailable"
+      },
+      "expected": "{\"type\":\"tool_result\",\"tool_name\":\"get_weather\",\"content\":\"API unavailable\",\"is_error\":true}"
+    },
+    {
+      "name": "content with markup, quotes and newline",
+      "tool_name": "get_weather",
+      "call_id": "toolu_01B",
+      "result": {
+        "success": true,
+        "output": "<b>\"hot\"</b> & dry\nwindy"
+      },
+      "expected": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01B\",\"content\":\"<b>\\\"hot\\\"</b> & dry\\nwindy\"}"
     }
   ],
   "validate_format": [
-    {"name": "valid", "input": "<function_calls><invoke tool=\"get_weather\">{}</invoke></function_calls>", "valid": true},
-    {"name": "empty", "input": "", "valid": true},
-    {"name": "missing tool attribute", "input": "<function_calls><invoke>{}</invoke></function_calls>", "valid": false}
+    {
+      "name": "valid tool_use block",
+      "input": "{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"get_weather\",\"input\":{\"location\":\"Tokyo\"}}",
+      "valid": true
+    },
+    {
+      "name": "text-only content array",
+      "input": "[{\"type\":\"text\",\"text\":\"Done.\"}]",
+      "valid": true
+    },
+    {
+      "name": "tool_use missing id",
+      "input": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{}}",
+      "valid": false
+    },
+    {
+      "name": "tool_use with empty name",
+      "input": "{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"\",\"input\":{}}",
+      "valid": false
+    },
+    {
+      "name": "tool_use input is not an object",
+      "input": "{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"get_weather\",\"input\":\"Tokyo\"}",
+      "valid": false
+    },
+    {
+      "name": "duplicate tool_use ids",
+      "input": "[{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"get_weather\",\"input\":{}},{\"type\":\"tool_use\",\"id\":\"toolu_01A\",\"name\":\"search_web\",\"input\":{}}]",
+      "valid": false
+    },
+    {
+      "name": "valid",
+      "input": "<function_calls><invoke tool=\"get_weather\">{}</invoke></function_calls>",
+      "valid": true
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "valid": true
+    },
+    {
+      "name": "missing tool attribute",
+      "input": "<function_calls><invoke>{}</invoke></function_calls>",
+      "valid": false
+    }
   ]
 }

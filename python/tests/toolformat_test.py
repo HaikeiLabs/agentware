@@ -294,9 +294,14 @@ class TestAnthropicFormatter:
         result = fmt.format_tool_definitions([tool])
         parsed = json.loads(result)
         assert isinstance(parsed, list)
-        assert len(parsed) == 1
-        assert parsed[0]["type"] == "function"
-        assert parsed[0]["function"]["name"] == "get_weather"
+        # Anthropic tool definition: name, description, input_schema.
+        assert parsed == [
+            {
+                "name": "get_weather",
+                "description": "Get weather",
+                "input_schema": {"type": "object", "properties": {}},
+            }
+        ]
 
     def test_format_tool_definitions_with_schema(self):
         fmt = AnthropicFormatter()
@@ -307,7 +312,8 @@ class TestAnthropicFormatter:
         )
         result = fmt.format_tool_definitions([tool])
         parsed = json.loads(result)
-        assert parsed[0]["function"]["parameters"]["properties"]["q"]["type"] == "string"
+        assert list(parsed[0]) == ["name", "description", "input_schema"]
+        assert parsed[0]["input_schema"]["properties"]["q"]["type"] == "string"
 
     def test_parse_tool_calls_empty(self):
         fmt = AnthropicFormatter()
@@ -369,26 +375,64 @@ class TestAnthropicFormatter:
     def test_format_tool_result_success(self):
         fmt = AnthropicFormatter()
         result = Result(success=True, data="Sunny, 22°C")
-        output = fmt.format_tool_result("get_weather", result)
-        assert (
-            output
-            == '<function_results><result tool="get_weather">Sunny, 22°C</result></function_results>'
-        )
+        output = fmt.format_tool_result("get_weather", result, call_id="toolu_01A")
+        assert output == '{"type":"tool_result","tool_use_id":"toolu_01A","content":"Sunny, 22°C"}'
 
     def test_format_tool_result_success_none_data(self):
         fmt = AnthropicFormatter()
         result = Result(success=True, data=None)
-        output = fmt.format_tool_result("get_weather", result)
-        assert output == '<function_results><result tool="get_weather"></result></function_results>'
+        output = fmt.format_tool_result("get_weather", result, call_id="toolu_01A")
+        assert output == '{"type":"tool_result","tool_use_id":"toolu_01A","content":""}'
 
     def test_format_tool_result_error(self):
         fmt = AnthropicFormatter()
         result = Result(success=False, error="API unavailable")
-        output = fmt.format_tool_result("get_weather", result)
-        assert (
-            output
-            == '<function_results><result tool="get_weather">Error: API unavailable</result></function_results>'
+        output = fmt.format_tool_result("get_weather", result, call_id="toolu_01A")
+        assert json.loads(output) == {
+            "type": "tool_result",
+            "tool_use_id": "toolu_01A",
+            "content": "API unavailable",
+            "is_error": True,
+        }
+
+    def test_format_tool_result_without_call_id_uses_tool_name(self):
+        fmt = AnthropicFormatter()
+        for call_id in (None, ""):
+            output = fmt.format_tool_result("get_weather", Result(success=True, data="ok"), call_id=call_id)
+            assert json.loads(output) == {"type": "tool_result", "tool_name": "get_weather", "content": "ok"}
+
+    def test_format_tool_result_non_string_data(self):
+        fmt = AnthropicFormatter()
+        output = fmt.format_tool_result("t", Result(success=True, data=42), call_id="toolu_01A")
+        assert json.loads(output)["content"] == "42"
+
+    def test_parse_tool_use_keeps_valid_blocks_and_drops_malformed(self):
+        fmt = AnthropicFormatter()
+        response = json.dumps(
+            [
+                {"type": "tool_use", "id": "toolu_01A", "name": "get_weather", "input": {"loc": "NYC"}},
+                {"type": "tool_use", "name": "search_web", "input": {}},
+                {"type": "tool_use", "id": "toolu_01C", "name": "search_web", "input": "q"},
+            ]
         )
+        calls = fmt.parse_tool_calls(response)
+        assert [(c.id, c.name, c.args) for c in calls] == [("toolu_01A", "get_weather", {"loc": "NYC"})]
+        assert fmt.validate_format(response) == "tool_use block 'search_web' missing id"
+
+    def test_parse_tool_use_only_malformed_does_not_fall_back(self):
+        fmt = AnthropicFormatter()
+        response = json.dumps({"type": "tool_use", "id": "", "name": "get_weather", "input": {}})
+        assert fmt.parse_tool_calls(response) == []
+
+    def test_parse_falls_back_to_invoke_when_not_json(self):
+        fmt = AnthropicFormatter()
+        calls = fmt.parse_tool_calls('{oops <function_calls><invoke tool="t">{"a":1}</invoke></function_calls>')
+        assert [(c.id, c.name, c.args) for c in calls] == [("", "t", {"a": 1})]
+
+    def test_other_formatters_accept_and_ignore_call_id(self):
+        result = Result(success=True, data="ok")
+        qwen = QwenFormatter()
+        assert qwen.format_tool_result("t", result, call_id="c1") == qwen.format_tool_result("t", result)
 
     def test_model_family(self):
         fmt = AnthropicFormatter()

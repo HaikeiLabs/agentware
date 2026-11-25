@@ -173,8 +173,10 @@ func TestAnthropicFormatToolDefinitions(t *testing.T) {
 	t.Run("single tool", func(t *testing.T) {
 		tool := &mockToolForFormat{name: "my_tool", description: "Does something"}
 		result := formatter.FormatToolDefinitions([]tools.Tool{tool})
-		if result == "" {
-			t.Error("expected non-empty result")
+		// A tool without parameters takes an empty object input_schema.
+		want := `[{"name":"my_tool","description":"Does something","input_schema":{"properties":{},"type":"object"}}]`
+		if result != want {
+			t.Errorf("got %s, want %s", result, want)
 		}
 	})
 }
@@ -231,22 +233,47 @@ func TestAnthropicParseToolCalls(t *testing.T) {
 
 func TestAnthropicFormatToolResult(t *testing.T) {
 	formatter := &AnthropicFormatter{}
+	ok := &tools.Result{Success: true, Output: "executed successfully"}
+	failed := &tools.Result{Success: false, Error: "something failed"}
 
-	t.Run("success result", func(t *testing.T) {
-		result := &tools.Result{Success: true, Output: "executed successfully"}
-		output := formatter.FormatToolResult("my_tool", result)
-		if output == "" {
-			t.Error("expected non-empty output")
-		}
-	})
+	cases := []struct {
+		name   string
+		result *tools.Result
+		callID []string
+		want   string
+	}{
+		{"success with call id", ok, []string{"toolu_01A"},
+			`{"type":"tool_result","tool_use_id":"toolu_01A","content":"executed successfully"}`},
+		{"error with call id", failed, []string{"toolu_01A"},
+			`{"type":"tool_result","tool_use_id":"toolu_01A","content":"something failed","is_error":true}`},
+		{"no call id uses tool_name", ok, nil,
+			`{"type":"tool_result","tool_name":"my_tool","content":"executed successfully"}`},
+		{"empty call id uses tool_name", ok, []string{""},
+			`{"type":"tool_result","tool_name":"my_tool","content":"executed successfully"}`},
+		{"only the first call id is used", ok, []string{"toolu_01A", "toolu_01B"},
+			`{"type":"tool_result","tool_use_id":"toolu_01A","content":"executed successfully"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := formatter.FormatToolResult("my_tool", tc.result, tc.callID...); got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
 
-	t.Run("error result", func(t *testing.T) {
-		result := &tools.Result{Success: false, Error: "something failed"}
-		output := formatter.FormatToolResult("my_tool", result)
-		if output == "" {
-			t.Error("expected non-empty output")
+// TestFormatToolResultIgnoresCallIDOutsideAnthropic checks that families
+// whose result format has no id render the same output with or without one.
+func TestFormatToolResultIgnoresCallIDOutsideAnthropic(t *testing.T) {
+	result := &tools.Result{Success: true, Output: "ok"}
+	for _, f := range []ToolFormatter{
+		&GenericFormatter{}, &OpenAIFOrmatter{}, &QwenFormatter{}, &LlamaFormatter{},
+		&MistralFormatter{}, &MiniMaxFormatter{}, &NemotronFormatter{},
+	} {
+		if with, without := f.FormatToolResult("t", result, "call_1"), f.FormatToolResult("t", result); with != without {
+			t.Errorf("%s: call id changed the result: %q vs %q", f.ModelFamily(), with, without)
 		}
-	})
+	}
 }
 
 func TestAnthropicModelFamily(t *testing.T) {

@@ -91,6 +91,20 @@ pub trait Formatter {
     /// Render a tool result for the next model turn.
     fn format_tool_result(&self, name: &str, result: &ToolResult) -> String;
 
+    /// Render a tool result that answers the tool call `call_id`, when the
+    /// caller has one. Families whose result format carries no id ignore it:
+    /// this default renders exactly what [`Formatter::format_tool_result`]
+    /// does. [`AnthropicFormatter`] renders the id as `tool_use_id`.
+    fn format_tool_result_with_call_id(
+        &self,
+        name: &str,
+        result: &ToolResult,
+        call_id: Option<&str>,
+    ) -> String {
+        let _ = call_id;
+        self.format_tool_result(name, result)
+    }
+
     /// Family identifier, e.g. `"openai"`, `"glm"`.
     fn model_family(&self) -> &'static str;
 

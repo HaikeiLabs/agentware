@@ -11,7 +11,7 @@ and the reasoning adapter handles its reasoning shape.
 | Family | Tool Definitions | Tool Calls (response) | Tool Result | Reasoning Field | Thinking Tags |
 |--------|------------------|----------------------|-------------|-----------------|---------------|
 | **OpenAI** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | none |
-| **Anthropic** | Native `tools` or JSON function array | Native `tool_use` blocks or XML `<invoke>` | Native `tool_result` blocks or XML | `thinking` (content block) | none |
+| **Anthropic** | Native `tools` or JSON `{name, description, input_schema}` array | Native or JSON `tool_use` blocks (legacy XML `<invoke>` fallback) | `tool_result` blocks | `thinking` (content block) | none |
 | **Qwen** | Hermes JSON lines in `<tools>` | JSON in `<tool_call>` | JSON in `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
 | **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
@@ -80,16 +80,29 @@ for the Messages API replay requirements.
 
 ### Anthropic (`AnthropicFormatter` / `AnthropicFormatter` / `AnthropicFormatter`)
 
+The text-mode formatter renders the shapes of the Anthropic Messages API
+([tool use overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview)):
+tool definitions, `tool_use` blocks and `tool_result` blocks, as JSON text.
+
 | | Detail |
 |---|---|
 | **Model names** | `claude-*`, `anthropic-*` |
-| **Definitions format** | OpenAI-compatible JSON array (same as `GenericFormatter`) |
-| **Parse format** | XML: `<function_calls><invoke tool="name">JSON args</invoke></function_calls>` |
-| **Result format** | XML: `<function_results><result tool="name">output</result></function_results>` |
-| **Validate** | Validates `<invoke>` tags have valid JSON arguments and non-empty names |
+| **Definitions format** | JSON array of Anthropic tool definitions: `{"name", "description", "input_schema"}`. A tool without parameters gets `{"type": "object", "properties": {}}`, because the API requires `input_schema`. |
+| **Parse format** | `tool_use` blocks, `{"type": "tool_use", "id", "name", "input"}`: one block, or a content array whose other blocks (such as text) are ignored. The block's `id` becomes the call id. A malformed block (missing `id` or `name`, or `input` not an object) is never returned as a call. When the response holds no `tool_use` block at all, the legacy `<function_calls><invoke tool="name">JSON args</invoke></function_calls>` form is parsed instead, and those calls have no id. |
+| **Result format** | A `tool_result` block, `{"type": "tool_result", "tool_use_id", "content", "is_error"}`; `is_error: true` appears only on failure, and the content is then the error text. When the caller passes no call id, `tool_name` takes the place of `tool_use_id`. That block is a text rendering only: the Messages API rejects a `tool_result` without `tool_use_id`. |
+| **Validate** | For `tool_use` blocks: a non-empty string `id` and `name`, an object `input`, and no duplicate ids. Otherwise, the legacy `<invoke>` checks (valid JSON arguments and non-empty names). |
 | **Reasoning field** | `thinking` — a separate content block of `type: "thinking"` in the Messages API response |
 | **Inline tags** | None. Extended thinking is a structured content block, not inline. |
 | **Adapter** | `thinking` is in the known field set. No registration needed for Claude. |
+
+**The call id.** The result formatter takes an optional call id in every port:
+Python `format_tool_result(name, result, call_id=None)`, Go
+`FormatToolResult(name, result, callID ...string)` (only the first value is
+used), TypeScript `formatToolResult(name, result, callId?)`, and Rust
+`format_tool_result_with_call_id(name, result, Option<&str>)`, a default
+trait method next to `format_tool_result`. The other families accept the id
+and ignore it. The Go and Rust inference executors pass the id of the call
+they answer.
 
 **Example response (Messages API):**
 
@@ -102,7 +115,22 @@ for the Messages API replay requirements.
 }
 ```
 
-**Example response (text with function_calls):**
+**Example response (text with a `tool_use` block):**
+
+```json
+[
+  {"type": "text", "text": "Let me check."},
+  {"type": "tool_use", "id": "toolu_01A", "name": "get_weather", "input": {"location": "Tokyo"}}
+]
+```
+
+**Example tool result for that call:**
+
+```json
+{"type":"tool_result","tool_use_id":"toolu_01A","content":"Sunny, 22°C"}
+```
+
+**Example response (legacy text with function_calls):**
 
 ```text
 <function_calls>

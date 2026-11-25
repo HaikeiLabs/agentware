@@ -81,7 +81,7 @@ func (f *MistralFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 	return result, nil
 }
 
-func (f *MistralFormatter) FormatToolResult(name string, result *tools.Result) string {
+func (f *MistralFormatter) FormatToolResult(name string, result *tools.Result, _ ...string) string {
 	if result.Success {
 		return fmt.Sprintf("[TOOL_RESULT]\n%s\n%s\n[/TOOL_RESULT]", name, result.Output)
 	}

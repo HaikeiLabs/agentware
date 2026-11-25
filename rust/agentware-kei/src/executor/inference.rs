@@ -141,13 +141,14 @@ impl Executor for InferenceExecutor {
                         },
                     };
 
-                let formatted_result = self.config.formatter.format_tool_result(
+                let formatted_result = self.config.formatter.format_tool_result_with_call_id(
                     &tool_call.name,
                     &crate::toolformat::ToolResult {
                         success: result.success,
                         output: result.output.clone(),
                         error: result.error.clone(),
                     },
+                    Some(&tool_call.id),
                 );
                 conversation.push(Message {
                     role: Role::Tool,
@@ -463,6 +464,47 @@ mod tests {
             .find(|message| message.role == Role::Tool)
             .expect("tool message");
         assert_eq!(tool_message.content, "echo ran");
+    }
+
+    #[test]
+    fn loop_passes_the_call_id_to_the_formatter() {
+        // An Anthropic tool_use block comes back as a tool_result block that
+        // answers the same tool_use id.
+        let content = r#"{"type":"tool_use","id":"toolu_01A","name":"echo","input":{"text":"hi"}}"#;
+        let config = InferenceExecutorConfig {
+            backend: Arc::new(FakeBackend {
+                responses: Mutex::new(vec![
+                    Response {
+                        content: content.into(),
+                        ..Default::default()
+                    },
+                    Response {
+                        content: "TASK_COMPLETE".into(),
+                        ..Default::default()
+                    },
+                ]),
+            }),
+            registry: Arc::new({
+                let mut registry = crate::tools::ToolRegistry::new();
+                registry.register(Arc::new(EchoTool), None);
+                registry
+            }),
+            formatter: Box::new(crate::toolformat::AnthropicFormatter),
+            ..test_config()
+        };
+        let result = InferenceExecutor::new(config)
+            .execute(&ExecuteRequest::default())
+            .unwrap();
+        let tool_message = result
+            .conversation
+            .iter()
+            .find(|message| message.role == Role::Tool)
+            .expect("tool message");
+        assert_eq!(tool_message.tool_call_id, "toolu_01A");
+        assert_eq!(
+            tool_message.content,
+            r#"{"type":"tool_result","tool_use_id":"toolu_01A","content":"echo ran"}"#
+        );
     }
 
     struct EchoTool;

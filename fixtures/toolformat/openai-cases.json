@@ -41,6 +41,13 @@
       "tool_name": "get_weather",
       "result": {"success": false, "error": "API unavailable"},
       "expected": "Error: API unavailable"
+    },
+    {
+      "name": "call id is accepted and ignored",
+      "tool_name": "get_weather",
+      "call_id": "call_01A",
+      "result": {"success": true, "output": "Sunny, 22°C"},
+      "expected": "Sunny, 22°C"
     }
   ],
   "validate_format": [

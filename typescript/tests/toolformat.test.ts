@@ -366,25 +366,58 @@ describe("AnthropicFormatter", () => {
   });
 
   describe("formatToolResult", () => {
-    it("wraps success result in XML", () => {
+    it("renders a tool_result block answering the call id", () => {
       const r = makeResult("output");
-      expect(fmt.formatToolResult("my_tool", r)).toBe(
-        '<function_results><result tool="my_tool">output</result></function_results>',
+      expect(fmt.formatToolResult("my_tool", r, "toolu_01A")).toBe(
+        '{"type":"tool_result","tool_use_id":"toolu_01A","content":"output"}',
       );
     });
 
-    it("wraps JSON data in XML", () => {
+    it("renders JSON data as string content", () => {
       const r = makeResult({ a: 1 });
-      expect(fmt.formatToolResult("t", r)).toBe(
-        '<function_results><result tool="t">{"a":1}</result></function_results>',
+      expect(fmt.formatToolResult("t", r, "toolu_01A")).toBe(
+        '{"type":"tool_result","tool_use_id":"toolu_01A","content":"{\\"a\\":1}"}',
       );
     });
 
-    it("wraps error result in XML", () => {
+    it("marks an error result with is_error", () => {
       const r = makeResult(null, "fail");
-      expect(fmt.formatToolResult("t", r)).toBe(
-        '<function_results><result tool="t">Error: fail</result></function_results>',
+      expect(fmt.formatToolResult("t", r, "toolu_01A")).toBe(
+        '{"type":"tool_result","tool_use_id":"toolu_01A","content":"fail","is_error":true}',
       );
+    });
+
+    it("carries tool_name when there is no call id", () => {
+      for (const callId of [undefined, ""]) {
+        expect(JSON.parse(fmt.formatToolResult("t", makeResult("ok"), callId))).toEqual({
+          type: "tool_result",
+          tool_name: "t",
+          content: "ok",
+        });
+      }
+    });
+  });
+
+  describe("formatToolDefinitions", () => {
+    it("renders Anthropic tool definitions, with an empty schema when none is given", () => {
+      const out = fmt.formatToolDefinitions([
+        { name: "ping", description: "Ping" } as never,
+        { name: "search", description: "Search", input_schema: { type: "object", properties: { q: { type: "string" } } } } as never,
+      ]);
+      expect(JSON.parse(out)).toEqual([
+        { name: "ping", description: "Ping", input_schema: { type: "object", properties: {} } },
+        { name: "search", description: "Search", input_schema: { type: "object", properties: { q: { type: "string" } } } },
+      ]);
+    });
+  });
+
+  describe("callId on other families", () => {
+    it("is accepted and ignored", () => {
+      const r = makeResult("ok");
+      for (const model of ["gpt-4o", "qwen3", "deepseek-chat", "glm-4"]) {
+        const f = getFormatter(model);
+        expect(f.formatToolResult("t", r, "call_1")).toBe(f.formatToolResult("t", r));
+      }
     });
   });
 
