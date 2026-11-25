@@ -10,7 +10,7 @@ from ..llm.backend import accepts_tools
 from ..llm.request import Role, ToolDefinition
 from ..middleware import CallerContext
 from ..toolformat import ToolFormatter
-from ..tools import ToolRegistry
+from ..tools import ToolRegistry, schema_of
 
 logger = logging.getLogger(__name__)
 
@@ -75,16 +75,14 @@ class InferenceExecutor:
 
     def _llm_tools(self) -> list[ToolDefinition]:
         """Map the registry's tools to llm tool definitions (mirrors #300)."""
-        tools: list[ToolDefinition] = []
-        for tool in self._config.registry.all():
-            schema: dict[str, Any] = {}
-            schema_fn = getattr(tool, "input_schema", None)
-            if callable(schema_fn):
-                schema = schema_fn()
-            tools.append(
-                ToolDefinition(name=tool.name, description=tool.description, input_schema=schema)
+        return [
+            ToolDefinition(
+                name=tool.name,
+                description=tool.description,
+                input_schema=schema_of(tool) or {},
             )
-        return tools
+            for tool in self._config.registry.all()
+        ]
 
     def execute(self, req: ExecuteRequest) -> ExecuteResult:
         """Run the inference loop."""

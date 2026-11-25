@@ -1,7 +1,15 @@
 """Tools package - Tool definitions and registry."""
 
 from .registry import KeiToolRegistration, ToolRegistry
-from .tool import BaseTool, GovernedTool, KeiResourceType, KeiScope, Result, Tool
+from .tool import (
+    BaseTool,
+    GovernedTool,
+    KeiResourceType,
+    KeiScope,
+    Result,
+    Tool,
+    schema_of,
+)
 
 __all__ = [
     "Tool",
@@ -12,4 +20,5 @@ __all__ = [
     "KeiScope",
     "KeiResourceType",
     "GovernedTool",
+    "schema_of",
 ]

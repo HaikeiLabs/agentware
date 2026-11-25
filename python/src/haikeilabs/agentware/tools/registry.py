@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any, TypedDict
 
+from .tool import schema_of
+
 # Operation ids in the optional operations array: at least three lowercase
 # segments separated by dots, e.g. github.issues.get.
 _OPERATIONS_ENTRY = re.compile(r"^[a-z0-9_]+(\.[a-z0-9_]+){2,}$")
@@ -47,9 +49,9 @@ class ToolRegistry:
 
     def schemas(self) -> dict[str, dict[str, Any]]:
         return {
-            name: tool.input_schema()
+            name: schema
             for name, tool in self._tools.items()
-            if hasattr(tool, "input_schema")
+            if (schema := schema_of(tool)) is not None
         }
 
     def export_kei_tool_manifest(self, *, version: int = 3) -> str:

@@ -25,6 +25,28 @@ class Tool(Protocol):
         ...
 
 
+def schema_of(tool: Any) -> dict[str, Any] | None:
+    """Return a tool's JSON input schema, however it declares it.
+
+    Accepts every declaration style used across the SDK: a dict attribute
+    (``tool.parameters`` or ``tool.input_schema``, including a property) or a
+    zero-argument method (``tool.input_schema()``). When a tool declares both,
+    ``parameters`` wins, matching the tool formatters. Returns None when the
+    tool declares no schema, or one that is not a dict.
+    """
+    attr = getattr(tool, "parameters", None)
+    if attr is None:
+        attr = getattr(tool, "input_schema", None)
+    if attr is None:
+        return None
+    if callable(attr):
+        result = attr()
+        return result if isinstance(result, dict) else None
+    if isinstance(attr, dict):
+        return attr
+    return None
+
+
 @dataclass
 class ToolExample:
     """Example usage of a tool."""

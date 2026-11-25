@@ -217,6 +217,69 @@ def test_executor_passes_registry_tools_to_backend() -> None:
     ]
 
 
+class AttrSchemaTool:
+    """Tool that declares its JSON schema as a plain dict attribute."""
+
+    name = "attr_tool"
+    description = "attribute-style schema tool"
+
+    def __init__(self) -> None:
+        self.input_schema: dict[str, Any] = {
+            "type": "object",
+            "properties": {"limit": {"type": "integer"}},
+        }
+
+    def execute(self, args: dict[str, Any]) -> Any:
+        return None
+
+
+class MethodSchemaTool:
+    """Tool that declares its JSON schema via a zero-argument method."""
+
+    name = "method_tool"
+    description = "method-style schema tool"
+
+    def input_schema(self) -> dict[str, Any]:
+        return {"type": "object", "properties": {"query": {"type": "string"}}}
+
+    def execute(self, args: dict[str, Any]) -> Any:
+        return None
+
+
+def test_executor_sends_attribute_and_method_schemas_to_backend() -> None:
+    """Both schema styles reach the backend; an attribute schema is not dropped."""
+    backend = RecordingBackend(responses=[Response(content="done")])
+    registry = ToolRegistry()
+    registry.register(AttrSchemaTool())
+    registry.register(MethodSchemaTool())
+    executor = InferenceExecutor(
+        InferenceExecutorConfig(
+            backend=backend,
+            registry=registry,
+            tool_executor=None,
+            formatter=NoopFormatter(),
+            max_iterations=5,
+        )
+    )
+
+    executor.execute(ExecuteRequest(system_prompt="sys", user_message="go"))
+
+    assert backend.tools_seen == [
+        [
+            ToolDefinition(
+                name="attr_tool",
+                description="attribute-style schema tool",
+                input_schema={"type": "object", "properties": {"limit": {"type": "integer"}}},
+            ),
+            ToolDefinition(
+                name="method_tool",
+                description="method-style schema tool",
+                input_schema={"type": "object", "properties": {"query": {"type": "string"}}},
+            ),
+        ]
+    ]
+
+
 def test_executor_runs_native_tool_calls_and_keeps_ids() -> None:
     """A native tool call runs once; the tool message answers its tool_call_id."""
     backend = RecordingBackend(
