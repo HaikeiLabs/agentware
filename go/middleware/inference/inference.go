@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/haikeilabs/agentware/go/llm"
 	"github.com/haikeilabs/agentware/go/middleware/guardrails"
@@ -203,6 +204,26 @@ func RunInference(ctx context.Context, messages []llm.Message, cfg InferenceConf
 			return nil, ErrRetriesExhausted
 		}
 
+		// Rebuild the retry tail: the failed assistant turn precedes the
+		// nudge, so the next request ends with a user message. Current Claude
+		// models reject a request that ends with an assistant turn (no
+		// prefill), and the model must read the correction after the answer
+		// it corrects. The failed turn is appended only when it has
+		// presentable content; its tool_calls, if any, are dropped because
+		// unanswered tool_calls are rejected by the native APIs, and the
+		// nudge names the failed call instead. An empty or whitespace-only
+		// failed turn is skipped entirely.
+		if strings.TrimSpace(cleanContent) != "" {
+			failedMsg := llm.Message{
+				Role:    llm.RoleAssistant,
+				Content: cleanContent,
+				Meta: llm.MessageMeta{
+					Type: llm.MessageTypeTextResponse,
+				},
+			}
+			currentMessages = append(currentMessages, failedMsg)
+		}
+
 		if validationResult.Nudge != nil {
 			nudgeMsg := llm.Message{
 				Role:    llm.RoleUser,
@@ -213,15 +234,6 @@ func RunInference(ctx context.Context, messages []llm.Message, cfg InferenceConf
 			}
 			currentMessages = append(currentMessages, nudgeMsg)
 		}
-
-		failedMsg := llm.Message{
-			Role:    llm.RoleAssistant,
-			Content: cleanContent,
-			Meta: llm.MessageMeta{
-				Type: llm.MessageTypeTextResponse,
-			},
-		}
-		currentMessages = append(currentMessages, failedMsg)
 	}
 
 	return nil, ErrRetriesExhausted

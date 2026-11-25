@@ -1,6 +1,6 @@
 """Integration tests for run_inference."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
@@ -17,6 +17,7 @@ from haikeilabs.agentware.middleware.inference import (
     RetriesExhaustedError,
     run_inference,
 )
+from haikeilabs.agentware.middleware.types import MessageType
 
 
 @dataclass
@@ -477,6 +478,229 @@ class TestRunInference:
 
         assert result is not None
         assert result.attempts == 1
+
+
+@dataclass
+class RecordingBackend:
+    """Mock backend that records the messages of every request."""
+
+    responses: list[Response]
+    call_count: int = 0
+    requests: list[list[Message]] = field(default_factory=list)
+
+    def complete(self, messages: list[Message], tools=None) -> Response:
+        """Record the request, then return sequential mock responses."""
+        self.requests.append(list(messages))
+        if self.call_count >= len(self.responses):
+            return self.responses[-1]
+        resp = self.responses[self.call_count]
+        self.call_count += 1
+        return resp
+
+    def supports_native_tool_calling(self) -> bool:
+        return True
+
+    def model_name(self) -> str:
+        return "mock"
+
+    def context_window_size(self) -> int:
+        return 8192
+
+
+class TestRetryHistoryOrder:
+    """Tests for the conversation history built on a validation retry.
+
+    The failed assistant turn must precede the retry nudge, so the next
+    request ends with a user message (current Claude models reject a request
+    that ends with an assistant turn, and the model reads the correction
+    before the answer it corrects). A failed reply that carries tool_calls
+    contributes no unanswered tool_calls to the history, and an empty or
+    whitespace-only failed turn is skipped entirely.
+    """
+
+    def _tool_def(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="test_tool",
+            description="A test tool",
+            input_schema={"type": "object", "properties": {}},
+        )
+
+    @pytest.mark.asyncio
+    async def test_retry_appends_failed_assistant_turn_before_nudge(self):
+        """The second request ends with [assistant(failed), user(nudge)]."""
+        messages = [Message(role=Role.USER, content="test")]
+
+        bad_resp = Response(
+            content="Tokyo is warmer at 22 degrees today.",
+            tool_calls=[],
+            finish_reason="stop",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+        good_resp = Response(
+            content="",
+            tool_calls=[LLMToolCall(id="1", name="test_tool", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+        backend = RecordingBackend(responses=[bad_resp, good_resp])
+        validator = ResponseValidator(tool_names=["test_tool"], rescue_enabled=False)
+
+        cfg = InferenceConfig(
+            client=backend,
+            tool_specs=[self._tool_def()],
+            validator=validator,
+            max_attempts=3,
+        )
+
+        result = await run_inference(messages, cfg)
+
+        assert result is not None
+        assert result.attempts == 2
+        assert len(backend.requests) == 2
+
+        second = backend.requests[1]
+        assert second[-1].role == Role.USER
+        assert "not a valid tool call" in second[-1].content
+        assert second[-1].meta.type == MessageType.RETRY_NUDGE
+        assert second[-2].role == Role.ASSISTANT
+        assert second[-2].content == "Tokyo is warmer at 22 degrees today."
+        assert second[-2].meta.type == MessageType.TEXT_RESPONSE
+
+        # The returned history carries the same order.
+        assert result.new_messages[-2:] == second[-2:]
+
+    @pytest.mark.asyncio
+    async def test_retry_skips_empty_assistant_turn(self):
+        """An empty failed reply (native unknown-tool call) adds no assistant turn."""
+        messages = [Message(role=Role.USER, content="test")]
+
+        bad_resp = Response(
+            content="",
+            tool_calls=[LLMToolCall(id="1", name="weather_lookup", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+        good_resp = Response(
+            content="",
+            tool_calls=[LLMToolCall(id="2", name="test_tool", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+        backend = RecordingBackend(responses=[bad_resp, good_resp])
+        validator = ResponseValidator(tool_names=["test_tool"], rescue_enabled=False)
+
+        cfg = InferenceConfig(
+            client=backend,
+            tool_specs=[self._tool_def()],
+            validator=validator,
+            max_attempts=3,
+        )
+
+        result = await run_inference(messages, cfg)
+
+        assert result is not None
+        assert result.attempts == 2
+        assert len(backend.requests) == 2
+
+        second = backend.requests[1]
+        for msg in second:
+            assert not (msg.role == Role.ASSISTANT and not msg.content.strip()), (
+                "retry history must not contain an empty assistant message"
+            )
+        assert second[-1].role == Role.USER
+        # The nudge names the failed call, the only record of it left.
+        assert "weather_lookup" in second[-1].content
+        assert result.new_messages[-1] == second[-1]
+
+    @pytest.mark.asyncio
+    async def test_retry_skips_whitespace_only_assistant_turn(self):
+        """A whitespace-only failed reply adds no assistant turn either."""
+        messages = [Message(role=Role.USER, content="test")]
+
+        bad_resp = Response(
+            content="   \n\t  ",
+            tool_calls=[],
+            finish_reason="stop",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+        good_resp = Response(
+            content="",
+            tool_calls=[LLMToolCall(id="1", name="test_tool", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+        backend = RecordingBackend(responses=[bad_resp, good_resp])
+        validator = ResponseValidator(tool_names=["test_tool"], rescue_enabled=False)
+
+        cfg = InferenceConfig(
+            client=backend,
+            tool_specs=[self._tool_def()],
+            validator=validator,
+            max_attempts=3,
+        )
+
+        result = await run_inference(messages, cfg)
+
+        assert result is not None
+        assert len(backend.requests) == 2
+
+        second = backend.requests[1]
+        for msg in second:
+            assert not (msg.role == Role.ASSISTANT and not msg.content.strip()), (
+                "retry history must not contain a whitespace-only assistant message"
+            )
+        assert second[-1].role == Role.USER
+        assert result.new_messages[-1] == second[-1]
+
+    @pytest.mark.asyncio
+    async def test_retry_history_has_no_orphan_tool_calls(self):
+        """No assistant message in the retry history carries unanswered tool_calls."""
+        messages = [Message(role=Role.USER, content="test")]
+
+        # Text response with content AND a native tool call to an unknown tool:
+        # the turn is kept for its text but the tool_calls are dropped.
+        bad_resp = Response(
+            content="Let me check the weather first.",
+            tool_calls=[LLMToolCall(id="1", name="weather_lookup", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+        good_resp = Response(
+            content="",
+            tool_calls=[LLMToolCall(id="2", name="test_tool", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+        backend = RecordingBackend(responses=[bad_resp, good_resp])
+        validator = ResponseValidator(tool_names=["test_tool"], rescue_enabled=False)
+
+        cfg = InferenceConfig(
+            client=backend,
+            tool_specs=[self._tool_def()],
+            validator=validator,
+            max_attempts=3,
+        )
+
+        result = await run_inference(messages, cfg)
+
+        assert result is not None
+        assert len(backend.requests) == 2
+
+        second = backend.requests[1]
+        for msg in second:
+            if msg.role == Role.ASSISTANT:
+                assert msg.tool_calls == [], (
+                    "retry history must not carry unanswered tool_calls"
+                )
+        assert second[-1].role == Role.USER
+        assert "weather_lookup" in second[-1].content
+        assert second[-2].role == Role.ASSISTANT
+        assert second[-2].content == "Let me check the weather first."
+        assert result.new_messages[-2:] == second[-2:]
 
 
 class TestRunInferenceReasoning:

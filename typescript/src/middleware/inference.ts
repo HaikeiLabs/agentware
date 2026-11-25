@@ -221,6 +221,23 @@ export async function runInference(
       throw new RetriesExhaustedError(`retries exhausted after ${attempts} attempts`);
     }
 
+    // Rebuild the retry tail: the failed assistant turn precedes the nudge,
+    // so the next request ends with a user message. Current Claude models
+    // reject a request that ends with an assistant turn (no prefill), and
+    // the model must read the correction after the answer it corrects. The
+    // failed turn is appended only when it has presentable content; its
+    // tool_calls, if any, are dropped because unanswered tool_calls are
+    // rejected by the native APIs, and the nudge names the failed call
+    // instead. An empty or whitespace-only failed turn is skipped entirely.
+    if (cleanContent.trim()) {
+      const failedMsg: Message = {
+        role: Role.ASSISTANT,
+        content: cleanContent,
+        meta: { type: MessageType.TEXT_RESPONSE },
+      };
+      currentMessages.push(failedMsg);
+    }
+
     if (validationResult && validationResult.nudge) {
       const nudgeMsg: Message = {
         role: Role.USER,
@@ -229,13 +246,6 @@ export async function runInference(
       };
       currentMessages.push(nudgeMsg);
     }
-
-    const failedMsg: Message = {
-      role: Role.ASSISTANT,
-      content: cleanContent,
-      meta: { type: MessageType.TEXT_RESPONSE },
-    };
-    currentMessages.push(failedMsg);
   }
 
   throw new RetriesExhaustedError(`retries exhausted after ${attempts} attempts`);

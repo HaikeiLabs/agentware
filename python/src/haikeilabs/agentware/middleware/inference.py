@@ -254,6 +254,23 @@ async def run_inference(
         if attempts >= cfg.max_attempts:
             raise RetriesExhaustedError(f"retries exhausted after {attempts} attempts")
 
+        # Rebuild the retry tail: the failed assistant turn precedes the
+        # nudge, so the next request ends with a user message. Current Claude
+        # models reject a request that ends with an assistant turn (no
+        # prefill), and the model must read the correction after the answer
+        # it corrects. The failed turn is appended only when it has
+        # presentable content; its tool_calls, if any, are dropped because
+        # unanswered tool_calls are rejected by the native APIs, and the
+        # nudge names the failed call instead. An empty or whitespace-only
+        # failed turn is skipped entirely.
+        if clean_content.strip():
+            failed_msg = Message(
+                role=Role.ASSISTANT,
+                content=clean_content,
+                meta=MessageMeta(type=MessageType.TEXT_RESPONSE),
+            )
+            current_messages.append(failed_msg)
+
         if validation_result and validation_result.nudge:
             nudge_msg = Message(
                 role=Role.USER,
@@ -261,12 +278,5 @@ async def run_inference(
                 meta=MessageMeta(type=MessageType.RETRY_NUDGE),
             )
             current_messages.append(nudge_msg)
-
-        failed_msg = Message(
-            role=Role.ASSISTANT,
-            content=clean_content,
-            meta=MessageMeta(type=MessageType.TEXT_RESPONSE),
-        )
-        current_messages.append(failed_msg)
 
     raise RetriesExhaustedError(f"retries exhausted after {attempts} attempts")
