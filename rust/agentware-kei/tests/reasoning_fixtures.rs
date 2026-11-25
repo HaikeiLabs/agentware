@@ -6,7 +6,7 @@
 //! shared by strip/extract/parse; parse only exposes the clean side and a
 //! summarized tree, so the runner asserts on the analysis directly.
 
-use haikeilabs_agentware::reasoning::Adapter;
+use haikeilabs_agentware::reasoning::{Adapter, Options};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -57,7 +57,13 @@ fn fixture_files() -> Vec<PathBuf> {
 /// (null meaning the empty string, as in the Go runner).
 fn run_case(fixture: &str, case: &Value) -> Result<(), String> {
     let name = case["name"].as_str().expect("case name");
-    let adapter = Adapter::new();
+    // A per-example options field carries non-default adapter options; today
+    // the only key is implicit_open (see minimax-cases.json).
+    let mut options = Options::default();
+    if case["options"]["implicit_open"].as_bool() == Some(true) {
+        options.implicit_open = true;
+    }
+    let adapter = Adapter::with_options(options);
     let raw = &case["raw_response"];
     let want_clean = case["expected_clean_content"].as_str();
     let want_reasoning = case["expected_extracted_reasoning"].as_str();

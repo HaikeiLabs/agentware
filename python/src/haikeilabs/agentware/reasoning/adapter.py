@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from .tags import REASONING_TAG_PAIRS
+from .tags import MMTHINK_CLOSE, REASONING_TAG_PAIRS, THINK_CLOSE
 from .types import CONTRACT_VERSION, ContextTree, Format, Node, NodeKind, NodeStatus
 
 
@@ -62,6 +62,7 @@ class ReasoningOptions:
     max_depth: int = 32
     max_summary_chars: int = 512
     clock: Callable[[], datetime] | None = None
+    implicit_open: bool = False
 
 
 def _now() -> datetime:
@@ -88,6 +89,14 @@ _THINKING_OPEN = re.compile(
 )
 _THINKING_CLOSE = re.compile(
     "|".join(re.escape(close_tag) for _, close_tag in REASONING_TAG_PAIRS), re.IGNORECASE
+)
+
+# Closes eligible for the implicit-open opt-in (MiniMax M2 emits the close tag
+# without the opening one): only the plain think and mm:think closes count.
+# Built from the shared constants in tags.py; never type a reasoning tag
+# literally here.
+_IMPLICIT_OPEN_CLOSE = re.compile(
+    "|".join(re.escape(close) for close in (THINK_CLOSE, MMTHINK_CLOSE)), re.IGNORECASE
 )
 
 _PARAGRAPH_SEP = re.compile(r"\n[ \t]*\n")
@@ -264,12 +273,16 @@ class ReasoningAdapter:
             reasoning, fmt = part_reasoning, Format.NATIVE
 
         if reasoning:
-            clean, _, err = split_thinking_tags(content)
+            clean, _, err = split_thinking_tags(
+                content, implicit_open=self._opts.implicit_open
+            )
             if err is not None:
                 raise err
             return _Analysis(reasoning=reasoning, clean=clean, format=fmt)
 
-        clean, tags, err = split_thinking_tags(content)
+        clean, tags, err = split_thinking_tags(
+            content, implicit_open=self._opts.implicit_open
+        )
         if err is not None:
             raise err
         if tags:
@@ -301,7 +314,9 @@ class ReasoningAdapter:
         return "", Format.NONE
 
     def _analyze_text(self, raw: str) -> "_Analysis":
-        clean, tags, err = split_thinking_tags(raw)
+        clean, tags, err = split_thinking_tags(
+            raw, implicit_open=self._opts.implicit_open
+        )
         if err is not None:
             raise err
         if tags:
@@ -408,11 +423,19 @@ def _extract_content_parts(parts: list[Any]) -> tuple[str, str, ReasoningError |
     return "\n".join(text_parts), "\n".join(thinking_parts), None
 
 
-def split_thinking_tags(text: str) -> tuple[str, str, ReasoningError | None]:
+def split_thinking_tags(
+    text: str, *, implicit_open: bool = False
+) -> tuple[str, str, ReasoningError | None]:
     """Extract embedded thinking blocks from ``text``.
 
     Returns ``(clean, reasoning, err)``. Fails closed on unbalanced tags: an
     open tag without a matching close is an error, not partial output.
+
+    With ``implicit_open`` enabled (MiniMax M2, which emits the closing tag
+    without the opening one), everything before a leading think or mm:think
+    close tag counts as reasoning. Only those two closes may open implicitly;
+    every other close tag, and a second stray close, stays unbalanced and
+    fails closed.
     """
     if not _THINKING_OPEN.search(text) and not _THINKING_CLOSE.search(text):
         return text, "", None
@@ -420,13 +443,21 @@ def split_thinking_tags(text: str) -> tuple[str, str, ReasoningError | None]:
     parts: list[str] = []
     reasons: list[str] = []
     rest = text
+    implicit_pending = implicit_open
     while True:
         open_match = _THINKING_OPEN.search(rest)
         if open_match is None:
-            if _THINKING_CLOSE.search(rest):
+            close_match = _THINKING_CLOSE.search(rest)
+            if close_match is None:
+                parts.append(rest)
+                break
+            eligible = _IMPLICIT_OPEN_CLOSE.search(rest) if implicit_pending else None
+            if eligible is None or eligible.start() != close_match.start():
                 return "", "", UnbalancedThinkingError()
-            parts.append(rest)
-            break
+            implicit_pending = False
+            reasons.append(rest[: close_match.start()])
+            rest = rest[close_match.end() :]
+            continue
         parts.append(rest[: open_match.start()])
         inner = rest[open_match.end() :]
         close_match = _THINKING_CLOSE.search(inner)

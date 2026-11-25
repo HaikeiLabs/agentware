@@ -15,6 +15,8 @@ export interface ReasoningOptions {
   max_summary_chars?: number;
   /** Clock supplying timestamps for tree and nodes. Defaults to Date.now. */
   clock?: () => Date;
+  /** Opts in to close-tag-only reasoning (MiniMax M2, which emits the closing tag without the opening one): when true, everything before a leading think or mm:think close tag counts as reasoning. Only those two closes may open implicitly; every other close tag, and a second stray close, stays unbalanced and fails closed. Defaults to false. */
+  implicitOpen?: boolean;
 }
 
 export const DEFAULT_MAX_REASONING_BYTES = 64 * 1024;
@@ -29,5 +31,6 @@ export function normalizeOptions(opts?: ReasoningOptions): Required<ReasoningOpt
     max_depth: opts?.max_depth ?? DEFAULT_MAX_DEPTH,
     max_summary_chars: opts?.max_summary_chars ?? DEFAULT_MAX_SUMMARY_CHARS,
     clock: opts?.clock ?? (() => new Date()),
+    implicitOpen: opts?.implicitOpen ?? false,
   };
 }

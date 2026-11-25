@@ -13,6 +13,8 @@ export { ReasoningOptions, normalizeOptions } from "./options.js";
 export {
   BRACKET_THINK_CLOSE,
   BRACKET_THINK_OPEN,
+  MMTHINK_CLOSE,
+  MMTHINK_OPEN,
   REASONING_TAG_PAIRS,
   THINK_CLOSE,
   THINK_OPEN,

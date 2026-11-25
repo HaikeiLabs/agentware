@@ -24,6 +24,12 @@ pub struct Options {
     pub max_summary_chars: usize,
     /// Supplies timestamps for tree and nodes. `None` uses [`SystemTime::now`].
     pub clock: Option<Clock>,
+    /// Opts in to close-tag-only reasoning (MiniMax M2, which emits the
+    /// closing tag without the opening one): when true, everything before a
+    /// leading think or mm:think close tag counts as reasoning. Only those
+    /// two closes may open implicitly; every other close tag, and a second
+    /// stray close, stays unbalanced and fails closed. Defaults to false.
+    pub implicit_open: bool,
 }
 
 impl Default for Options {
@@ -34,6 +40,7 @@ impl Default for Options {
             max_depth: 32,
             max_summary_chars: 512,
             clock: None,
+            implicit_open: false,
         }
     }
 }

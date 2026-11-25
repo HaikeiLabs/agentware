@@ -9,20 +9,21 @@
 
 use haikeilabs_agentware::guardrails::{ResponseValidator, ToolCall};
 use haikeilabs_agentware::reasoning::{
-    Adapter, BRACKET_THINK_CLOSE, BRACKET_THINK_OPEN, REASONING_TAG_PAIRS, THINK_CLOSE, THINK_OPEN,
-    THINKING_CLOSE, THINKING_OPEN, TagPair,
+    Adapter, BRACKET_THINK_CLOSE, BRACKET_THINK_OPEN, MMTHINK_CLOSE, MMTHINK_OPEN, Options,
+    REASONING_TAG_PAIRS, THINK_CLOSE, THINK_OPEN, THINKING_CLOSE, THINKING_OPEN, TagPair,
 };
 use serde_json::{Map, Value};
 use std::path::Path;
 
 #[test]
-fn tag_pairs_cover_think_thinking_and_bracket_think() {
+fn tag_pairs_cover_think_mmthink_thinking_and_bracket_think() {
     let want = [
         ("<", "think", ">"),
+        ("<", "mm:think", ">"),
         ("<", "thinking", ">"),
         ("[", "THINK", "]"),
     ];
-    assert_eq!(REASONING_TAG_PAIRS.len(), 3);
+    assert_eq!(REASONING_TAG_PAIRS.len(), 4);
     for (pair, (lead, name, trail)) in REASONING_TAG_PAIRS.iter().zip(want) {
         assert_eq!(pair.open, format!("{lead}{name}{trail}"));
         assert_eq!(pair.close, format!("{lead}/{name}{trail}"));
@@ -37,6 +38,10 @@ fn tag_constants_match_pairs() {
             TagPair {
                 open: THINK_OPEN,
                 close: THINK_CLOSE
+            },
+            TagPair {
+                open: MMTHINK_OPEN,
+                close: MMTHINK_CLOSE
             },
             TagPair {
                 open: THINKING_OPEN,
@@ -73,6 +78,47 @@ fn adapter_strips_every_tag_pair() {
 fn adapter_fails_closed_on_unclosed_think() {
     let raw = Value::String(format!("{THINK_OPEN}never closed"));
     assert!(Adapter::default().strip(&raw).is_err());
+}
+
+#[test]
+fn adapter_fails_closed_on_stray_mmthink_close_by_default() {
+    // MiniMax M2 emits the close tag without the open tag; without the opt-in
+    // the adapter stays fail-closed.
+    let raw = Value::String(format!("reasoning{MMTHINK_CLOSE}answer"));
+    assert!(Adapter::default().strip(&raw).is_err());
+}
+
+fn implicit_open_adapter() -> Adapter {
+    Adapter::with_options(Options {
+        implicit_open: true,
+        ..Options::default()
+    })
+}
+
+#[test]
+fn adapter_implicit_open_treats_leading_think_close_as_reasoning() {
+    let raw = Value::String(format!("reasoning{THINK_CLOSE}answer"));
+    let clean = implicit_open_adapter()
+        .strip(&raw)
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(clean, "answer");
+}
+
+#[test]
+fn adapter_implicit_open_counts_mmthink_close() {
+    let raw = Value::String(format!("reasoning{MMTHINK_CLOSE}answer"));
+    let analysis = implicit_open_adapter()
+        .analyze(&raw, "")
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(analysis.clean, "answer");
+    assert_eq!(analysis.reasoning, "reasoning");
+}
+
+#[test]
+fn adapter_implicit_open_still_fails_closed_on_other_close_tags() {
+    // Close-only mode counts only the plain think and mm:think closes.
+    let raw = Value::String(format!("reasoning{THINKING_CLOSE}answer"));
+    assert!(implicit_open_adapter().strip(&raw).is_err());
 }
 
 #[test]

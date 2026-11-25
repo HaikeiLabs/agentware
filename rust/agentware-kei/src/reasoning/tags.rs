@@ -16,6 +16,11 @@ pub const THINK_OPEN: &str = concat!("<", "think", ">");
 /// Closes a [`THINK_OPEN`] block.
 pub const THINK_CLOSE: &str = concat!("<", "/", "think", ">");
 
+/// Opens the mm:think block that MiniMax M3 emits inline in content.
+pub const MMTHINK_OPEN: &str = concat!("<", "mm:think", ">");
+/// Closes a [`MMTHINK_OPEN`] block.
+pub const MMTHINK_CLOSE: &str = concat!("<", "/", "mm:think", ">");
+
 /// Opens the generic thinking block.
 pub const THINKING_OPEN: &str = concat!("<", "think", "ing", ">");
 /// Closes a [`THINKING_OPEN`] block.
@@ -34,11 +39,15 @@ pub struct TagPair {
 }
 
 /// Every reasoning-tag pair the adapter and the validator recognize, in a
-/// fixed order: think, thinking, bracket THINK.
-pub const REASONING_TAG_PAIRS: [TagPair; 3] = [
+/// fixed order: think, mm:think, thinking, bracket THINK.
+pub const REASONING_TAG_PAIRS: [TagPair; 4] = [
     TagPair {
         open: THINK_OPEN,
         close: THINK_CLOSE,
+    },
+    TagPair {
+        open: MMTHINK_OPEN,
+        close: MMTHINK_CLOSE,
     },
     TagPair {
         open: THINKING_OPEN,

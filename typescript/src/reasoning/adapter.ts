@@ -3,7 +3,7 @@
 // The adapter recognizes three shapes of model output:
 //   - native reasoning_content fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
 //   - generic reasoning tags (every pair in REASONING_TAG_PAIRS: think,
-//     thinking and bracket THINK; see tags.ts)
+//     mm:think, thinking and bracket THINK; see tags.ts)
 //   - model-specific reasoning fields (registered per model name)
 //
 // Reasoning is stripped before ordinary tool-call parsing, and the extracted
@@ -25,7 +25,7 @@ import {
   UnbalancedThinkingError,
 } from "./errors.js";
 import { normalizeOptions, ReasoningOptions } from "./options.js";
-import { escapeRegExp, REASONING_TAG_PAIRS } from "./tags.js";
+import { escapeRegExp, MMTHINK_CLOSE, REASONING_TAG_PAIRS, THINK_CLOSE } from "./tags.js";
 import { CONTRACT_VERSION, ContextTree, Format, Node, NodeKind, NodeStatus } from "./types.js";
 
 export { ReasoningError };
@@ -53,6 +53,12 @@ const RECOGNIZED_KEYS = new Set([
 // tags.ts; never type a reasoning tag literally here.
 const THINKING_OPEN = new RegExp(REASONING_TAG_PAIRS.map((p) => escapeRegExp(p.open)).join("|"), "i");
 const THINKING_CLOSE = new RegExp(REASONING_TAG_PAIRS.map((p) => escapeRegExp(p.close)).join("|"), "i");
+
+// Closes eligible for the implicit-open opt-in (MiniMax M2 emits the close
+// tag without the opening one): only the plain think and mm:think closes
+// count. Built from the shared constants in tags.ts; never type a reasoning
+// tag literally here.
+const IMPLICIT_OPEN_CLOSE = new RegExp([THINK_CLOSE, MMTHINK_CLOSE].map(escapeRegExp).join("|"), "i");
 
 const PARAGRAPH_SEP = /\n[ \t]*\n/;
 const LIST_ORNAMENT = /^\s*(?:[-*+•]|\d+[.)])\s+/;
@@ -256,10 +262,10 @@ export class ReasoningAdapter {
     }
 
     if (reasoning !== "") {
-      return { reasoning, clean: splitThinkingTags(content).clean, format };
+      return { reasoning, clean: splitThinkingTags(content, this.opts.implicitOpen).clean, format };
     }
 
-    const result = splitThinkingTags(content);
+    const result = splitThinkingTags(content, this.opts.implicitOpen);
     if (result.reasoning !== "") {
       return { reasoning: result.reasoning, clean: result.clean, format: Format.THINKING };
     }
@@ -304,7 +310,7 @@ export class ReasoningAdapter {
   }
 
   private analyzeText(raw: string): Analysis {
-    const result = splitThinkingTags(raw);
+    const result = splitThinkingTags(raw, this.opts.implicitOpen);
     if (result.reasoning !== "") {
       return { reasoning: result.reasoning, clean: result.clean, format: Format.THINKING };
     }
@@ -376,7 +382,7 @@ export class ReasoningAdapter {
   }
 }
 
-function splitThinkingTags(text: string): { clean: string; reasoning: string } {
+function splitThinkingTags(text: string, implicitOpen: boolean): { clean: string; reasoning: string } {
   if (!THINKING_OPEN.test(text) && !THINKING_CLOSE.test(text)) {
     return { clean: text, reasoning: "" };
   }
@@ -384,14 +390,25 @@ function splitThinkingTags(text: string): { clean: string; reasoning: string } {
   const parts: string[] = [];
   const reasons: string[] = [];
   let rest = text;
+  let implicitPending = implicitOpen;
   for (;;) {
     const open = THINKING_OPEN.exec(rest);
     if (open === null) {
-      if (THINKING_CLOSE.test(rest)) {
+      // No more open tags; any remaining close tag must either open
+      // implicitly (once, if it is an eligible close) or is unbalanced.
+      const close = THINKING_CLOSE.exec(rest);
+      if (close === null) {
+        parts.push(rest);
+        break;
+      }
+      const eligible = implicitPending ? IMPLICIT_OPEN_CLOSE.exec(rest) : null;
+      if (eligible === null || eligible.index !== close.index) {
         throw new UnbalancedThinkingError();
       }
-      parts.push(rest);
-      break;
+      implicitPending = false;
+      reasons.push(rest.slice(0, close.index));
+      rest = rest.slice(close.index + close[0].length);
+      continue;
     }
     parts.push(rest.slice(0, open.index));
     const inner = rest.slice(open.index + open[0].length);

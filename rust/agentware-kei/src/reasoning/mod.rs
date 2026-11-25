@@ -2,7 +2,8 @@
 //!
 //! The adapter recognizes native reasoning fields (DeepSeek/Qwen/Kimi/GLM
 //! JSON), generic reasoning tags (every pair in [`REASONING_TAG_PAIRS`]:
-//! think, thinking and bracket THINK; see [`tags`]), and model-specific reasoning fields registered per
+//! think, mm:think, thinking and bracket THINK; see [`tags`]), and
+//! model-specific reasoning fields registered per
 //! model name. It splits a raw model output into clean content (for ordinary
 //! tool-call parsing) and normalized reasoning (a versioned context tree
 //! carrying bounded summaries only).
@@ -21,7 +22,7 @@ pub mod types;
 pub use adapter::{Adapter, Analysis, ReasoningError};
 pub use options::{Clock, Options};
 pub use tags::{
-    BRACKET_THINK_CLOSE, BRACKET_THINK_OPEN, REASONING_TAG_PAIRS, THINK_CLOSE, THINK_OPEN,
-    THINKING_CLOSE, THINKING_OPEN, TagPair,
+    BRACKET_THINK_CLOSE, BRACKET_THINK_OPEN, MMTHINK_CLOSE, MMTHINK_OPEN, REASONING_TAG_PAIRS,
+    THINK_CLOSE, THINK_OPEN, THINKING_CLOSE, THINKING_OPEN, TagPair,
 };
 pub use types::{CONTRACT_VERSION, ContextTree, Format, Node, NodeKind, NodeStatus};

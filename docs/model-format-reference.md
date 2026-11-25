@@ -289,9 +289,10 @@ stripping layers recognize the same tags. Matching is case-insensitive.
 | Pair | Go (`reasoning`) | Python (`haikeilabs.agentware.reasoning`) | TypeScript (`@haikeilabs/agentware`) | Rust (`reasoning`) |
 | --- | --- | --- | --- | --- |
 | think: Qwen3, QwQ, DeepSeek-R1 and GLM served without a reasoning parser | `ThinkOpen` / `ThinkClose` | `THINK_OPEN` / `THINK_CLOSE` | `THINK_OPEN` / `THINK_CLOSE` | `THINK_OPEN` / `THINK_CLOSE` |
+| mm:think: MiniMax M3 emits inline in content | `MMThinkOpen` / `MMThinkClose` | `MMTHINK_OPEN` / `MMTHINK_CLOSE` | `MMTHINK_OPEN` / `MMTHINK_CLOSE` | `MMTHINK_OPEN` / `MMTHINK_CLOSE` |
 | thinking: generic, llama.cpp/o1-style | `ThinkingOpen` / `ThinkingClose` | `THINKING_OPEN` / `THINKING_CLOSE` | `THINKING_OPEN` / `THINKING_CLOSE` | `THINKING_OPEN` / `THINKING_CLOSE` |
 | bracket THINK: Mistral/Magistral, DeepSeek text mode | `BracketThinkOpen` / `BracketThinkClose` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` |
-| every pair, in this order | `TagPairs()` (`[]TagPair`) | `REASONING_TAG_PAIRS` (tuple of `(open, close)`) | `REASONING_TAG_PAIRS` (frozen `ReasoningTagPair[]`) | `REASONING_TAG_PAIRS` (`[TagPair; 3]`) |
+| every pair, in this order (think, mm:think, thinking, bracket THINK) | `TagPairs()` (`[]TagPair`) | `REASONING_TAG_PAIRS` (tuple of `(open, close)`) | `REASONING_TAG_PAIRS` (frozen `ReasoningTagPair[]`) | `REASONING_TAG_PAIRS` (`[TagPair; 4]`) |
 
 The adapter strips these blocks from text content (an unbalanced tag is a
 fail-closed error). The guardrails response validator strips the same blocks,
@@ -299,6 +300,16 @@ across newlines, before its tool-call rescue. Both stripping layers are
 idempotent. The shared fixtures `fixtures/reasoning/*-cases.json` (adapter)
 and `fixtures/reasoning/validator-rescue.v1.json` (validator) keep every port
 in agreement.
+
+Close-tag-only reasoning (MiniMax M2): MiniMax M2 emits the closing tag
+without the opening one, so a stray close tag is not always malformed input.
+By default the adapter stays fail-closed on it. Opting in with the
+`implicit_open` reasoning option (`ReasoningOptions.implicit_open` in Python,
+`Options{ImplicitOpen}` in Go, `implicitOpen` in TypeScript, `implicit_open`
+in Rust; default false) makes everything before a leading think or mm:think
+close tag count as reasoning. Only those two closes may open implicitly, and
+only once per output: every other close tag (e.g. thinking) and a second
+stray close stays unbalanced and fails closed.
 
 The tags are a blind spot for reasoning-model workers: a model that emits
 them cannot reliably read or type them. Each constant is built from parts, and

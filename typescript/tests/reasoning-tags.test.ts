@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 import {
   BRACKET_THINK_CLOSE,
   BRACKET_THINK_OPEN,
+  MMTHINK_CLOSE,
+  MMTHINK_OPEN,
   REASONING_TAG_PAIRS,
   ReasoningAdapter,
   THINK_CLOSE,
@@ -17,13 +19,14 @@ import {
 import { ResponseValidator } from "../src/middleware/guardrails/response_validator.js";
 
 describe("reasoning tag constants", () => {
-  it("covers think, thinking and bracket THINK", () => {
+  it("covers think, mm:think, thinking and bracket THINK", () => {
     const want = [
       ["<", "think", ">"],
+      ["<", "mm:think", ">"],
       ["<", "thinking", ">"],
       ["[", "THINK", "]"],
     ];
-    expect(REASONING_TAG_PAIRS).toHaveLength(3);
+    expect(REASONING_TAG_PAIRS).toHaveLength(4);
     REASONING_TAG_PAIRS.forEach((pair, i) => {
       const [lead, name, trail] = want[i];
       expect(pair.open).toBe(lead + name + trail);
@@ -34,6 +37,7 @@ describe("reasoning tag constants", () => {
   it("names every pair with a constant", () => {
     expect(REASONING_TAG_PAIRS).toEqual([
       { open: THINK_OPEN, close: THINK_CLOSE },
+      { open: MMTHINK_OPEN, close: MMTHINK_CLOSE },
       { open: THINKING_OPEN, close: THINKING_CLOSE },
       { open: BRACKET_THINK_OPEN, close: BRACKET_THINK_CLOSE },
     ]);
@@ -55,6 +59,28 @@ describe("reasoning tag constants", () => {
 
   it("adapter fails closed on an unclosed think tag", () => {
     expect(() => new ReasoningAdapter().strip(THINK_OPEN + "never closed")).toThrow();
+  });
+
+  it("adapter fails closed on a stray mm:think close tag by default", () => {
+    // MiniMax M2 emits the close tag without the open tag; without the
+    // opt-in the adapter stays fail-closed.
+    expect(() => new ReasoningAdapter().strip("reasoning" + MMTHINK_CLOSE + "answer")).toThrow();
+  });
+
+  it("implicit_open treats a leading think close tag as reasoning", () => {
+    expect(new ReasoningAdapter({ implicitOpen: true }).strip("reasoning" + THINK_CLOSE + "answer")).toBe("answer");
+  });
+
+  it("implicit_open counts the mm:think close tag", () => {
+    const adapter = new ReasoningAdapter({ implicitOpen: true });
+    const { clean, tree } = adapter.parse("reasoning" + MMTHINK_CLOSE + "answer");
+    expect(clean).toBe("answer");
+    expect(tree.nodes.map((n) => n.summary)).toEqual(["reasoning"]);
+  });
+
+  it("implicit_open still fails closed on other close tags", () => {
+    // Close-only mode counts only the plain think and mm:think closes.
+    expect(() => new ReasoningAdapter({ implicitOpen: true }).strip("reasoning" + THINKING_CLOSE + "answer")).toThrow();
   });
 });
 

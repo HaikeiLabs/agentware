@@ -116,10 +116,10 @@ func (v *ResponseValidator) stripThinkTags(text string) string {
 }
 
 // thinkBlockPattern matches a whole reasoning block for every pair in
-// reasoning.TagPairs (think, thinking, bracket THINK), case-insensitively and
-// across newlines. It is built from the shared constants so the validator and
-// the reasoning adapter recognize the same tags; never type a reasoning tag
-// literally here (see go/reasoning/tags.go).
+// reasoning.TagPairs (think, mm:think, thinking, bracket THINK),
+// case-insensitively and across newlines. It is built from the shared
+// constants so the validator and the reasoning adapter recognize the same
+// tags; never type a reasoning tag literally here (see go/reasoning/tags.go).
 var thinkBlockPattern = func() *regexp.Regexp {
 	pairs := reasoning.TagPairs()
 	alts := make([]string, len(pairs))
