@@ -60,7 +60,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.17.0",
-    "@haikeilabs/connector-contracts": "file:../../../kei-connector-contracts-wt/ctmain2/gen/ts",
+    "@haikeilabs/connector-contracts": "^0.20.2",
     "minimatch": "10.2.3",
     "zod": "^4.6.7"
   },
