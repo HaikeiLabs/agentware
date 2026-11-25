@@ -174,7 +174,22 @@ export class OperationRunner {
     caller: CallerContext,
     op: Op,
     request: Req,
-    opts: { tool?: string; resourceTemplateOverride?: string } = {},
+    opts: {
+      /** The registered tool name the call is authorized as. */
+      tool?: string;
+      resourceTemplateOverride?: string;
+      /**
+       * The tool call's arguments, exactly as the model sent them. For a
+       * connector_binding tool they must satisfy the bundle plan's
+       * args_schema: kei-proxy derives the operation from them, denies
+       * `preflight_required` without them, and re-derives the plan before
+       * releasing the credential. The runner cannot derive them from
+       * `request`. They stay on the tenant-local socket and never reach audit.
+       */
+      toolArgs?: Record<string, unknown>;
+      /** The tool call's context (the plan's context_schema). */
+      toolContext?: Record<string, unknown>;
+    } = {},
   ): Promise<Resp> {
     let decision: OperationAudit["decision"] = "deny";
     let outcome: OperationAudit["outcome"] = "denied";
@@ -204,19 +219,27 @@ export class OperationRunner {
         binding.requestSchema,
         request,
       );
-      const capability = `connector:${op.id}`;
+      // The release capability is the bare operation id: the runtime's
+      // capability pattern (^[a-z0-9_]+(\.[a-z0-9_]+)*$) rejects ':'.
+      const capability = op.id;
       const context = {
         parentSpan: caller.parent_span,
         delegationDepth: caller.delegation_depth,
+      };
+      // Sent only when given: the daemon rejects tool_args on a tool that is
+      // not a registered connector_binding.
+      const planInputs = {
+        ...(opts.toolArgs === undefined ? {} : { toolArgs: opts.toolArgs }),
+        ...(opts.toolContext === undefined ? {} : { toolContext: opts.toolContext }),
       };
       let result: Record<string, unknown>;
       try {
         result = await this.client.authorize(this.session, {
           tool: opts.tool ?? "",
-          action: capability,
           resource,
           ...(binding.bindingVersion === undefined ? {} : { bindingVersion: binding.bindingVersion }),
           ...context,
+          ...planInputs,
         });
       } catch {
         throw new OperationDenied("proxy_unavailable");
@@ -229,6 +252,7 @@ export class OperationRunner {
           resource,
           tool: opts.tool,
           ...context,
+          ...planInputs,
         });
       } catch {
         throw new OperationDenied("credential_release_failed");

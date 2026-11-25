@@ -100,7 +100,6 @@ describe("OperationRunner", () => {
     expect(x.client.authorize).toHaveBeenCalledWith(
       session,
       expect.objectContaining({
-        action: "connector:github.issues.get",
         resource: "repos/acme/repo",
         tool: "issue",
         parentSpan: "p",
@@ -111,7 +110,7 @@ describe("OperationRunner", () => {
       session,
       expect.objectContaining({
         connectorId: "installed-github",
-        capability: "connector:github.issues.get",
+        capability: "github.issues.get",
         resource: "repos/acme/repo",
         tool: "issue",
       }),
