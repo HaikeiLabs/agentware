@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"github.com/haikeilabs/agentware/go/reasoning"
 )
 
 type ToolCall struct {
@@ -110,9 +112,22 @@ func (v *ResponseValidator) RescueToolCall(response string) []ToolCall {
 }
 
 func (v *ResponseValidator) stripThinkTags(text string) string {
-	thinkPattern := regexp.MustCompile(`(?i)\[THINK\].*?\[/THINK\]|<think>.*?</think>`)
-	return thinkPattern.ReplaceAllString(text, "")
+	return thinkBlockPattern.ReplaceAllString(text, "")
 }
+
+// thinkBlockPattern matches a whole reasoning block for every pair in
+// reasoning.TagPairs (think, thinking, bracket THINK), case-insensitively and
+// across newlines. It is built from the shared constants so the validator and
+// the reasoning adapter recognize the same tags; never type a reasoning tag
+// literally here (see go/reasoning/tags.go).
+var thinkBlockPattern = func() *regexp.Regexp {
+	pairs := reasoning.TagPairs()
+	alts := make([]string, len(pairs))
+	for i, p := range pairs {
+		alts[i] = regexp.QuoteMeta(p.Open) + `.*?` + regexp.QuoteMeta(p.Close)
+	}
+	return regexp.MustCompile(`(?is)` + strings.Join(alts, "|"))
+}()
 
 func (v *ResponseValidator) stripPythonTag(text string) string {
 	pythonTagPattern := regexp.MustCompile(`(?i)<\|python_tag\|>`)

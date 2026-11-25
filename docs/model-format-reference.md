@@ -12,9 +12,9 @@ and the reasoning adapter handles its reasoning shape.
 |--------|------------------|----------------------|-------------|-----------------|---------------|
 | **OpenAI** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | none |
 | **Anthropic** | Native `tools` or JSON function array | Native `tool_use` blocks or XML `<invoke>` | Native `tool_result` blocks or XML | `thinking` (content block) | none |
-| **Qwen** | XML: `<tool_description><tool_name>` | XML: `<tool_call><tool name="name">JSON</tool>` | XML: `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>` |
+| **Qwen** | XML: `<tool_description><tool_name>` | XML: `<tool_call><tool name="name">JSON</tool>` | XML: `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
-| **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | none |
+| **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 
 ---
 
@@ -120,8 +120,8 @@ for the Messages API replay requirements.
 | **Result format** | XML: `<tool_response><tool_name>name</tool_name><result>output</result></tool_response>` |
 | **Validate** | Validates `<tool_call>` tags have valid JSON arguments and non-empty names |
 | **Reasoning field** | `reasoning_content` — top-level field on the choice message |
-| **Inline tags** | `<thinking>...</thinking>` — may appear in the content text alongside tool calls |
-| **Adapter** | Both `reasoning_content` and `<thinking>` tags are handled generically. |
+| **Inline tags** | `<thinking>...</thinking>` — may appear in the content text alongside tool calls. Qwen3/QwQ served without a reasoning parser (llama.cpp, vLLM without `--reasoning-parser`) emit the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) instead |
+| **Adapter** | `reasoning_content` and every pair in the [reasoning-tag constants](#reasoning-tag-constants) are handled generically. |
 
 **Example response:**
 
@@ -181,7 +181,7 @@ Based on data, Tokyo is 22°C.
 | **Result format** | JSON-encoded string of result data |
 | **Validate** | Validates JSON array, requires `name` on each entry |
 | **Reasoning field** | `reasoning_content` on GLM-4. GLM-5.3-Flash on vLLM uses `reasoning` (see below) |
-| **Inline tags** | None. GLM models do not use inline thinking tags. |
+| **Inline tags** | None with a reasoning parser. Served without one, GLM emits the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) in `content`, which the adapter strips |
 | **Adapter** | `reasoning_content` and `reasoning` are both in the known field set; no registration needed. |
 
 **Example response:**
@@ -280,12 +280,30 @@ reasoning          (priority 4 — some model-specific naming)
 Arbitrary additional field names can be registered per model via
 `RegisterModelField` / `register_model_field`.
 
-Inline thinking tags recognized by the adapter:
+### Reasoning-tag constants
 
-- `<thinking>...</thinking>` — stripped from text content
-- `[THINK]...[/THINK]` — stripped from text content
+Inline reasoning tags are defined once per port, and both the reasoning
+adapter and the guardrails response validator use those constants, so the two
+stripping layers recognize the same tags. Matching is case-insensitive.
 
-The guardrails response validator additionally strips `[THINK]...[/THINK]` as a
-secondary rescue mechanism. Both stripping layers are idempotent.
+| Pair | Go (`reasoning`) | Python (`haikeilabs.agentware.reasoning`) | TypeScript (`@haikeilabs/agentware`) | Rust (`reasoning`) |
+| --- | --- | --- | --- | --- |
+| think: Qwen3, QwQ, DeepSeek-R1 and GLM served without a reasoning parser | `ThinkOpen` / `ThinkClose` | `THINK_OPEN` / `THINK_CLOSE` | `THINK_OPEN` / `THINK_CLOSE` | `THINK_OPEN` / `THINK_CLOSE` |
+| thinking: generic, llama.cpp/o1-style | `ThinkingOpen` / `ThinkingClose` | `THINKING_OPEN` / `THINKING_CLOSE` | `THINKING_OPEN` / `THINKING_CLOSE` | `THINKING_OPEN` / `THINKING_CLOSE` |
+| bracket THINK: Mistral/Magistral, DeepSeek text mode | `BracketThinkOpen` / `BracketThinkClose` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` |
+| every pair, in this order | `TagPairs()` (`[]TagPair`) | `REASONING_TAG_PAIRS` (tuple of `(open, close)`) | `REASONING_TAG_PAIRS` (frozen `ReasoningTagPair[]`) | `REASONING_TAG_PAIRS` (`[TagPair; 3]`) |
+
+The adapter strips these blocks from text content (an unbalanced tag is a
+fail-closed error). The guardrails response validator strips the same blocks,
+across newlines, before its tool-call rescue. Both stripping layers are
+idempotent. The shared fixtures `fixtures/reasoning/*-cases.json` (adapter)
+and `fixtures/reasoning/validator-rescue.v1.json` (validator) keep every port
+in agreement.
+
+The tags are a blind spot for reasoning-model workers: a model that emits
+them cannot reliably read or type them. Each constant is built from parts, and
+no source file, test, fixture or doc types a reasoning tag literally (fixtures
+write the `<` as the JSON escape `\u003c`). Use the constants, or build a tag
+from parts.
 
 See `docs/reasoning-adapter.md` for the full adapter contract.

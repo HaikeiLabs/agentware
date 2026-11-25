@@ -412,6 +412,24 @@ async def test_authorize_serializes_an_exact_connector_target() -> None:
     assert "agent_id" not in json.loads(request.content)
 
 
+async def test_authorize_serializes_the_optional_binding_version() -> None:
+    daemon = FakeDaemon()
+    client = daemon.client()
+    session = await client.open_session(ADA)
+
+    await client.authorize(session, tool="github.get_issue", binding_version="v0.20.0")
+    [request] = [r for r in daemon.requests if r.url.path == "/v1/authorize"]
+    body = json.loads(request.content)
+    assert body["binding_version"] == "v0.20.0"
+
+    daemon.requests.clear()
+    await client.authorize(session, tool="github.get_issue")
+    [request] = [r for r in daemon.requests if r.url.path == "/v1/authorize"]
+    # Absent, never an empty string: kei.authorize-request/v1 rejects an
+    # explicitly empty binding_version.
+    assert "binding_version" not in json.loads(request.content)
+
+
 @pytest.mark.parametrize(
     ("target", "resource"),
     [

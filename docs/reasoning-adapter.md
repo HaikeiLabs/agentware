@@ -22,9 +22,11 @@ changes, or npm/PyPI release work.
 1. **Recognizes three reasoning shapes**
    - **Native**: `reasoning_content` on an OpenAI-compatible message
      (DeepSeek-style; also used by Qwen/QwK, Kimi, GLM).
-   - **Generic thinking**: `<thinking>…</thinking>` and `[THINK]…[/THINK]`
-     blocks embedded in text (llama.cpp/o1-style; the `[THINK]` form matches
-     the guardrails response validator's existing `stripThinkTags`).
+   - **Generic thinking**: blocks embedded in text, for every pair in the
+     [reasoning-tag constants](#reasoning-tag-constants): the plain think pair
+     (Qwen3, QwQ, DeepSeek-R1 and GLM served without a reasoning parser), the
+     thinking pair (llama.cpp/o1-style) and the bracket THINK pair. The
+     guardrails response validator's `stripThinkTags` uses the same constants.
    - **Model-specific**: any other named field, registered per model via
      `RegisterModelField` / `register_model_field`.
 2. **Strips reasoning before tool-call parsing.** The inference loops in all
@@ -136,12 +138,34 @@ The agent-loop surfaces also share a conversation contract: the system prompt
 message (`[system, ...history, user]` — Go `buildConversation` is the
 reference; pinned by tests in all three ports).
 
+
+## Reasoning-tag constants
+
+Each port exports one module of reasoning-tag constants (Go
+`go/reasoning/tags.go`, Python `haikeilabs.agentware.reasoning.tags`,
+TypeScript `src/reasoning/tags.ts`, Rust `reasoning::tags`). The adapter and
+the guardrails response validator both build their patterns from them, so the
+two paths agree. Matching is case-insensitive.
+
+| Pair | Go (`reasoning`) | Python (`haikeilabs.agentware.reasoning`) | TypeScript (`@haikeilabs/agentware`) | Rust (`reasoning`) |
+| --- | --- | --- | --- | --- |
+| think: Qwen3, QwQ, DeepSeek-R1 and GLM served without a reasoning parser | `ThinkOpen` / `ThinkClose` | `THINK_OPEN` / `THINK_CLOSE` | `THINK_OPEN` / `THINK_CLOSE` | `THINK_OPEN` / `THINK_CLOSE` |
+| thinking: generic, llama.cpp/o1-style | `ThinkingOpen` / `ThinkingClose` | `THINKING_OPEN` / `THINKING_CLOSE` | `THINKING_OPEN` / `THINKING_CLOSE` | `THINKING_OPEN` / `THINKING_CLOSE` |
+| bracket THINK: Mistral/Magistral, DeepSeek text mode | `BracketThinkOpen` / `BracketThinkClose` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` | `BRACKET_THINK_OPEN` / `BRACKET_THINK_CLOSE` |
+| every pair, in this order | `TagPairs()` (`[]TagPair`) | `REASONING_TAG_PAIRS` (tuple of `(open, close)`) | `REASONING_TAG_PAIRS` (frozen `ReasoningTagPair[]`) | `REASONING_TAG_PAIRS` (`[TagPair; 3]`) |
+
+The tags are a blind spot for reasoning-model workers: a model that emits
+them cannot reliably read or type them. Each constant is built from parts, and
+no source file, test, fixture or doc types a reasoning tag literally (fixtures
+write the `<` as the JSON escape `\u003c`). Use the constants, or build a tag
+from parts.
+
 ## Model-format matrix and blockers
 
 | Format | Support | Status |
 | --- | --- | --- |
 | `reasoning_content` (DeepSeek/Qwen/Kimi/GLM style) | Native field, captured by the OpenAI-compatible backends and normalized | **Supported** |
-| `<thinking>` / `[THINK]` tags | Generic thinking, stripped before tool-call parsing | **Supported** |
+| Plain think, thinking and bracket THINK tags ([constants](#reasoning-tag-constants)) | Generic thinking, stripped before tool-call parsing | **Supported** |
 | Model-specific fields (`thinking`, `thinking_content`, `reasoning`, …) | Known set recognized; arbitrary names via `RegisterModelField` | **Supported, unverified per model** |
 
 **Blockers — cannot be confirmed from this repository:**
@@ -157,7 +181,7 @@ reference; pinned by tests in all three ports).
   be confirmed here. Verify against a real DeepSeek response before relying on
   it in production.
 - **Local (llama.cpp/Ollama)**: local tool-call and reasoning conventions
-  vary by build; the generic `<thinking>`/`[THINK]` handling and the existing
+  vary by build; the generic reasoning-tag handling and the existing
   toolformat formatters cover the common shapes, but no local model output is
   captured in this repository to confirm behavior. Exact local reasoning
   formats are **unconfirmed**.

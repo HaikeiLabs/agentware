@@ -282,6 +282,7 @@ func (c *Client) Authorize(ctx context.Context, session Session, req evaluator.A
 		"parent_span":      req.ParentSpan,
 		"framework":        req.Framework,
 		"tool_args_digest": req.ToolArgsDigest,
+		"binding_version":  req.BindingVersion,
 	} {
 		if v != "" {
 			body[k] = v

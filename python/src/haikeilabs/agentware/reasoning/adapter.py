@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from .tags import REASONING_TAG_PAIRS
 from .types import CONTRACT_VERSION, ContextTree, Format, Node, NodeKind, NodeStatus
 
 
@@ -79,8 +80,15 @@ RECOGNIZED_KEYS = {
     "reasoning",
 }
 
-_THINKING_OPEN = re.compile(r"<thinking>|\[THINK\]", re.IGNORECASE)
-_THINKING_CLOSE = re.compile(r"</thinking>|\[/THINK\]", re.IGNORECASE)
+# Any recognized reasoning open or close tag (every pair in
+# REASONING_TAG_PAIRS), case-insensitively. Built from the shared constants in
+# tags.py; never type a reasoning tag literally here.
+_THINKING_OPEN = re.compile(
+    "|".join(re.escape(open_tag) for open_tag, _ in REASONING_TAG_PAIRS), re.IGNORECASE
+)
+_THINKING_CLOSE = re.compile(
+    "|".join(re.escape(close_tag) for _, close_tag in REASONING_TAG_PAIRS), re.IGNORECASE
+)
 
 _PARAGRAPH_SEP = re.compile(r"\n[ \t]*\n")
 _LIST_ORNAMENT = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+")

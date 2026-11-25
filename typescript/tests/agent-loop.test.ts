@@ -1,3 +1,5 @@
+import { jest } from "@jest/globals";
+import { createAllowDecision, createDenyDecision } from "../src/middleware/types.js";
 import type { AsyncBackend, Message } from "../src/llm/index.js";
 import { Role } from "../src/llm/index.js";
 import type { Response, TokenUsage } from "../src/llm/response.js";
@@ -12,6 +14,8 @@ import {
   ToolRegistry,
 } from "../src/tools/index.js";
 import {
+  Action,
+  InMemoryAuditor,
   ErrorCategory,
   ErrorTracker,
   ResponseValidator,
@@ -116,6 +120,33 @@ function makeRegistry(): ToolRegistry {
 }
 
 describe("AgentLoop", () => {
+  it.each(["deny", "allow", "throws"] as const)("enforces and audits policy: %s", async (outcome) => {
+    const backend = scriptedBackend([toolCallResponse("ok_tool", { x: 1 }), textResponse("done")]);
+    const registry = makeRegistry();
+    const tool = registry.get("ok_tool")!;
+    const execute = jest.spyOn(tool, "execute");
+    const auditor = new InMemoryAuditor();
+    const caller = { trusted: false, invoking_subject: "human", delegation_depth: 2 };
+    const evaluate = jest.fn(async () => {
+      if (outcome === "throws") throw new Error("unavailable");
+      return outcome === "allow" ? createAllowDecision() : createDenyDecision("restricted");
+    });
+    const loop = new AgentLoop({ backend, registry,
+      validator: new ResponseValidator(registry.names(), false),
+      policy: { evaluate }, auditor, caller_context: caller,
+    });
+    const result = await loop.run("sys", "do it", [], "session");
+    expect(evaluate).toHaveBeenCalledWith("ok_tool", { x: 1 }, caller);
+    expect(execute).toHaveBeenCalledTimes(outcome === "allow" ? 1 : 0);
+    const record = auditor.query({})[0];
+    expect(record).toMatchObject({ session_id: "session", tool_name: "ok_tool",
+      invoking_subject: "human", delegation_depth: 2,
+      decision: { action: outcome === "allow" ? Action.ALLOW : Action.DENY } });
+    expect(auditor.query({})).toHaveLength(1);
+    const message = result.conversation.find((m) => m.role === Role.TOOL)!;
+    expect(message.content).toContain(outcome === "allow" ? "result" : outcome === "deny" ? "restricted" : "policy evaluation failed");
+  });
+
   it("executes a native tool call then completes on final text", async () => {
     const backend = scriptedBackend([
       toolCallResponse("ok_tool", { x: 1 }),

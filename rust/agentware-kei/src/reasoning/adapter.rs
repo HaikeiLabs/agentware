@@ -3,7 +3,8 @@
 //! The adapter recognizes three shapes of model output:
 //!
 //!   - native reasoning fields (DeepSeek/Qwen/Kimi/GLM-style JSON)
-//!   - generic thinking tags (`<thinking>...</thinking>`, `[THINK]...[/THINK]`)
+//!   - generic reasoning tags (every pair in [`REASONING_TAG_PAIRS`]: think,
+//!     thinking and bracket THINK; see `tags.rs`)
 //!   - model-specific reasoning fields (registered per model name)
 //!
 //! Reasoning is stripped from the model output before ordinary tool-call
@@ -17,6 +18,7 @@
 //! than configured) return errors instead of emitting partial reasoning.
 
 use crate::reasoning::options::Options;
+use crate::reasoning::tags::{REASONING_TAG_PAIRS, TagPair};
 use crate::reasoning::types::{CONTRACT_VERSION, ContextTree, Format};
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -26,11 +28,22 @@ use std::sync::LazyLock;
 
 // Go's RE2 `\s` is ASCII-only; Rust's is Unicode by default. Spell the ASCII
 // class out so both ports classify identical inputs identically.
-static THINKING_OPEN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)<thinking>|\[THINK\]").expect("valid regex"));
+// Any recognized reasoning open or close tag (every pair in
+// REASONING_TAG_PAIRS), case-insensitively. Built from the shared constants in
+// tags.rs; never type a reasoning tag literally here.
+static THINKING_OPEN: LazyLock<Regex> = LazyLock::new(|| tag_alternation(|p| p.open));
 
-static THINKING_CLOSE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)</thinking>|\[/THINK\]").expect("valid regex"));
+static THINKING_CLOSE: LazyLock<Regex> = LazyLock::new(|| tag_alternation(|p| p.close));
+
+/// Compiles a case-insensitive alternation of one side of every
+/// reasoning-tag pair.
+fn tag_alternation(side: fn(&TagPair) -> &'static str) -> Regex {
+    let alts: Vec<String> = REASONING_TAG_PAIRS
+        .iter()
+        .map(|p| regex::escape(side(p)))
+        .collect();
+    Regex::new(&format!("(?i){}", alts.join("|"))).expect("valid regex")
+}
 
 /// Fail-closed outcomes of the reasoning adapter (mirrors Go's sentinel
 /// errors). Malformed or unbounded input never produces a partial tree or

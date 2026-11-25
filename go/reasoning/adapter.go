@@ -376,11 +376,24 @@ func hasRecognizedKey(m map[string]any) bool {
 	return false
 }
 
-// thinkingOpen matches the generic thinking open tags, case-insensitively.
-var thinkingOpen = regexp.MustCompile(`(?i)<thinking>|\[THINK\]`)
+// thinkingOpen and thinkingClose match any recognized reasoning open or
+// close tag (every pair in TagPairs), case-insensitively. They are built from
+// the shared constants in tags.go; never type a reasoning tag literally here.
+var (
+	thinkingOpen  = tagAlternation(func(p TagPair) string { return p.Open })
+	thinkingClose = tagAlternation(func(p TagPair) string { return p.Close })
+)
 
-// thinkingClose matches the generic thinking close tags, case-insensitively.
-var thinkingClose = regexp.MustCompile(`(?i)</thinking>|\[/THINK\]`)
+// tagAlternation compiles a case-insensitive alternation of one side of every
+// reasoning-tag pair.
+func tagAlternation(side func(TagPair) string) *regexp.Regexp {
+	pairs := TagPairs()
+	alts := make([]string, len(pairs))
+	for i, p := range pairs {
+		alts[i] = regexp.QuoteMeta(side(p))
+	}
+	return regexp.MustCompile(`(?i)` + strings.Join(alts, "|"))
+}
 
 // splitThinkingTags extracts embedded thinking blocks from text and returns
 // the clean text and the joined reasoning. It fails closed on unbalanced
