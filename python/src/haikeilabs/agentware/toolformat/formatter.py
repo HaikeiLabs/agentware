@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ..tools import Result
+from ..tools import Result, schema_of
 
 
 class ToolFormatInput(Protocol):
@@ -51,19 +51,7 @@ class ToolFormatter(Protocol):
 
 def _get_input_schema(tool: ToolFormatInput) -> dict[str, Any] | None:
     """Get input schema from a tool if available."""
-    attr = getattr(tool, "parameters", None)
-    if attr is None:
-        attr = getattr(tool, "input_schema", None)
-    if attr is not None:
-        if callable(attr):
-            result = attr()
-            if isinstance(result, dict):
-                return result
-            return None
-        if isinstance(attr, dict):
-            return attr
-        return None
-    return None
+    return schema_of(tool)
 
 
 class GenericFormatter:

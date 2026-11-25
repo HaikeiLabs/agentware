@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol
 
-from ..tools import ToolRegistry
+from ..tools import ToolRegistry, schema_of
 
 
 class PromptGenerator(Protocol):
@@ -42,7 +42,7 @@ class DefaultPromptGenerator:
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": getattr(tool, "input_schema", {}) or {},
+                    "parameters": schema_of(tool) or {},
                 },
             }
             for tool in registry.all()
