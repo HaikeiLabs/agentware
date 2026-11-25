@@ -70,7 +70,7 @@ func (f *LlamaFormatter) ParseToolCalls(response string) ([]ParsedToolCall, erro
 	return result, nil
 }
 
-func (f *LlamaFormatter) FormatToolResult(name string, result *tools.Result) string {
+func (f *LlamaFormatter) FormatToolResult(name string, result *tools.Result, _ ...string) string {
 	if result.Success {
 		return fmt.Sprintf("%s: %s", name, result.Output)
 	}

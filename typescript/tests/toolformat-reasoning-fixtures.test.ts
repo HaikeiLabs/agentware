@@ -47,7 +47,7 @@ describe("shared toolformat fixtures", () => {
     }
     for (const c of data.format_result) {
       const result = new Result(c.result.success, c.result.output ?? null, c.result.error);
-      expect(formatter.formatToolResult(c.tool_name, result)).toBe(c.expected);
+      expect(formatter.formatToolResult(c.tool_name, result, c.call_id)).toBe(c.expected);
       record(fixturePath, "format_result", c.name);
     }
     for (const c of data.validate_format) {

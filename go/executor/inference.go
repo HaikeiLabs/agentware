@@ -137,7 +137,7 @@ func (e *inferenceExecutor) Execute(ctx context.Context, req ExecuteRequest) (*E
 				}
 			}
 
-			formattedResult := e.config.Formatter.FormatToolResult(tc.Name, result)
+			formattedResult := e.config.Formatter.FormatToolResult(tc.Name, result, tc.ID)
 			conversation = append(conversation, llm.Message{
 				Role:       llm.RoleTool,
 				Content:    formattedResult,

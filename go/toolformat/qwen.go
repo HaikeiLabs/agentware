@@ -104,7 +104,7 @@ func (f *QwenFormatter) ParseToolCalls(response string) ([]ParsedToolCall, error
 	}
 	return calls, nil
 }
-func (f *QwenFormatter) FormatToolResult(_ string, r *tools.Result) string {
+func (f *QwenFormatter) FormatToolResult(_ string, r *tools.Result, _ ...string) string {
 	var value any = r.Output
 	if !r.Success {
 		value = map[string]any{"error": r.Error}

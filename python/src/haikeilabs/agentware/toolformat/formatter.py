@@ -36,8 +36,13 @@ class ToolFormatter(Protocol):
         """Parse tool calls from model output."""
         ...
 
-    def format_tool_result(self, name: str, result: Result) -> str:
-        """Format tool result for model input."""
+    def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
+        """Format tool result for model input.
+
+        ``call_id`` is the id of the tool call this result answers, when the
+        caller has one. Families whose result format carries no id accept and
+        ignore it; the Anthropic formatter renders it as ``tool_use_id``.
+        """
         ...
 
     def model_family(self) -> str:
@@ -116,7 +121,7 @@ class GenericFormatter:
             )
         return result
 
-    def format_tool_result(self, name: str, result: Result) -> str:
+    def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
         if result.success:
             return str(result.data) if result.data is not None else ""
         return f"Error: {result.error}"
@@ -153,29 +158,86 @@ class OpenAIFOrmatter(GenericFormatter):
 
 
 class AnthropicFormatter:
-    """Anthropic Claude XML tool-use format formatter."""
+    """Anthropic Claude tool use, rendered as text.
+
+    Definitions are Anthropic tool definitions, ``{"name", "description",
+    "input_schema"}``. Calls are Anthropic ``tool_use`` blocks, ``{"type":
+    "tool_use", "id", "name", "input"}``, given as one block or as a content
+    array (its other blocks, such as text, are ignored); each call keeps the
+    block's id. When the response holds no ``tool_use`` block, the legacy
+    ``<function_calls><invoke tool="name">{json}</invoke></function_calls>``
+    form is parsed instead, and those calls have no id. Results are
+    ``tool_result`` blocks, ``{"type": "tool_result", "tool_use_id",
+    "content", "is_error"}``. Without a call id, ``tool_name`` takes the place
+    of ``tool_use_id``; that block is a text rendering only, not a valid
+    Messages API block.
+
+    See https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview
+    """
 
     _invoke_re = re.compile(r'<invoke\s+tool="([^"]*)"\s*>(.*?)</invoke>')
 
     def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
         if not tools:
             return ""
-        schemas: list[dict[str, Any]] = []
+        definitions: list[dict[str, Any]] = []
         for tool in tools:
-            entry: dict[str, Any] = {
-                "type": "function",
-                "function": {
+            schema = _get_input_schema(tool)
+            definitions.append(
+                {
                     "name": tool.name,
                     "description": tool.description,
-                },
-            }
-            schema = _get_input_schema(tool)
-            if schema is not None:
-                entry["function"]["parameters"] = schema
-            schemas.append(entry)
-        return json.dumps(schemas, separators=(",", ":"))
+                    # The Messages API requires input_schema; a tool without
+                    # parameters takes an empty object schema.
+                    "input_schema": schema
+                    if schema is not None
+                    else {"type": "object", "properties": {}},
+                }
+            )
+        return json.dumps(definitions, separators=(",", ":"), ensure_ascii=False)
+
+    @staticmethod
+    def _tool_use_blocks(response: str) -> list[dict[str, Any]]:
+        """Return the tool_use blocks of a JSON block or content array."""
+        text = response.strip()
+        if not text.startswith(("{", "[")):
+            return []
+        try:
+            value = json.loads(text)
+        except ValueError:
+            return []
+        items = value if isinstance(value, list) else [value]
+        return [b for b in items if isinstance(b, dict) and b.get("type") == "tool_use"]
+
+    @staticmethod
+    def _tool_use_error(block: dict[str, Any]) -> str | None:
+        """Return why a tool_use block is malformed, or None when it is valid."""
+        name = block.get("name")
+        if not isinstance(name, str) or not name:
+            return "tool_use block missing name"
+        call_id = block.get("id")
+        if not isinstance(call_id, str) or not call_id:
+            return f"tool_use block {name!r} missing id"
+        if not isinstance(block.get("input"), dict):
+            return f"tool_use block {name!r} input must be a JSON object"
+        return None
 
     def parse_tool_calls(self, response: str) -> list[ParsedToolCall]:
+        if not response:
+            return []
+        blocks = self._tool_use_blocks(response)
+        if not blocks:
+            return self._parse_invoke(response)
+        # Fail closed: a malformed tool_use block is never returned as a call
+        # (validate_format names the problem).
+        return [
+            ParsedToolCall(id=block["id"], name=block["name"], args=block["input"], raw=response)
+            for block in blocks
+            if self._tool_use_error(block) is None
+        ]
+
+    def _parse_invoke(self, response: str) -> list[ParsedToolCall]:
+        """Parse the legacy <function_calls><invoke> form (calls carry no id)."""
         if not response:
             return []
         matches = self._invoke_re.findall(response)
@@ -206,12 +268,18 @@ class AnthropicFormatter:
             )
         return result
 
-    def format_tool_result(self, name: str, result: Result) -> str:
-        if result.success:
-            output = str(result.data) if result.data is not None else ""
+    def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
+        block: dict[str, Any] = {"type": "tool_result"}
+        if call_id:
+            block["tool_use_id"] = call_id
         else:
-            output = f"Error: {result.error}"
-        return f'<function_results><result tool="{name}">{output}</result></function_results>'
+            block["tool_name"] = name
+        if result.success:
+            block["content"] = str(result.data) if result.data is not None else ""
+        else:
+            block["content"] = result.error or ""
+            block["is_error"] = True
+        return json.dumps(block, separators=(",", ":"), ensure_ascii=False)
 
     def model_family(self) -> str:
         return "anthropic"
@@ -219,6 +287,21 @@ class AnthropicFormatter:
     def validate_format(self, response: str) -> str | None:
         if not response:
             return None
+        blocks = self._tool_use_blocks(response)
+        if not blocks:
+            return self._validate_invoke(response)
+        seen: set[str] = set()
+        for block in blocks:
+            error = self._tool_use_error(block)
+            if error is not None:
+                return error
+            if block["id"] in seen:
+                return f"duplicate tool_use id {block['id']!r}"
+            seen.add(block["id"])
+        return None
+
+    def _validate_invoke(self, response: str) -> str | None:
+        """Validate the legacy <function_calls><invoke> form."""
         # Check for invoke tags lacking a tool attribute
         for m in re.finditer(r"<invoke\b([^>]*)>", response):
             attrs = m.group(1)
@@ -311,7 +394,7 @@ class QwenFormatter:
                         calls.append(ParsedToolCall(id="", name=match[1], args=args, raw=response))
         return calls
 
-    def format_tool_result(self, name: str, result: Result) -> str:
+    def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
         value = result.data if result.success else {"error": result.error}
         return f"<tool_response>\n{json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True)}\n</tool_response>"
 

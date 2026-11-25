@@ -12,7 +12,13 @@ export interface ParsedToolCall {
 export interface ToolFormatter {
   formatToolDefinitions(tools: Array<AnyTool | ToolSpec | ToolDefinition>): string;
   parseToolCalls(response: string): ParsedToolCall[];
-  formatToolResult(name: string, result: Result): string;
+  /**
+   * Render a tool result for the next model turn. `callId` is the id of the
+   * tool call this result answers, when the caller has one. Families whose
+   * result format carries no id ignore it; AnthropicFormatter renders it as
+   * `tool_use_id`.
+   */
+  formatToolResult(name: string, result: Result, callId?: string): string;
   modelFamily(): string;
   validateFormat(response: string): string | null;
 }
@@ -82,7 +88,7 @@ export class GenericFormatter implements ToolFormatter {
     return result;
   }
 
-  formatToolResult(_name: string, result: Result): string {
+  formatToolResult(_name: string, result: Result, _callId?: string): string {
     if (result.success) {
       return typeof result.data === "string" ? result.data : JSON.stringify(result.data);
     }
@@ -136,10 +142,69 @@ export class GLMFormatter extends GenericFormatter {
   }
 }
 
-export class AnthropicFormatter extends GenericFormatter {
+/**
+ * Anthropic Claude tool use, rendered as text.
+ *
+ * Definitions are Anthropic tool definitions: `{name, description,
+ * input_schema}`. Calls are Anthropic `tool_use` blocks, `{type: "tool_use",
+ * id, name, input}`, given as one block or as a content array (its other
+ * blocks, such as text, are ignored); each call keeps the block's id. When the
+ * response holds no `tool_use` block, the legacy
+ * `<function_calls><invoke tool="name">{json}</invoke></function_calls>` form
+ * is parsed instead, and those calls have no id. Results are `tool_result`
+ * blocks, `{type: "tool_result", tool_use_id, content, is_error}`. Without a
+ * call id, `tool_name` takes the place of `tool_use_id`; that block is a text
+ * rendering only, not a valid Messages API block.
+ *
+ * See https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview
+ */
+export class AnthropicFormatter implements ToolFormatter {
+  formatToolDefinitions(tools: FormatterTool[]): string {
+    if (tools.length === 0) return "";
+
+    const definitions = tools.map((tool) => {
+      let schema: unknown;
+      if ("parameters" in tool) {
+        schema = sortedJsonValue(tool.parameters);
+      } else if ("input_schema" in tool) {
+        schema = sortedJsonValue(tool.input_schema);
+      } else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
+        schema = (tool as { inputSchema: () => unknown }).inputSchema();
+      }
+      return {
+        name: tool.name,
+        description: tool.description,
+        // The Messages API requires input_schema; a tool without parameters
+        // takes an empty object schema.
+        input_schema: schema ?? { type: "object", properties: {} },
+      };
+    });
+    return JSON.stringify(definitions);
+  }
+
   parseToolCalls(response: string): ParsedToolCall[] {
     if (!response) return [];
 
+    const blocks = anthropicToolUseBlocks(response);
+    if (blocks.length === 0) return this.parseInvoke(response);
+
+    // Fail closed: a malformed tool_use block is never returned as a call
+    // (validateFormat names the problem).
+    const result: ParsedToolCall[] = [];
+    for (const block of blocks) {
+      if (anthropicToolUseError(block) !== null) continue;
+      result.push({
+        id: block.id as string,
+        name: block.name as string,
+        args: block.input as Record<string, unknown>,
+        raw: response,
+      });
+    }
+    return result;
+  }
+
+  /** Parse the legacy <function_calls><invoke> form; those calls carry no id. */
+  private parseInvoke(response: string): ParsedToolCall[] {
     const matches = response.matchAll(anthropicInvokeRegex);
     const result: ParsedToolCall[] = [];
     for (const m of matches) {
@@ -162,12 +227,21 @@ export class AnthropicFormatter extends GenericFormatter {
     return result;
   }
 
-  formatToolResult(_name: string, result: Result): string {
-    if (result.success) {
-      const output = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
-      return `<function_results><result tool="${_name}">${output}</result></function_results>`;
+  formatToolResult(name: string, result: Result, callId?: string): string {
+    const block: Record<string, unknown> = { type: "tool_result" };
+    if (callId) {
+      block.tool_use_id = callId;
+    } else {
+      block.tool_name = name;
     }
-    return `<function_results><result tool="${_name}">Error: ${result.error}</result></function_results>`;
+    if (result.success) {
+      const data = result.data;
+      block.content = data === null || data === undefined ? "" : typeof data === "string" ? data : JSON.stringify(data);
+    } else {
+      block.content = result.error ?? "";
+      block.is_error = true;
+    }
+    return JSON.stringify(block);
   }
 
   modelFamily(): string {
@@ -177,6 +251,22 @@ export class AnthropicFormatter extends GenericFormatter {
   validateFormat(response: string): string | null {
     if (!response) return null;
 
+    const blocks = anthropicToolUseBlocks(response);
+    if (blocks.length === 0) return this.validateInvoke(response);
+
+    const seen = new Set<string>();
+    for (const block of blocks) {
+      const error = anthropicToolUseError(block);
+      if (error !== null) return error;
+      const id = block.id as string;
+      if (seen.has(id)) return `duplicate tool_use id "${id}"`;
+      seen.add(id);
+    }
+    return null;
+  }
+
+  /** Validate the legacy <function_calls><invoke> form. */
+  private validateInvoke(response: string): string | null {
     const matches = response.matchAll(anthropicInvokeRegex);
     let found = false;
     for (const m of matches) {
@@ -199,6 +289,35 @@ export class AnthropicFormatter extends GenericFormatter {
     }
     return null;
   }
+}
+
+/** The tool_use blocks of a response that is a JSON block or a JSON content array. */
+function anthropicToolUseBlocks(response: string): Array<Record<string, unknown>> {
+  const text = response.trim();
+  if (!text.startsWith("{") && !text.startsWith("[")) return [];
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const items = Array.isArray(value) ? value : [value];
+  return items.filter(
+    (item): item is Record<string, unknown> =>
+      item !== null && typeof item === "object" && !Array.isArray(item) && (item as Record<string, unknown>).type === "tool_use",
+  );
+}
+
+/** Why a tool_use block is malformed, or null when it is valid. */
+function anthropicToolUseError(block: Record<string, unknown>): string | null {
+  const name = block.name;
+  if (typeof name !== "string" || name === "") return "tool_use block missing name";
+  if (typeof block.id !== "string" || block.id === "") return `tool_use block "${name}" missing id`;
+  const input = block.input;
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    return `tool_use block "${name}" input must be a JSON object`;
+  }
+  return null;
 }
 
 export class QwenFormatter implements ToolFormatter {
@@ -251,7 +370,7 @@ export class QwenFormatter implements ToolFormatter {
     return result;
   }
 
-  formatToolResult(_name: string, result: Result): string {
+  formatToolResult(_name: string, result: Result, _callId?: string): string {
     const value = result.success ? result.data : { error: result.error };
     return `<tool_response>\n${JSON.stringify(sortedJsonValue(value))}\n</tool_response>`;
   }

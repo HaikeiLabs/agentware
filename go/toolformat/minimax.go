@@ -125,7 +125,7 @@ func (f *MiniMaxFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 	return nil, nil
 }
 
-func (f *MiniMaxFormatter) FormatToolResult(name string, result *tools.Result) string {
+func (f *MiniMaxFormatter) FormatToolResult(name string, result *tools.Result, _ ...string) string {
 	if result.Success {
 		return fmt.Sprintf(`<tool_response><tool_name>%s</tool_name><result>%s</result></tool_response>`, name, result.Output)
 	}

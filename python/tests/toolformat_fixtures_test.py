@@ -94,7 +94,7 @@ def test_toolformat_fixtures(fixture: str, data: dict) -> None:
             result = Result(success=True, data=spec.get("output"))
         else:
             result = Result(success=False, error=spec.get("error"))
-        actual = fmt.format_tool_result(case["tool_name"], result)
+        actual = fmt.format_tool_result(case["tool_name"], result, call_id=case.get("call_id"))
         assert actual == case["expected"], f"{fixture} format_result/{case['name']}"
         record(f"toolformat/{fixture}", "format_result", case["name"])
 

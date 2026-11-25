@@ -146,8 +146,11 @@ fn assert_format_result(fixture: &str, family: &str, cases: &Value) {
             output: result["output"].as_str().unwrap_or_default().to_owned(),
             error: result["error"].as_str().unwrap_or_default().to_owned(),
         };
-        let got = formatter
-            .format_tool_result(case["tool_name"].as_str().expect("tool_name"), &tool_result);
+        let got = formatter.format_tool_result_with_call_id(
+            case["tool_name"].as_str().expect("tool_name"),
+            &tool_result,
+            case["call_id"].as_str(),
+        );
         assert_eq!(
             got,
             case["expected"].as_str().expect("expected string"),

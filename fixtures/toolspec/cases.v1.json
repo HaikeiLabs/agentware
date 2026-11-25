@@ -74,7 +74,7 @@
         "openai": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
         "deepseek": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
         "glm": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]",
-        "anthropic": "[{\"type\":\"function\",\"function\":{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"parameters\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}}]"
+        "anthropic": "[{\"name\":\"github.get_issue\",\"description\":\"Fetch an issue from a GitHub repository\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"issue_number\":{\"minimum\":1,\"type\":\"integer\"}},\"required\":[\"issue_number\"]}}]"
       }
     },
     {
@@ -133,7 +133,7 @@
         "openai": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
         "deepseek": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
         "glm": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]",
-        "anthropic": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}}]"
+        "anthropic": "[{\"name\":\"get_weather\",\"description\":\"Get current weather for a location\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]}}]"
       }
     },
     {

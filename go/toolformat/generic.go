@@ -114,7 +114,7 @@ func (f *GenericFormatter) ParseToolCalls(response string) ([]ParsedToolCall, er
 	return result, nil
 }
 
-func (f *GenericFormatter) FormatToolResult(name string, result *tools.Result) string {
+func (f *GenericFormatter) FormatToolResult(name string, result *tools.Result, _ ...string) string {
 	if result.Success {
 		return result.Output
 	}

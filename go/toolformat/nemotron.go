@@ -79,7 +79,7 @@ func (f *NemotronFormatter) ParseToolCalls(response string) ([]ParsedToolCall, e
 	return result, nil
 }
 
-func (f *NemotronFormatter) FormatToolResult(name string, result *tools.Result) string {
+func (f *NemotronFormatter) FormatToolResult(name string, result *tools.Result, _ ...string) string {
 	if result.Success {
 		return result.Output
 	}

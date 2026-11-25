@@ -8,7 +8,12 @@ import (
 type ToolFormatter interface {
 	FormatToolDefinitions(tools []tools.Tool) string
 	ParseToolCalls(response string) ([]ParsedToolCall, error)
-	FormatToolResult(name string, result *tools.Result) string
+	// FormatToolResult renders a tool result for the next model turn. callID
+	// is optional: the id of the tool call this result answers, when the
+	// caller has one (only the first value is used). Families whose result
+	// format carries no id ignore it; AnthropicFormatter renders it as
+	// tool_use_id.
+	FormatToolResult(name string, result *tools.Result, callID ...string) string
 	ModelFamily() string
 	ValidateFormat(response string) error
 }

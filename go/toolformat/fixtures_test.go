@@ -62,6 +62,7 @@ type toolformatFixture struct {
 	FormatResult []struct {
 		Name     string `json:"name"`
 		ToolName string `json:"tool_name"`
+		CallID   string `json:"call_id"`
 		Result   struct {
 			Success bool   `json:"success"`
 			Output  string `json:"output"`
@@ -142,7 +143,7 @@ func TestToolformatFixtures(t *testing.T) {
 			t.Run(fx.Family+"/format_result/"+tc.Name, func(t *testing.T) {
 				conformance.Record(t, fixtureName, "format_result", tc.Name)
 				result := &tools.Result{Success: tc.Result.Success, Output: tc.Result.Output, Error: tc.Result.Error}
-				if got := formatter.FormatToolResult(tc.ToolName, result); got != tc.Expected {
+				if got := formatter.FormatToolResult(tc.ToolName, result, tc.CallID); got != tc.Expected {
 					t.Errorf("format_result = %q, want %q", got, tc.Expected)
 				}
 			})
