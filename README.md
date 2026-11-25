@@ -179,6 +179,7 @@ with each SDK release:
 <!-- compat:begin -->
 | agentware SDK | kei-proxy (minimum) | kei-cli (minimum) |
 | --- | --- | --- |
+| 0.18.0 | v0.11.0 | 0.9.1 |
 | 0.17.0 | v0.6.5 | 0.3.6 |
 | 0.16.0 | v0.6.5 | 0.3.6 |
 | 0.15.0 | v0.6.5 | 0.3.6 |
