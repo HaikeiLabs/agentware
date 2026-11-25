@@ -4,7 +4,7 @@
   "format_definitions": [
     {
       "name": "two tools",
-      "expected": "<tool_description>\n<tool_name>get_weather</tool_name>\n<description>Get current weather for a location</description>\n<parameters>{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name, e.g. 'Tokyo'\"},\"unit\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"default\":\"celsius\"}},\"required\":[\"location\"]}</parameters>\n</tool_description>\n<tool_description>\n<tool_name>search_web</tool_name>\n<description>Search the web for information</description>\n<parameters>{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"}},\"required\":[\"query\"]}</parameters>\n</tool_description>\n"
+      "expected": "# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"function\":{\"description\":\"Get current weather for a location\",\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"City name, e.g. 'Tokyo'\",\"type\":\"string\"},\"unit\":{\"default\":\"celsius\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"}},\"type\":\"function\"}\n{\"function\":{\"description\":\"Search the web for information\",\"name\":\"search_web\",\"parameters\":{\"properties\":{\"query\":{\"description\":\"Search query\",\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}},\"type\":\"function\"}\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>"
     }
   ],
   "parse_calls": [
@@ -12,16 +12,34 @@
       "name": "single call",
       "input": "<tool_call><tool name=\"get_weather\">{\"location\":\"Tokyo\",\"unit\":\"celsius\"}</tool></tool_call>",
       "expected": [
-        {"name": "get_weather", "args": {"location": "Tokyo", "unit": "celsius"}}
-      ]
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
+      ],
+      "deprecated_since": "next minor release"
     },
     {
       "name": "multiple calls",
       "input": "<tool_call><tool name=\"get_weather\">{\"location\":\"Paris\"}</tool></tool_call><tool_call><tool name=\"search_web\">{\"query\":\"forecast\"}</tool></tool_call>",
       "expected": [
-        {"name": "get_weather", "args": {"location": "Paris"}},
-        {"name": "search_web", "args": {"query": "forecast"}}
-      ]
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Paris"
+          }
+        },
+        {
+          "name": "search_web",
+          "args": {
+            "query": "forecast"
+          }
+        }
+      ],
+      "deprecated_since": "next minor release"
     },
     {
       "name": "empty response",
@@ -32,26 +50,96 @@
       "name": "no tool calls",
       "input": "Let me check the weather.",
       "expected": []
+    },
+    {
+      "name": "hermes_qwen3_real",
+      "input": "\u003cthink>I need Tokyo's weather.\u003c/think>\n\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Tokyo\"}}\n</tool_call><|im_end|>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "city": "Tokyo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "hermes multiple and string arguments",
+      "input": "<tool_call>\n{\"name\":\"first\",\"arguments\":{\"x\":1}}\n</tool_call><tool_call>{\"name\":\"second\",\"arguments\":\"{\\\"y\\\":2}\"}</tool_call>",
+      "expected": [
+        {
+          "name": "first",
+          "args": {
+            "x": 1
+          }
+        },
+        {
+          "name": "second",
+          "args": {
+            "y": 2
+          }
+        }
+      ]
     }
   ],
   "format_result": [
     {
       "name": "success",
       "tool_name": "get_weather",
-      "result": {"success": true, "output": "Sunny, 22°C"},
-      "expected": "<tool_response>\n<tool_name>get_weather</tool_name>\n<result>Sunny, 22°C</result>\n</tool_response>"
+      "result": {
+        "success": true,
+        "output": "Sunny, 22°C"
+      },
+      "expected": "<tool_response>\n\"Sunny, 22°C\"\n</tool_response>"
     },
     {
       "name": "error",
       "tool_name": "get_weather",
-      "result": {"success": false, "error": "API unavailable"},
-      "expected": "<tool_response>\n<tool_name>get_weather</tool_name>\n<error>API unavailable</error>\n</tool_response>"
+      "result": {
+        "success": false,
+        "error": "API unavailable"
+      },
+      "expected": "<tool_response>\n{\"error\":\"API unavailable\"}\n</tool_response>"
     }
   ],
   "validate_format": [
-    {"name": "valid", "input": "<tool_call><tool name=\"get_weather\">{}</tool></tool_call>", "valid": true},
-    {"name": "empty", "input": "", "valid": true},
-    {"name": "missing name attr", "input": "<tool_call><tool>{}</tool></tool_call>", "valid": false},
-    {"name": "malformed JSON args", "input": "<tool_call><tool name=\"get_weather\">{bad}</tool></tool_call>", "valid": false}
+    {
+      "name": "valid",
+      "input": "<tool_call><tool name=\"get_weather\">{}</tool></tool_call>",
+      "valid": true,
+      "deprecated_since": "next minor release"
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "valid": true
+    },
+    {
+      "name": "missing name attr",
+      "input": "<tool_call><tool>{}</tool></tool_call>",
+      "valid": false,
+      "deprecated_since": "next minor release"
+    },
+    {
+      "name": "malformed JSON args",
+      "input": "<tool_call><tool name=\"get_weather\">{bad}</tool></tool_call>",
+      "valid": false,
+      "deprecated_since": "next minor release"
+    },
+    {
+      "name": "hermes valid",
+      "input": "<tool_call>{\"name\":\"f\",\"arguments\":{}}</tool_call>",
+      "valid": true
+    },
+    {
+      "name": "hermes malformed JSON",
+      "input": "<tool_call>{bad}</tool_call>",
+      "valid": false
+    },
+    {
+      "name": "hermes malformed string arguments",
+      "input": "<tool_call>{\"name\":\"f\",\"arguments\":\"bad\"}</tool_call>",
+      "valid": false
+    }
   ]
 }

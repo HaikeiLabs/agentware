@@ -239,94 +239,103 @@ class AnthropicFormatter:
 
 
 class QwenFormatter:
-    """Qwen XML tool-call format formatter."""
+    """Qwen Hermes tool calls, with deprecated legacy XML parsing."""
 
-    _tool_call_re = re.compile(
-        r'<tool_call>\s*<tool name="([^"]+)">\s*(.*?)\s*</tool>\s*</tool_call>',
-        re.DOTALL,
-    )
+    _span_re = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+    _legacy_re = re.compile(r'<tool name="([^"]+)">\s*(.*?)\s*</tool>', re.DOTALL)
 
     def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
         if not tools:
             return ""
-        parts = []
+        lines = []
         for tool in tools:
-            part = (
-                f"<tool_description>\n"
-                f"<tool_name>{tool.name}</tool_name>\n"
-                f"<description>{tool.description}</description>\n"
-            )
+            function: dict[str, Any] = {"name": tool.name, "description": tool.description}
             schema = _get_input_schema(tool)
             if schema is not None:
-                part += f"<parameters>{json.dumps(schema, separators=(',', ':'))}</parameters>\n"
-            part += "</tool_description>\n"
-            parts.append(part)
-        return "".join(parts)
-
-    def parse_tool_calls(self, response: str) -> list[ParsedToolCall]:
-        if not response:
-            return []
-        matches = self._tool_call_re.findall(response)
-        if not matches:
-            return []
-        result = []
-        for name, args_raw in matches:
-            args_raw = args_raw.strip()
-            try:
-                args = json.loads(args_raw) if args_raw else {}
-            except json.JSONDecodeError:
-                args = {"_raw": args_raw}
-            if not isinstance(args, dict):
-                args = {"_raw": args_raw}
-            result.append(
-                ParsedToolCall(
-                    id="",
-                    name=name,
-                    args=args,
-                    raw=response,
+                function["parameters"] = schema
+            lines.append(
+                json.dumps(
+                    {"type": "function", "function": function},
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                    sort_keys=True,
                 )
             )
-        return result
+        return (
+            "# Tools\n\nYou may call one or more functions to assist with the user query.\n\n"
+            "You are provided with function signatures within <tools></tools> XML tags:\n<tools>\n"
+            + "\n".join(lines)
+            + "\n</tools>\n\n"
+            "For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n"
+            '<tool_call>\n{"name": <function-name>, "arguments": <args-json-object>}\n</tool_call>'
+        )
+
+    def _decode(self, body: str) -> tuple[str, dict[str, Any]] | None:
+        try:
+            call = json.loads(body)
+            if (
+                not isinstance(call, dict)
+                or not isinstance(call.get("name"), str)
+                or not call["name"]
+            ):
+                return None
+            args = call.get("arguments")
+            if isinstance(args, str):
+                args = json.loads(args)
+            if not isinstance(args, dict):
+                return None
+            return call["name"], args
+        except (ValueError, TypeError):
+            return None
+
+    def parse_tool_calls(self, response: str) -> list[ParsedToolCall]:
+        spans = self._span_re.findall(response)
+        hermes = [body for body in spans if not body.lstrip().startswith("<tool")]
+        calls = []
+        if hermes:
+            for body in hermes:
+                decoded = self._decode(body)
+                if decoded is not None:
+                    calls.append(
+                        ParsedToolCall(id="", name=decoded[0], args=decoded[1], raw=response)
+                    )
+        else:
+            for body in spans:
+                match = self._legacy_re.fullmatch(body.strip())
+                if match:
+                    try:
+                        args = json.loads(match[2]) if match[2] else {}
+                    except ValueError:
+                        continue
+                    if isinstance(args, dict):
+                        calls.append(ParsedToolCall(id="", name=match[1], args=args, raw=response))
+        return calls
 
     def format_tool_result(self, name: str, result: Result) -> str:
-        if result.success:
-            output = str(result.data) if result.data is not None else ""
-            return (
-                f"<tool_response>\n"
-                f"<tool_name>{name}</tool_name>\n"
-                f"<result>{output}</result>\n"
-                f"</tool_response>"
-            )
-        return (
-            f"<tool_response>\n"
-            f"<tool_name>{name}</tool_name>\n"
-            f"<error>{result.error}</error>\n"
-            f"</tool_response>"
-        )
+        value = result.data if result.success else {"error": result.error}
+        return f"<tool_response>\n{json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True)}\n</tool_response>"
 
     def model_family(self) -> str:
         return "qwen"
 
     def validate_format(self, response: str) -> str | None:
-        if not response:
-            return None
-        # Check for tool tags lacking a name attribute
-        for m in re.finditer(r"<tool\b([^>]*)>", response):
-            attrs = m.group(1)
-            tmatch = re.search(r'name\s*=\s*"([^"]*)"', attrs)
-            if tmatch is None:
-                return "tool call missing function name"
-        matches = self._tool_call_re.findall(response)
-        for name, args_raw in matches:
-            if not name:
-                return "tool call missing function name"
-            args_raw = args_raw.strip()
-            if not args_raw:
-                return f"tool call {name!r} missing arguments"
-            try:
-                json.loads(args_raw)
-            except json.JSONDecodeError as e:
-                return f"tool call {name!r} has invalid JSON arguments: {e}"
+        spans = self._span_re.findall(response)
+        hermes = [body for body in spans if not body.lstrip().startswith("<tool")]
+        if hermes:
+            if any(self._decode(body) is None for body in hermes):
+                return "invalid JSON tool call or arguments"
+        else:
+            for body in spans:
+                match = self._legacy_re.fullmatch(body.strip())
+                if not match:
+                    return "tool call missing function name"
+                if not match[2]:
+                    return "tool call missing arguments"
+                try:
+                    if not isinstance(json.loads(match[2]), dict):
+                        return "invalid JSON arguments"
+                except ValueError:
+                    return "invalid JSON arguments"
         return None
 
 

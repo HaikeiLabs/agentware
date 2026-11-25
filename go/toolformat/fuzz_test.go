@@ -118,11 +118,10 @@ func TestParseToolCallsFuzzRegressions(t *testing.T) {
 			wantErr:   true,
 		},
 		{
-			name:      "qwen carries null arguments as raw",
+			name:      "qwen skips null arguments",
 			formatter: &QwenFormatter{},
 			input:     `<tool_call><tool name="my_tool">null</tool></tool_call>`,
-			wantCalls: 1,
-			wantArgs:  map[string]any{"_raw": "null"},
+			wantCalls: 0,
 		},
 		{
 			name:      "nemotron rejects empty name",

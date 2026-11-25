@@ -663,3 +663,15 @@ func TestToolSpecFormattingMatchesLegacyToolDefinitionForEveryFlavor(t *testing.
 		}
 	}
 }
+
+func TestQwenMalformedHermesDoesNotFallBack(t *testing.T) {
+	response := `<tool_call>{bad}</tool_call><tool_call><tool name="legacy">{}</tool></tool_call>`
+	formatter := &QwenFormatter{}
+	calls, err := formatter.ParseToolCalls(response)
+	if err != nil || len(calls) != 0 {
+		t.Fatalf("calls = %v, err = %v", calls, err)
+	}
+	if formatter.ValidateFormat(response) == nil {
+		t.Fatal("expected invalid format")
+	}
+}

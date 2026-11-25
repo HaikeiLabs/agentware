@@ -203,86 +203,75 @@ export class AnthropicFormatter extends GenericFormatter {
 
 export class QwenFormatter implements ToolFormatter {
   formatToolDefinitions(tools: FormatterTool[]): string {
-    if (tools.length === 0) return "";
-
-    let result = "";
-    for (const tool of tools) {
-      result += `<tool_description>\n<tool_name>${tool.name}</tool_name>\n<description>${tool.description}</description>\n`;
-      if ("parameters" in tool) {
-        result += `<parameters>${JSON.stringify(sortedJsonValue(tool.parameters))}</parameters>\n`;
-      } else if ("input_schema" in tool) {
-        result += `<parameters>${JSON.stringify(sortedJsonValue(tool.input_schema))}</parameters>\n`;
-      } else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
+    if (!tools.length) return "";
+    const lines = tools.map((tool) => {
+      const fn: Record<string, unknown> = { name: tool.name, description: tool.description };
+      if ("parameters" in tool) fn.parameters = tool.parameters;
+      else if ("input_schema" in tool) fn.parameters = tool.input_schema;
+      else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
         const schema = (tool as any).inputSchema();
-        if (schema) {
-          result += `<parameters>${JSON.stringify(schema)}</parameters>\n`;
-        }
+        if (schema) fn.parameters = schema;
       }
-      result += "</tool_description>\n";
-    }
-    return result;
+      return JSON.stringify(sortedJsonValue({ type: "function", function: fn }));
+    });
+    return "# Tools\n\nYou may call one or more functions to assist with the user query.\n\n" +
+      "You are provided with function signatures within <tools></tools> XML tags:\n<tools>\n" + lines.join("\n") +
+      "\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n" +
+      '<tool_call>\n{"name": <function-name>, "arguments": <args-json-object>}\n</tool_call>';
+  }
+
+  private decode(body: string): { name: string; args: Record<string, unknown> } | null {
+    try {
+      const call = JSON.parse(body);
+      if (!call || typeof call.name !== "string" || !call.name) return null;
+      const args = typeof call.arguments === "string" ? JSON.parse(call.arguments) : call.arguments;
+      if (!args || typeof args !== "object" || Array.isArray(args)) return null;
+      return { name: call.name, args };
+    } catch { return null; }
   }
 
   parseToolCalls(response: string): ParsedToolCall[] {
-    if (!response) return [];
-
-    const matches = response.matchAll(qwenToolCallRegex);
+    const spans = [...response.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/g)];
+    const hermes = spans.some((m) => !m[1].trimStart().startsWith("<tool"));
     const result: ParsedToolCall[] = [];
-    for (const m of matches) {
-      if (m.length < 3) continue;
-      const name = m[1];
-      const argsRaw = m[2];
-      let args: Record<string, unknown>;
-      try {
-        args = JSON.parse(argsRaw);
-      } catch {
-        args = { _raw: argsRaw };
+    if (hermes) {
+      for (const span of spans) {
+        if (span[1].trimStart().startsWith("<tool")) continue;
+        const call = this.decode(span[1]);
+        if (call) result.push({ id: "", ...call, raw: span[0] });
       }
-      result.push({
-        id: "",
-        name,
-        args,
-        raw: m[0],
-      });
+    } else {
+      for (const m of response.matchAll(qwenToolCallRegex)) {
+        try {
+          const args = m[2].trim() ? JSON.parse(m[2]) : {};
+          if (args && typeof args === "object" && !Array.isArray(args)) result.push({ id: "", name: m[1], args, raw: m[0] });
+        } catch { /* skip malformed legacy calls */ }
+      }
     }
     return result;
   }
 
   formatToolResult(_name: string, result: Result): string {
-    if (result.success) {
-      const output = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
-      return `<tool_response>\n<tool_name>${_name}</tool_name>\n<result>${output}</result>\n</tool_response>`;
-    }
-    return `<tool_response>\n<tool_name>${_name}</tool_name>\n<error>${result.error}</error>\n</tool_response>`;
+    const value = result.success ? result.data : { error: result.error };
+    return `<tool_response>\n${JSON.stringify(sortedJsonValue(value))}\n</tool_response>`;
   }
 
-  modelFamily(): string {
-    return "qwen";
-  }
+  modelFamily(): string { return "qwen"; }
 
   validateFormat(response: string): string | null {
-    if (!response) return null;
-
-    const matches = response.matchAll(qwenToolCallRegex);
-    let found = false;
-    for (const m of matches) {
-      found = true;
-      if (m.length < 2 || !m[1]) {
-        return "tool call missing function name";
+    const spans = [...response.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/g)];
+    const hermes = spans.some((m) => !m[1].trimStart().startsWith("<tool"));
+    if (hermes) {
+      for (const m of spans) if (!m[1].trimStart().startsWith("<tool") && !this.decode(m[1])) return "invalid JSON tool call or arguments";
+    } else {
+      for (const span of spans) {
+        const legacy = [...span[0].matchAll(qwenToolCallRegex)][0];
+        if (!legacy) return "tool call missing function name";
+        try {
+          const args = JSON.parse(legacy[2]);
+          if (!args || typeof args !== "object" || Array.isArray(args)) return "invalid JSON arguments";
+        } catch { return "invalid JSON arguments"; }
       }
-      const name = m[1];
-      const argsRaw = m[2];
-      if (!argsRaw || !argsRaw.trim()) {
-        return `tool call "${name}" missing arguments`;
-      }
-      try {
-        JSON.parse(argsRaw);
-      } catch {
-        return `tool call "${name}" has invalid JSON arguments`;
-      }
-    }
-    if (!found && response.includes("<tool")) {
-      return "malformed tool call";
     }
     return null;
   }

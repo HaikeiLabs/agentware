@@ -452,9 +452,9 @@ class TestQwenFormatter:
         fmt = QwenFormatter()
         tool = _MockTool(name="get_weather", description="Get current weather")
         result = fmt.format_tool_definitions([tool])
-        assert "<tool_description>" in result
-        assert "<tool_name>get_weather</tool_name>" in result
-        assert "<description>Get current weather</description>" in result
+        assert "<tools>" in result
+        assert '"name":"get_weather"' in result
+        assert '"description":"Get current weather"' in result
 
     def test_format_tool_definitions_with_schema(self):
         fmt = QwenFormatter()
@@ -464,25 +464,24 @@ class TestQwenFormatter:
             schema={"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]},
         )
         result = fmt.format_tool_definitions([tool])
-        assert "<parameters>" in result
+        assert '"parameters"' in result
         assert '"q"' in result
 
     def test_format_tool_definitions_no_schema(self):
         fmt = QwenFormatter()
         tool = _MockTool(name="simple", description="No schema tool")
         result = fmt.format_tool_definitions([tool])
-        assert "<tool_description>" in result
-        assert "<parameters>" not in result
+        assert "<tools>" in result
+        assert '"parameters"' not in result
 
     def test_format_tool_definitions_multiple(self):
         fmt = QwenFormatter()
         t1 = _MockTool(name="tool_a", description="First")
         t2 = _MockTool(name="tool_b", description="Second")
         result = fmt.format_tool_definitions([t1, t2])
-        assert result.count("<tool_description>") == 2
-        assert result.count("<tool_name>") == 2
-        assert "<tool_name>tool_a</tool_name>" in result
-        assert "<tool_name>tool_b</tool_name>" in result
+        assert result.count('"type":"function"') == 2
+        assert '"name":"tool_a"' in result
+        assert '"name":"tool_b"' in result
 
     def test_parse_tool_calls_empty(self):
         fmt = QwenFormatter()
@@ -524,31 +523,36 @@ class TestQwenFormatter:
         fmt = QwenFormatter()
         response = '<tool_call><tool name="my_tool">{bad}</tool></tool_call>'
         calls = fmt.parse_tool_calls(response)
-        assert len(calls) == 1
-        assert calls[0].args == {"_raw": "{bad}"}
+        assert calls == []
+
+    def test_invalid_hermes_does_not_fall_back_to_legacy(self):
+        response = '<tool_call>{bad}</tool_call><tool_call><tool name="legacy">{}</tool></tool_call>'
+        fmt = QwenFormatter()
+        assert fmt.parse_tool_calls(response) == []
+        assert fmt.validate_format(response) is not None
 
     def test_format_tool_result_success(self):
         fmt = QwenFormatter()
         result = Result(success=True, data="Sunny, 22°C")
         output = fmt.format_tool_result("get_weather", result)
         assert "<tool_response>" in output
-        assert "<tool_name>get_weather</tool_name>" in output
-        assert "<result>Sunny, 22°C</result>" in output
+        assert "get_weather" not in output
+        assert '"Sunny, 22°C"' in output
         assert "</tool_response>" in output
 
     def test_format_tool_result_success_none_data(self):
         fmt = QwenFormatter()
         result = Result(success=True, data=None)
         output = fmt.format_tool_result("get_weather", result)
-        assert "<result></result>" in output
+        assert "null" in output
 
     def test_format_tool_result_error(self):
         fmt = QwenFormatter()
         result = Result(success=False, error="API unavailable")
         output = fmt.format_tool_result("get_weather", result)
         assert "<tool_response>" in output
-        assert "<tool_name>get_weather</tool_name>" in output
-        assert "<error>API unavailable</error>" in output
+        assert "get_weather" not in output
+        assert '"error":"API unavailable"' in output
         assert "</tool_response>" in output
 
     def test_model_family(self):
@@ -574,7 +578,9 @@ class TestQwenFormatter:
     def test_validate_format_empty_name(self):
         """Qwen treats empty name="" as non-matching (tool_call_re requires [^"]+)."""
         fmt = QwenFormatter()
-        assert fmt.validate_format('<tool_call><tool name="">{"a":1}</tool></tool_call>') is None
+        assert (
+            fmt.validate_format('<tool_call><tool name="">{"a":1}</tool></tool_call>') is not None
+        )
 
     def test_validate_format_missing_arguments(self):
         fmt = QwenFormatter()
