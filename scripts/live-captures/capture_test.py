@@ -74,7 +74,7 @@ def stub_response(payload: dict[str, Any]) -> dict[str, Any]:
         if payload["model"] == "stub/qwen":
             # llama.cpp without a tool parser leaves the markup in content.
             message.pop("tool_calls")
-            message["content"] = '<tool_call><tool name="get_weather">{"location":"Paris"}</tool></tool_call>'
+            message["content"] = '<tool_call>{"name":"get_weather","arguments":{"location":"Paris"}}</tool_call>'
     else:
         message["content"] = "391"
     return {"id": "chatcmpl-stub", "object": "chat.completion", "model": payload["model"], "choices": [{"index": 0, "message": message, "finish_reason": "stop"}]}

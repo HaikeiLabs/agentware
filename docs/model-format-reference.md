@@ -12,7 +12,7 @@ and the reasoning adapter handles its reasoning shape.
 |--------|------------------|----------------------|-------------|-----------------|---------------|
 | **OpenAI** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | none |
 | **Anthropic** | Native `tools` or JSON function array | Native `tool_use` blocks or XML `<invoke>` | Native `tool_result` blocks or XML | `thinking` (content block) | none |
-| **Qwen** | XML: `<tool_description><tool_name>` | XML: `<tool_call><tool name="name">JSON</tool>` | XML: `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
+| **Qwen** | Hermes JSON lines in `<tools>` | JSON in `<tool_call>` | JSON in `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
 | **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 
@@ -115,9 +115,9 @@ for the Messages API replay requirements.
 | | Detail |
 |---|---|
 | **Model names** | `qwen-*`, `qwq-*` |
-| **Definitions format** | XML: `<tool_description><tool_name>name</tool_name><description>...</description><parameters>...</parameters></tool_description>` |
-| **Parse format** | XML: `<tool_call><tool name="name">JSON args</tool></tool_call>` |
-| **Result format** | XML: `<tool_response><tool_name>name</tool_name><result>output</result></tool_response>` |
+| **Definitions format** | Function definitions as JSON lines inside `<tools>` |
+| **Parse format** | JSON `{name, arguments}` inside `<tool_call>`; legacy nested tool tags are deprecated |
+| **Result format** | JSON value inside `<tool_response>`, without a tool name |
 | **Validate** | Validates `<tool_call>` tags have valid JSON arguments and non-empty names |
 | **Reasoning field** | `reasoning_content` — top-level field on the choice message |
 | **Inline tags** | `<thinking>...</thinking>` — may appear in the content text alongside tool calls. Qwen3/QwQ served without a reasoning parser (llama.cpp, vLLM without `--reasoning-parser`) emit the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) instead |
@@ -129,7 +129,7 @@ for the Messages API replay requirements.
 {
   "choices": [{
     "message": {
-      "content": "<thinking>Need weather data</thinking>\n<tool_call><tool name=\"get_weather\">{\"location\":\"Tokyo\"}</tool></tool_call>",
+      "content": "<thinking>Need weather data</thinking>\n<tool_call>{\"name\":\"get_weather\",\"arguments\":{\"location\":\"Tokyo\"}}</tool_call>",
       "reasoning_content": "Need weather data"
     }
   }]

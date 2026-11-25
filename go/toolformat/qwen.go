@@ -1,125 +1,137 @@
 package toolformat
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/haikeilabs/agentware/go/tools"
 	"github.com/haikeilabs/agentware/go/toolspec"
 )
 
+// QwenFormatter implements the Hermes tool format and deprecated legacy parsing.
 type QwenFormatter struct{}
 
-var qwenToolCallRegex = regexp.MustCompile(`<tool_call>\s*<tool name="([^"]+)">\s*(.*?)\s*</tool>\s*</tool_call>`)
-var qwenAnyToolRegex = regexp.MustCompile(`<tool\b[^>]*>`)
+var qwenSpan = regexp.MustCompile(`(?s)<tool_call>(.*?)</tool_call>`)
+var qwenLegacy = regexp.MustCompile(`(?s)^<tool name="([^"]+)">\s*(.*?)\s*</tool>$`)
 
-func (f *QwenFormatter) FormatToolDefinitions(toolsList []tools.Tool) string {
-	return f.formatToolDefinitions(adaptTools(toolsList))
+func qwenJSON(v any) string {
+	var b bytes.Buffer
+	e := json.NewEncoder(&b)
+	e.SetEscapeHTML(false)
+	if err := e.Encode(v); err != nil {
+		return "null"
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
-
-// FormatToolSpecs formats the model-facing fields from shared ToolSpecs.
-func (f *QwenFormatter) FormatToolSpecs(specs []toolspec.ToolSpec) string {
-	return f.formatToolDefinitions(adaptToolSpecs(specs))
+func (f *QwenFormatter) FormatToolDefinitions(t []tools.Tool) string {
+	return f.formatToolDefinitions(adaptTools(t))
 }
-
-func (f *QwenFormatter) formatToolDefinitions(toolsList []formatTool) string {
-	if len(toolsList) == 0 {
+func (f *QwenFormatter) FormatToolSpecs(t []toolspec.ToolSpec) string {
+	return f.formatToolDefinitions(adaptToolSpecs(t))
+}
+func (f *QwenFormatter) formatToolDefinitions(ts []formatTool) string {
+	if len(ts) == 0 {
 		return ""
 	}
-
-	var result string
-	for _, t := range toolsList {
-		result += fmt.Sprintf(`<tool_description>
-<tool_name>%s</tool_name>
-<description>%s</description>
-`, t.Name(), t.Description())
-
+	lines := []string{}
+	for _, t := range ts {
+		fn := map[string]any{"name": t.Name(), "description": t.Description()}
 		if et, ok := t.(interface{ InputSchema() map[string]any }); ok {
-			if schema := et.InputSchema(); schema != nil {
-				schemaJSON, _ := json.Marshal(schema)
-				result += fmt.Sprintf(`<parameters>%s</parameters>`, schemaJSON) + "\n"
+			if s := et.InputSchema(); s != nil {
+				fn["parameters"] = s
 			}
 		}
-		result += "</tool_description>\n"
+		lines = append(lines, qwenJSON(map[string]any{"type": "function", "function": fn}))
 	}
-	return result
+	return "# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n" + strings.Join(lines, "\n") + "\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>"
 }
-
+func qwenDecode(body string) (string, map[string]any, bool) {
+	var c struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal([]byte(body), &c) != nil || c.Name == "" {
+		return "", nil, false
+	}
+	raw := c.Arguments
+	if len(raw) > 0 && raw[0] == '"' {
+		var s string
+		if json.Unmarshal(raw, &s) != nil {
+			return "", nil, false
+		}
+		raw = []byte(s)
+	}
+	var args map[string]any
+	if json.Unmarshal(raw, &args) != nil || args == nil {
+		return "", nil, false
+	}
+	return c.Name, args, true
+}
+func qwenSpans(response string) ([][]string, bool) {
+	spans := qwenSpan.FindAllStringSubmatch(response, -1)
+	for _, s := range spans {
+		if !strings.HasPrefix(strings.TrimSpace(s[1]), "<tool") {
+			return spans, true
+		}
+	}
+	return spans, false
+}
 func (f *QwenFormatter) ParseToolCalls(response string) ([]ParsedToolCall, error) {
-	if response == "" {
-		return nil, nil
-	}
-
-	matches := qwenToolCallRegex.FindAllStringSubmatch(response, -1)
-	if len(matches) == 0 {
-		return nil, nil
-	}
-
-	result := make([]ParsedToolCall, 0, len(matches))
-	for _, m := range matches {
-		if len(m) < 3 {
-			continue
+	spans, hermes := qwenSpans(response)
+	var calls []ParsedToolCall
+	for _, s := range spans {
+		body := strings.TrimSpace(s[1])
+		if hermes {
+			if strings.HasPrefix(body, "<tool") {
+				continue
+			}
+			name, args, ok := qwenDecode(body)
+			if ok {
+				calls = append(calls, ParsedToolCall{Name: name, Args: args, Raw: s[0]})
+			}
+		} else if m := qwenLegacy.FindStringSubmatch(body); m != nil {
+			var args map[string]any
+			if strings.TrimSpace(m[2]) == "" {
+				args = map[string]any{}
+			} else if json.Unmarshal([]byte(m[2]), &args) != nil || args == nil {
+				continue
+			}
+			calls = append(calls, ParsedToolCall{Name: m[1], Args: args, Raw: s[0]})
 		}
-		name := m[1]
-		argsRaw := m[2]
-
-		args := decodeLooseArgs(argsRaw)
-
-		result = append(result, ParsedToolCall{
-			Name: name,
-			Args: args,
-			Raw:  m[0],
-		})
 	}
-	return result, nil
+	return calls, nil
 }
-
-func (f *QwenFormatter) FormatToolResult(name string, result *tools.Result) string {
-	if result.Success {
-		return fmt.Sprintf(`<tool_response>
-<tool_name>%s</tool_name>
-<result>%s</result>
-</tool_response>`, name, result.Output)
+func (f *QwenFormatter) FormatToolResult(_ string, r *tools.Result) string {
+	var value any = r.Output
+	if !r.Success {
+		value = map[string]any{"error": r.Error}
 	}
-	return fmt.Sprintf(`<tool_response>
-<tool_name>%s</tool_name>
-<error>%s</error>
-</tool_response>`, name, result.Error)
+	return "<tool_response>\n" + qwenJSON(value) + "\n</tool_response>"
 }
-
-func (f *QwenFormatter) ModelFamily() string {
-	return "qwen"
-}
-
+func (f *QwenFormatter) ModelFamily() string { return "qwen" }
 func (f *QwenFormatter) ValidateFormat(response string) error {
-	if response == "" {
-		return nil
-	}
-
-	anyTool := qwenAnyToolRegex.FindString(response)
-	if anyTool != "" && !qwenToolCallRegex.MatchString(response) {
-		return fmt.Errorf("invalid tool tag: missing 'name' attribute")
-	}
-
-	matches := qwenToolCallRegex.FindAllStringSubmatch(response, -1)
-	for _, m := range matches {
-		if len(m) < 3 {
-			continue
-		}
-		name := m[1]
-		argsRaw := m[2]
-
-		if name == "" {
-			return fmt.Errorf("tool call missing function name")
-		}
-		if argsRaw == "" {
-			return fmt.Errorf("tool call %q missing arguments", name)
-		}
-
-		var args map[string]any
-		if err := json.Unmarshal([]byte(argsRaw), &args); err != nil {
-			return fmt.Errorf("tool call %q has invalid JSON arguments: %w", name, err)
+	spans, hermes := qwenSpans(response)
+	for _, s := range spans {
+		body := strings.TrimSpace(s[1])
+		if hermes {
+			if strings.HasPrefix(body, "<tool") {
+				continue
+			}
+			if _, _, ok := qwenDecode(body); !ok {
+				return fmt.Errorf("invalid JSON tool call or arguments")
+			}
+		} else {
+			m := qwenLegacy.FindStringSubmatch(body)
+			if m == nil {
+				return fmt.Errorf("tool call missing function name")
+			}
+			var args map[string]any
+			if json.Unmarshal([]byte(m[2]), &args) != nil || args == nil {
+				return fmt.Errorf("invalid JSON arguments")
+			}
 		}
 	}
 	return nil

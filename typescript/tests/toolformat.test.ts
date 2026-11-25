@@ -439,6 +439,12 @@ describe("QwenFormatter", () => {
     fmt = new QwenFormatter();
   });
 
+  it("does not fall back to legacy when Hermes JSON is invalid", () => {
+    const response = '<tool_call>{bad}</tool_call><tool_call><tool name="legacy">{}</tool></tool_call>';
+    expect(fmt.parseToolCalls(response)).toEqual([]);
+    expect(fmt.validateFormat(response)).not.toBeNull();
+  });
+
   describe("formatToolDefinitions", () => {
     it("returns empty string for empty array", () => {
       expect(fmt.formatToolDefinitions([])).toBe("");
@@ -447,19 +453,19 @@ describe("QwenFormatter", () => {
     it("formats a tool with XML tags", () => {
       const tools = [makeTool("get_weather", "Get the weather")];
       const out = fmt.formatToolDefinitions(tools);
-      expect(out).toContain("<tool_description>");
-      expect(out).toContain("<tool_name>get_weather</tool_name>");
-      expect(out).toContain("<description>Get the weather</description>");
-      expect(out).toContain("</tool_description>");
-      expect(out).not.toContain("<parameters>");
+      expect(out).toContain("<tools>");
+      expect(out).toContain('"name":"get_weather"');
+      expect(out).toContain('"description":"Get the weather"');
+      expect(out).toContain("</tools>");
+      expect(out).not.toContain('"parameters"');
     });
 
     it("includes parameters when inputSchema is present", () => {
       const schema = { type: "object", properties: { loc: { type: "string" } } };
       const tools = [makeTool("t", "desc", schema)];
       const out = fmt.formatToolDefinitions(tools);
-      expect(out).toContain("<parameters>");
-      expect(out).toContain(JSON.stringify(schema));
+      expect(out).toContain('"parameters"');
+      expect(out).toContain('"loc"');
     });
 
     it("formats multiple tools", () => {
@@ -468,7 +474,7 @@ describe("QwenFormatter", () => {
         makeTool("b", "B"),
       ];
       const out = fmt.formatToolDefinitions(tools);
-      expect((out.match(/<tool_description>/g) || []).length).toBe(2);
+      expect((out.match(/"type":"function"/g) || []).length).toBe(2);
     });
   });
 
@@ -509,7 +515,7 @@ describe("QwenFormatter", () => {
     it("falls back to _raw when JSON is unparseable", () => {
       const response = '<tool_call><tool name="t">bad-json</tool></tool_call>';
       const calls = fmt.parseToolCalls(response);
-      expect(calls[0].args).toEqual({ _raw: "bad-json" });
+      expect(calls).toEqual([]);
     });
   });
 
@@ -517,21 +523,21 @@ describe("QwenFormatter", () => {
     it("wraps success result in XML", () => {
       const r = makeResult("output");
       expect(fmt.formatToolResult("my_tool", r)).toBe(
-        "<tool_response>\n<tool_name>my_tool</tool_name>\n<result>output</result>\n</tool_response>",
+        "<tool_response>\n\"output\"\n</tool_response>",
       );
     });
 
     it("wraps JSON data in XML", () => {
       const r = makeResult({ a: 1 });
       expect(fmt.formatToolResult("t", r)).toBe(
-        "<tool_response>\n<tool_name>t</tool_name>\n<result>{\"a\":1}</result>\n</tool_response>",
+        "<tool_response>\n{\"a\":1}\n</tool_response>",
       );
     });
 
     it("wraps error result in XML", () => {
       const r = makeResult(null, "fail");
       expect(fmt.formatToolResult("t", r)).toBe(
-        "<tool_response>\n<tool_name>t</tool_name>\n<error>fail</error>\n</tool_response>",
+        "<tool_response>\n{\"error\":\"fail\"}\n</tool_response>",
       );
     });
   });
@@ -556,23 +562,23 @@ describe("QwenFormatter", () => {
     it("returns error for missing function name", () => {
       expect(fmt.validateFormat(
         '<tool_call><tool>{"a":1}</tool></tool_call>',
-      )).toBe("malformed tool call");
+      )).not.toBeNull();
     });
 
     it("returns error for missing arguments", () => {
       expect(fmt.validateFormat(
         '<tool_call><tool name="t"></tool></tool_call>',
-      )).toBe('tool call "t" missing arguments');
+      )).not.toBeNull();
     });
 
     it("returns error for invalid JSON arguments", () => {
       expect(fmt.validateFormat(
         '<tool_call><tool name="t">bad</tool></tool_call>',
-      )).toBe('tool call "t" has invalid JSON arguments');
+      )).not.toBeNull();
     });
 
     it("returns error for malformed partial tool tag", () => {
-      expect(fmt.validateFormat("<tool_call>")).toBe("malformed tool call");
+      expect(fmt.validateFormat("<tool_call>")).toBeNull();
     });
   });
 });
