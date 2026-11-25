@@ -25,6 +25,22 @@ export interface ToolFormatter {
 
 type FormatterTool = AnyTool | ToolSpec | ToolDefinition;
 
+/**
+ * Renders a successful tool result's data as model-facing text, with one rule
+ * for every formatter: a string is returned verbatim; null and undefined are
+ * the empty string; objects, arrays, numbers and booleans are compact JSON in
+ * key insertion order. A value JSON cannot encode falls back to String().
+ */
+function resultText(data: unknown): string {
+  if (data === null || data === undefined) return "";
+  if (typeof data === "string") return data;
+  try {
+    return JSON.stringify(data) ?? String(data);
+  } catch {
+    return String(data);
+  }
+}
+
 const qwenToolCallRegex = /<tool_call>\s*<tool name="([^"]+)">\s*([\s\S]*?)\s*<\/tool>\s*<\/tool_call>/g;
 
 const anthropicInvokeRegex = /<invoke tool="([^"]+)">([\s\S]*?)<\/invoke>/g;
@@ -90,7 +106,7 @@ export class GenericFormatter implements ToolFormatter {
 
   formatToolResult(_name: string, result: Result, _callId?: string): string {
     if (result.success) {
-      return typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+      return resultText(result.data);
     }
     return `Error: ${result.error}`;
   }
@@ -235,8 +251,7 @@ export class AnthropicFormatter implements ToolFormatter {
       block.tool_name = name;
     }
     if (result.success) {
-      const data = result.data;
-      block.content = data === null || data === undefined ? "" : typeof data === "string" ? data : JSON.stringify(data);
+      block.content = resultText(result.data);
     } else {
       block.content = result.error ?? "";
       block.is_error = true;
@@ -371,8 +386,10 @@ export class QwenFormatter implements ToolFormatter {
   }
 
   formatToolResult(_name: string, result: Result, _callId?: string): string {
-    const value = result.success ? result.data : { error: result.error };
-    return `<tool_response>\n${JSON.stringify(sortedJsonValue(value))}\n</tool_response>`;
+    // The official Qwen chat template emits a tool message's content verbatim
+    // between the tool_response tags, so a string is not quoted.
+    const text = result.success ? resultText(result.data) : JSON.stringify({ error: result.error });
+    return `<tool_response>\n${text}\n</tool_response>`;
   }
 
   modelFamily(): string { return "qwen"; }

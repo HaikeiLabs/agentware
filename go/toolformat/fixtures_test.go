@@ -1,6 +1,7 @@
 package toolformat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -64,9 +65,9 @@ type toolformatFixture struct {
 		ToolName string `json:"tool_name"`
 		CallID   string `json:"call_id"`
 		Result   struct {
-			Success bool   `json:"success"`
-			Output  string `json:"output"`
-			Error   string `json:"error"`
+			Success bool            `json:"success"`
+			Output  json.RawMessage `json:"output"`
+			Error   string          `json:"error"`
 		} `json:"result"`
 		Expected string `json:"expected"`
 	} `json:"format_result"`
@@ -75,6 +76,26 @@ type toolformatFixture struct {
 		Input string `json:"input"`
 		Valid bool   `json:"valid"`
 	} `json:"validate_format"`
+}
+
+// fixtureOutput turns a fixture's result output into tools.Result.Output. A
+// JSON string is the output itself. Any other JSON value stands for structured
+// data, which reaches Go already serialized by the caller as compact JSON in
+// key order, so it is compacted as written.
+func fixtureOutput(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, raw); err != nil {
+		t.Fatalf("result.output: %v", err)
+	}
+	return buf.String()
 }
 
 // TestToolformatFixtures replays every case in every shared toolformat fixture
@@ -142,7 +163,7 @@ func TestToolformatFixtures(t *testing.T) {
 			tc := tc
 			t.Run(fx.Family+"/format_result/"+tc.Name, func(t *testing.T) {
 				conformance.Record(t, fixtureName, "format_result", tc.Name)
-				result := &tools.Result{Success: tc.Result.Success, Output: tc.Result.Output, Error: tc.Result.Error}
+				result := &tools.Result{Success: tc.Result.Success, Output: fixtureOutput(t, tc.Result.Output), Error: tc.Result.Error}
 				if got := formatter.FormatToolResult(tc.ToolName, result, tc.CallID); got != tc.Expected {
 					t.Errorf("format_result = %q, want %q", got, tc.Expected)
 				}

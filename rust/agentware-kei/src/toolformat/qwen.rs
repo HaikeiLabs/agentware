@@ -93,13 +93,16 @@ impl Formatter for QwenFormatter {
             })
             .collect())
     }
+    /// Output goes in verbatim: the official Qwen chat template emits a tool
+    /// message's content unchanged, and structured data is already JSON text.
+    /// A failure renders as `{"error": ...}`.
     fn format_tool_result(&self, _name: &str, result: &ToolResult) -> String {
-        let value = if result.success {
-            json!(result.output)
+        if result.success {
+            format!("<tool_response>\n{}\n</tool_response>", result.output)
         } else {
-            json!({"error":result.error})
-        };
-        format!("<tool_response>\n{value}\n</tool_response>")
+            let error = json!({"error":result.error});
+            format!("<tool_response>\n{error}\n</tool_response>")
+        }
     }
     fn model_family(&self) -> &'static str {
         "qwen"

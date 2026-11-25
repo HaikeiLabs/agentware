@@ -12,13 +12,36 @@ and the reasoning adapter handles its reasoning shape.
 |--------|------------------|----------------------|-------------|-----------------|---------------|
 | **OpenAI** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | none |
 | **Anthropic** | Native `tools` or JSON `{name, description, input_schema}` array | Native or JSON `tool_use` blocks (legacy XML `<invoke>` fallback) | `tool_result` blocks | `thinking` (content block) | none |
-| **Qwen** | Hermes JSON lines in `<tools>` | JSON in `<tool_call>` | JSON in `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
+| **Qwen** | Hermes JSON lines in `<tools>` | JSON in `<tool_call>` | Result text in `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
 | **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 
 ---
 
 ## Per-Family Details
+
+### Tool result serialization
+
+Every formatter in every port turns a successful result into the same text
+before wrapping it in its family's envelope:
+
+| Result data | Text |
+|---|---|
+| A string | The string verbatim, with no added quotes, even when it looks like JSON |
+| A dict/object, list/array, number or boolean | Compact JSON (no spaces), in key insertion order, non-ASCII text kept as is |
+| None / null / undefined | The empty string |
+| A value JSON cannot encode (Python, TypeScript) | `str()` / `String()` of it |
+
+Go `tools.Result.Output` and Rust `ToolResult::output` are already strings, so
+those ports render `Output` verbatim: the caller that fills `Output` with
+structured data serializes it as compact JSON in key order. A failure keeps
+each family's own error convention, shown in its table below.
+
+Qwen follows the same rule. The official Qwen chat template (the
+`chat_template` in the Qwen2.5 and Qwen3 `tokenizer_config.json`) emits a tool
+message's content unchanged between the `<tool_response>` tags, so a string
+result is not JSON-quoted. The shared fixtures pin all of this in every
+family's `format_result` section.
 
 ### OpenAI (`OpenAIFOrmatter` / `OpenAIFOrmatter` / `OpenAIFOrmatter`)
 
@@ -27,7 +50,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Model names** | `gpt-*`, `o1-*`, `o3-*` |
 | **Definitions format** | OpenAI-compatible JSON array of `{type: "function", function: {name, description, parameters}}` (via `GenericFormatter`) |
 | **Parse format** | JSON array of `{id, name, arguments}` |
-| **Result format** | JSON-encoded string of result data |
+| **Result format** | The result text (see [Tool result serialization](#tool-result-serialization)); a failure is `Error: <message>` |
 | **Validate** | Validates JSON array, requires `name` on each entry |
 | **Reasoning field** | `reasoning_content` — top-level field on the choice message |
 | **Inline tags** | None. o-series models do not use inline thinking tags. |
@@ -89,7 +112,7 @@ tool definitions, `tool_use` blocks and `tool_result` blocks, as JSON text.
 | **Model names** | `claude-*`, `anthropic-*` |
 | **Definitions format** | JSON array of Anthropic tool definitions: `{"name", "description", "input_schema"}`. A tool without parameters gets `{"type": "object", "properties": {}}`, because the API requires `input_schema`. |
 | **Parse format** | `tool_use` blocks, `{"type": "tool_use", "id", "name", "input"}`: one block, or a content array whose other blocks (such as text) are ignored. The block's `id` becomes the call id. A malformed block (missing `id` or `name`, or `input` not an object) is never returned as a call. When the response holds no `tool_use` block at all, the legacy `<function_calls><invoke tool="name">JSON args</invoke></function_calls>` form is parsed instead, and those calls have no id. |
-| **Result format** | A `tool_result` block, `{"type": "tool_result", "tool_use_id", "content", "is_error"}`; `is_error: true` appears only on failure, and the content is then the error text. When the caller passes no call id, `tool_name` takes the place of `tool_use_id`. That block is a text rendering only: the Messages API rejects a `tool_result` without `tool_use_id`. |
+| **Result format** | A `tool_result` block, `{"type": "tool_result", "tool_use_id", "content", "is_error"}`; `is_error: true` appears only on failure, and the content is then the error text. On success the content is the result text (see [Tool result serialization](#tool-result-serialization)). When the caller passes no call id, `tool_name` takes the place of `tool_use_id`. That block is a text rendering only: the Messages API rejects a `tool_result` without `tool_use_id`. |
 | **Validate** | For `tool_use` blocks: a non-empty string `id` and `name`, an object `input`, and no duplicate ids. Otherwise, the legacy `<invoke>` checks (valid JSON arguments and non-empty names). |
 | **Reasoning field** | `thinking` — a separate content block of `type: "thinking"` in the Messages API response |
 | **Inline tags** | None. Extended thinking is a structured content block, not inline. |
@@ -145,7 +168,7 @@ they answer.
 | **Model names** | `qwen-*`, `qwq-*` |
 | **Definitions format** | Function definitions as JSON lines inside `<tools>` |
 | **Parse format** | JSON `{name, arguments}` inside `<tool_call>`; legacy nested tool tags are deprecated |
-| **Result format** | JSON value inside `<tool_response>`, without a tool name |
+| **Result format** | The result text inside `<tool_response>`, without a tool name (see [Tool result serialization](#tool-result-serialization)); a failure is `{"error": <message>}` |
 | **Validate** | Validates `<tool_call>` tags have valid JSON arguments and non-empty names |
 | **Reasoning field** | `reasoning_content` — top-level field on the choice message |
 | **Inline tags** | `<thinking>...</thinking>` — may appear in the content text alongside tool calls. Qwen3/QwQ served without a reasoning parser (llama.cpp, vLLM without `--reasoning-parser`) emit the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) instead |
@@ -171,7 +194,7 @@ they answer.
 | **Model names** | `deepseek-*` |
 | **Definitions format** | OpenAI-compatible JSON array (same as `GenericFormatter`) |
 | **Parse format** | JSON array of `{id, name, arguments}` (same as OpenAI) |
-| **Result format** | JSON-encoded string of result data |
+| **Result format** | The result text (see [Tool result serialization](#tool-result-serialization)); a failure is `Error: <message>` |
 | **Validate** | Validates JSON array, requires `name` on each entry |
 | **Reasoning field** | `reasoning_content` — native field on the choice message |
 | **Inline tags** | `[THINK]...[/THINK]` — used in text-completion mode. Also stripped by the guardrails response validator. |
@@ -206,7 +229,7 @@ Based on data, Tokyo is 22°C.
 | **Model names** | `glm-*`, `chatglm-*` |
 | **Definitions format** | OpenAI-compatible JSON array (same as `GenericFormatter`) |
 | **Parse format** | JSON array of `{id, name, arguments}` (same as OpenAI) |
-| **Result format** | JSON-encoded string of result data |
+| **Result format** | The result text (see [Tool result serialization](#tool-result-serialization)); a failure is `Error: <message>` |
 | **Validate** | Validates JSON array, requires `name` on each entry |
 | **Reasoning field** | `reasoning_content` on GLM-4. GLM-5.3-Flash on vLLM uses `reasoning` (see below) |
 | **Inline tags** | None with a reasoning parser. Served without one, GLM emits the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) in `content`, which the adapter strips |
