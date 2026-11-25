@@ -84,7 +84,7 @@ export async function runInference(
 
     let resp: Response;
     try {
-      resp = cfg.client.complete(currentMessages);
+      resp = cfg.client.complete(currentMessages, cfg.toolSpecs);
     } catch (e) {
       if (cfg.errorTracker && e instanceof Error) {
         cfg.errorTracker.recordError(sessionId, "", {}, e, ErrorCategory.UNKNOWN);

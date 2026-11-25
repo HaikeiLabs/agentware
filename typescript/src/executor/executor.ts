@@ -1,4 +1,4 @@
-import type { Backend, Message } from "../llm/index.js";
+import type { Backend, Message, ToolDefinition } from "../llm/index.js";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { Response, ToolCall } from "../llm/response.js";
 import { Role } from "../llm/index.js";
@@ -70,7 +70,14 @@ export class InferenceExecutor implements Executor {
     const max_iters = req.max_iterations || this.config.max_iterations;
 
     while (iterations < max_iters) {
-      const response = this.config.backend.complete(conversation);
+      const tools: ToolDefinition[] = this.config.registry.all().map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: "inputSchema" in tool && typeof tool.inputSchema === "function"
+          ? (tool.inputSchema as () => Record<string, unknown>)()
+          : {},
+      }));
+      const response = this.config.backend.complete(conversation, tools);
 
       if (!response.tool_calls || response.tool_calls.length === 0) {
         final_response = response.content;

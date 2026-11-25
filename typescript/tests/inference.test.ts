@@ -123,6 +123,31 @@ describe("runInference", () => {
     expect(result!.response.tool_calls).toHaveLength(1);
   });
 
+  it("passes tool definitions on every retry", async () => {
+    const calls: (ToolDefinition[] | undefined)[] = [];
+    const backend = {
+      complete: (_messages: Message[], tools?: ToolDefinition[]): Response => {
+        calls.push(tools);
+        return calls.length === 1
+          ? createMockResponse("invalid text")
+          : createMockResponse("", [{ id: "1", name: "test_tool", arguments: {} }]);
+      },
+      supportsNativeToolCalling: () => false,
+      modelName: () => "mock",
+      contextWindowSize: () => 8192,
+    };
+    const cfg: InferenceConfig = {
+      client: backend,
+      toolSpecs: [createToolDefinition("test_tool")],
+      validator: new ResponseValidator(["test_tool"], false),
+      maxAttempts: 2,
+    };
+
+    await runInference([{ role: Role.USER, content: "test" }], cfg);
+    expect(calls).toHaveLength(2);
+    expect(calls).toEqual([cfg.toolSpecs, cfg.toolSpecs]);
+  });
+
   it("should retry on invalid response", async () => {
     const messages: Message[] = [{ role: Role.USER, content: "test" }];
     const toolDef = createToolDefinition("test_tool");
