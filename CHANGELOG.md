@@ -8,6 +8,7 @@ one shared version across npm, PyPI, Go and crates.io.
 ### Fixed
 
 - Tool results serialize the same way in every formatter and every port. A string result is sent verbatim; a dict/object, list, number or boolean is compact JSON in key insertion order; no data is the empty string; errors keep each family's own convention. Before this, the Python generic, OpenAI, DeepSeek, GLM and Anthropic formatters sent a dict or list result as a Python repr (`{'temp': 22}`) and a boolean as `True`, and the Qwen formatter JSON-quoted a string result (`"Sunny, 22°C"`, which double-encoded a Go or Rust `Output` that already held JSON) and sorted dict keys in Python and TypeScript. Qwen now sends the result text as is between the `tool_response` tags, as the official Qwen chat template does. New `format_result` cases in every shared toolformat fixture pin the rule in all four ports.
+- The inference loop's step enforcer now blocks in Python, Go and TypeScript. A response that calls a tool whose prerequisite steps are not complete used to come back as a success with the blocked call in it (the step nudge was appended but the attempt still returned). Now the attempt fails like a validation failure: the error tracker records it under the blocked tool as a permission error (and the session is no longer reset), and the loop retries with the failed assistant turn followed by the step nudge, or raises the retries-exhausted error when no attempts remain.
 
 ## [0.18.0] - 2026-11-25
 
