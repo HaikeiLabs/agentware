@@ -305,22 +305,27 @@ describe("runInference", () => {
     expect(result).not.toBeNull();
   });
 
-  it("should check step enforcer for tool prerequisites", async () => {
+  // A blocked tool call fails the attempt and is retried, not returned as
+  // success. The retry history follows the #347 order: the failed assistant
+  // turn first, then the user step nudge.
+  it("retries an attempt whose tool call the step enforcer blocks", async () => {
     const messages: Message[] = [{ role: Role.USER, content: "test" }];
-    const toolDef = createToolDefinition("final_tool");
 
     mockResponses = [
-      createMockResponse("", [{ id: "1", name: "final_tool", arguments: {} }]),
+      createMockResponse("Calling final_tool now.", [
+        { id: "1", name: "final_tool", arguments: {} },
+      ]),
+      createMockResponse("", [{ id: "2", name: "step1", arguments: {} }]),
     ];
 
-    const backend = createMockBackend();
+    const backend = createRecordingBackend();
     const validator = new ResponseValidator(["final_tool", "step1"], false);
     const stepEnforcer = new StepEnforcer();
     stepEnforcer.addStep("final_tool", ["step1"]);
 
     const cfg: InferenceConfig = {
       client: backend,
-      toolSpecs: [toolDef],
+      toolSpecs: [createToolDefinition("final_tool"), createToolDefinition("step1")],
       validator,
       stepEnforcer,
       maxAttempts: 3,
@@ -328,7 +333,53 @@ describe("runInference", () => {
     };
 
     const result = await runInference(messages, cfg, "test-session");
+
     expect(result).not.toBeNull();
+    expect(result!.attempts).toBe(2);
+    expect(result!.response.tool_calls.map((tc) => tc.name)).toEqual(["step1"]);
+
+    // The blocked attempt was retried, not returned as success.
+    expect(backend.requests).toHaveLength(2);
+    const tail = backend.requests[1].slice(-2);
+    expect(tail[0].role).toBe(Role.ASSISTANT);
+    expect(tail[0].content).toBe("Calling final_tool now.");
+    expect(tail[0].meta?.type).toBe(MessageType.TEXT_RESPONSE);
+    expect(tail[1].role).toBe(Role.USER);
+    expect(tail[1].content).toContain("final_tool");
+    expect(tail[1].meta?.type).toBe(MessageType.STEP_NUDGE);
+
+    // The returned history carries the same order.
+    expect(result!.newMessages.slice(-2)).toEqual(tail);
+  });
+
+  it("records every blocked attempt as an error and never succeeds", async () => {
+    const messages: Message[] = [{ role: Role.USER, content: "test" }];
+
+    mockResponses = [
+      createMockResponse("", [{ id: "1", name: "final_tool", arguments: {} }]),
+      createMockResponse("", [{ id: "1", name: "final_tool", arguments: {} }]),
+    ];
+
+    const backend = createMockBackend();
+    const validator = new ResponseValidator(["final_tool"], false);
+    const stepEnforcer = new StepEnforcer();
+    stepEnforcer.addStep("final_tool", ["step1"]);
+    const errorTracker = new ErrorTracker(5);
+
+    const cfg: InferenceConfig = {
+      client: backend,
+      toolSpecs: [createToolDefinition("final_tool")],
+      validator,
+      stepEnforcer,
+      errorTracker,
+      maxAttempts: 2,
+      stepIndex: 0,
+    };
+
+    await expect(runInference(messages, cfg, "test-session")).rejects.toThrow(
+      RetriesExhaustedError
+    );
+    expect(errorTracker.getErrorCount("test-session", "final_tool")).toBe(2);
   });
 
   it("should retry on empty response", async () => {

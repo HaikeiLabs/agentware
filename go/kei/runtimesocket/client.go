@@ -48,9 +48,14 @@ const (
 // Exactly one of Tool or ConnectorID+Capability must be set. Resource is
 // required when a credential is requested.
 type ReleaseRequest struct {
-	// Tool is the harness tool name. Exactly one of Tool or ConnectorID+Capability.
+	// Tool is the harness tool name.
 	Tool string
-	// ConnectorID is the connector to release a credential for.
+	// ConnectorID is the connector to release a credential for. For a
+	// registered connector_binding tool, leave it and Capability empty and
+	// set Tool and ToolArgs: kei-proxy 0.12.0 or later derives the connector
+	// from the tool's binding and the capability from its plan, and the
+	// request carries no connector object. ConnectorID and Capability are
+	// set together or not at all.
 	ConnectorID string
 	// Capability is the capability on that connector, e.g. "read".
 	Capability string
@@ -336,13 +341,19 @@ func (c *Client) ReleaseCredential(ctx context.Context, session Session, req Rel
 	if err := validSession(session); err != nil {
 		return nil, fmt.Errorf("release credential: %w", err)
 	}
+	if (req.ConnectorID == "") != (req.Capability == "") ||
+		(req.ConnectorID == "" && (req.Tool == "" || req.ToolArgs == nil)) {
+		return nil, fmt.Errorf("release credential: %w", ErrInvalidRelease)
+	}
 	body := map[string]any{
 		"schema":   CredentialReleaseRequestSchema,
 		"resource": req.Resource,
-		"connector": map[string]string{
+	}
+	if req.ConnectorID != "" {
+		body["connector"] = map[string]string{
 			"connector_id": req.ConnectorID,
 			"capability":   req.Capability,
-		},
+		}
 	}
 	if req.Tool != "" {
 		body["tool"] = req.Tool

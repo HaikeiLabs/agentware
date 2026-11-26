@@ -205,10 +205,14 @@ async function runStep(
           delegationDepth: r.delegation_depth,
           framework: r.framework,
           toolArgsDigest: r.tool_args_digest,
+          toolArgs: r.tool_args,
+          toolContext: r.tool_context,
         },
       );
       return result;
     }
+    case "agent_config":
+      return c.agentConfig();
     case "chat_completion":
       return c.chatCompletion(sess(args.session), args.payload);
     case "stream_chat_completion": {

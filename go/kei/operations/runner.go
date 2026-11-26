@@ -62,6 +62,13 @@ type ConnectorConfig struct {
 	// (from the tool manifest's binding version); when set, the runner sends
 	// it on authorize and kei-proxy denies binding_stale on a mismatch.
 	BindingVersion string
+	// DeriveConnector releases the credential without a connector: kei-proxy
+	// 0.12.0 or later derives it from the bound tool's binding, so the
+	// harness never handles the installed connector's ID. It needs
+	// WithToolCall (the tool and its arguments); without them Run denies
+	// connector_not_named. ConnectorConfigs sets it; InstalledConnectorID is
+	// then ignored.
+	DeriveConnector bool
 }
 
 // AuditRecord is metadata-only: it never carries arguments, responses or
@@ -236,6 +243,9 @@ func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middlew
 	if prefix != r.cfg.ConnectorID {
 		return zero, denied("connector_not_named")
 	}
+	if r.cfg.DeriveConnector && (rc.tool == "" || rc.toolArgs == nil) {
+		return zero, denied("connector_not_named")
+	}
 	if op.ResourceTemplate == "" || op.MethodName == "" {
 		return zero, denied("invalid_operation")
 	}
@@ -279,6 +289,9 @@ func Run[Req, Resp proto.Message](ctx context.Context, r *Runner, caller middlew
 	connectorID := r.cfg.InstalledConnectorID
 	if connectorID == "" {
 		connectorID = r.cfg.ConnectorID
+	}
+	if r.cfg.DeriveConnector {
+		connectorID, capability = "", ""
 	}
 	rel, err := r.client.ReleaseCredential(ctx, r.userID, runtimesocket.ReleaseRequest{
 		Tool:            rc.tool,

@@ -42,6 +42,44 @@ export const AUTHORIZE_RESPONSE_SCHEMA = "kei.authorize-response/v1";
 export const POLICY_BUNDLE_STATUS_SCHEMA = "kei.policy-bundle-status/v1";
 export const CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1";
 export const CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1";
+export const AGENT_CONFIG_SCHEMA = "kei.agent-config/v1";
+
+/** One registered connector_binding tool in `GET /v1/agent-config`. */
+export interface KeiProxyAgentTool {
+  tool: string;
+  /** The tool plan's operation ids. */
+  operations: string[];
+  binding_version?: string;
+  resource_template?: string;
+}
+
+/** A connector bound to the agent in `GET /v1/agent-config`. */
+export interface KeiProxyAgentConnector {
+  connector_id: string;
+  name?: string;
+  /** The descriptor kind (native, http_api, mcp), not the connection kind. */
+  kind?: string;
+  /** The contract connection the installation uses; absent until the platform projects it. */
+  connection?: string;
+  base_url?: string;
+  tools: KeiProxyAgentTool[];
+}
+
+/**
+ * `kei.agent-config/v1`: the platform configuration of the runtime's agent.
+ * Metadata only: never a credential or a secret reference.
+ */
+export interface KeiProxyAgentConfig {
+  schema: string;
+  model_profile?: {
+    profile_id: string;
+    status: string;
+    model?: string;
+    endpoint?: string;
+    is_default?: boolean;
+  };
+  connectors: KeiProxyAgentConnector[];
+}
 export const SESSION_NOT_FOUND = "session_not_found";
 export const DEFAULT_SOCKET_TIMEOUT_MS = 10_000;
 export const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
@@ -110,12 +148,15 @@ export type KeiProxySocketAuthorizeRequest = Pick<
   };
 
 /**
- * Fields for a credential release request. The ``resource`` and
- * ``connector`` object are always required.
+ * Fields for a credential release request. ``resource`` is always required.
+ * ``connectorId`` and ``capability`` are set together or not at all: for a
+ * registered connector_binding tool, leave both out and pass ``tool`` and
+ * ``toolArgs``, and kei-proxy 0.12.0 or later derives the connector from the
+ * tool's binding (the request then carries no ``connector`` object).
  */
 export interface KeiProxySocketCredentialReleaseRequest {
-  connectorId: string;
-  capability: string;
+  connectorId?: string;
+  capability?: string;
   resource: string;
   tool?: string;
   spanId?: string;
@@ -320,11 +361,20 @@ export class KeiProxySocketAuthorizeClient {
     if (!session?.source || !session.externalId || !session.sessionId) {
       throw new TypeError("socket releaseCredential needs an explicit named session");
     }
+    if (Boolean(input.connectorId) !== Boolean(input.capability)) {
+      throw new TypeError("connectorId and capability must be provided together");
+    }
+    if (!input.connectorId && (!input.tool || input.toolArgs === undefined)) {
+      throw new TypeError(
+        "a release without a connector needs the bound tool and its toolArgs",
+      );
+    }
     const request: JsonObject = {
       schema: CREDENTIAL_RELEASE_REQUEST_SCHEMA,
       resource: input.resource,
-      connector: { connector_id: input.connectorId, capability: input.capability },
     };
+    if (input.connectorId)
+      request.connector = { connector_id: input.connectorId, capability: input.capability };
     if (input.tool) request.tool = input.tool;
     const optional: JsonObject = {
       span_id: input.spanId,
@@ -377,6 +427,27 @@ export class KeiProxySocketAuthorizeClient {
       "proxy_error",
       "socket credential release failed closed",
     );
+  }
+
+  // Agent config -----------------------------------------------------------
+
+  /**
+   * The platform configuration of this runtime's agent (`GET /v1/agent-config`,
+   * kei-proxy 0.12.0 or later): the assigned model profile and the connectors
+   * bound to the agent, each with its connector_binding tools. Credential and
+   * secret-reference fields are removed. An older daemon answers 404 and one
+   * without a fresh v2 bundle 503 (`agent_config_unavailable`); both reject
+   * with a `proxy_error` KeiProxySocketError.
+   */
+  async agentConfig(): Promise<KeiProxyAgentConfig> {
+    const body = jsonObject(await this.send("GET", "/v1/agent-config"));
+    if (body.schema !== AGENT_CONFIG_SCHEMA || !Array.isArray(body.connectors)) {
+      throw new KeiProxySocketError(
+        "malformed_response",
+        "the daemon returned an invalid agent config",
+      );
+    }
+    return withoutModelSecrets(body) as unknown as KeiProxyAgentConfig;
   }
 
   // Model routes -----------------------------------------------------------
@@ -809,7 +880,14 @@ function jsonObject(response: Buffered): JsonObject {
 }
 
 function withoutModelSecrets(value: JsonObject): JsonObject {
-  const forbidden = new Set(["secret_ref", "credential", "api_key", "apiKey"]);
+  const forbidden = new Set([
+    "secret_ref",
+    "credential",
+    "credential_ref",
+    "credential_backend",
+    "api_key",
+    "apiKey",
+  ]);
   const clean = (item: unknown): unknown => {
     if (Array.isArray(item)) return item.map(clean);
     if (!isObject(item)) return item;

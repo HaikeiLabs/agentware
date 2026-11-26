@@ -12,6 +12,7 @@ from haikeilabs.agentware.llm.response import Response
 from haikeilabs.agentware.llm.response import ToolCall as LLMToolCall
 from haikeilabs.agentware.llmcontext.context_window import ContextWindowManager
 from haikeilabs.agentware.middleware.guardrails.error_tracker import ErrorCategory, ErrorTracker
+from haikeilabs.agentware.middleware.guardrails.nudge import step_nudge
 from haikeilabs.agentware.middleware.guardrails.response_validator import (
     ResponseValidator,
     ValidationResult,
@@ -214,42 +215,57 @@ async def run_inference(
 
         last_response = resp
 
+        # A tool call the step enforcer blocks fails the attempt like a
+        # validation failure: the attempt is retried with the step nudge
+        # instead of returning the blocked call as success.
+        retry_nudge: Message | None = None
+        blocked_tool: str | None = None
+        blocked_args: dict[str, Any] | None = None
         if validation_result and not validation_result.needs_retry:
-            if cfg.error_tracker is not None:
-                cfg.error_tracker.reset_session(session_id)
-
             if cfg.step_enforcer is not None and resp.tool_calls:
                 for tc in resp.tool_calls:
                     allowed, missing = cfg.step_enforcer.can_execute(session_id, tc.name)
                     if not allowed:
-                        from haikeilabs.agentware.middleware.guardrails.nudge import step_nudge
-
                         nudge = step_nudge(tc.name, missing, 1)
-                        nudge_msg = Message(
+                        retry_nudge = Message(
                             role=Role.USER,
                             content=nudge.content,
                             meta=MessageMeta(type=MessageType.STEP_NUDGE),
                         )
-                        current_messages.append(nudge_msg)
-                        continue
+                        blocked_tool = tc.name
+                        blocked_args = tc.arguments
+                        break
 
-            tool_call_counter += len(resp.tool_calls) if resp.tool_calls else 0
-            return InferenceResult(
-                response=last_response,
-                new_messages=current_messages,
-                tool_call_counter=tool_call_counter,
-                attempts=attempts,
-                reasoning_tree=reasoning_tree,
-            )
+            if blocked_tool is None:
+                if cfg.error_tracker is not None:
+                    cfg.error_tracker.reset_session(session_id)
+
+                tool_call_counter += len(resp.tool_calls) if resp.tool_calls else 0
+                return InferenceResult(
+                    response=last_response,
+                    new_messages=current_messages,
+                    tool_call_counter=tool_call_counter,
+                    attempts=attempts,
+                    reasoning_tree=reasoning_tree,
+                )
 
         if cfg.error_tracker is not None:
-            cfg.error_tracker.record_error(
-                session_id,
-                "",
-                {},
-                Exception("validation failed"),
-                ErrorCategory.UNKNOWN,
-            )
+            if blocked_tool is not None:
+                cfg.error_tracker.record_error(
+                    session_id,
+                    blocked_tool,
+                    blocked_args or {},
+                    Exception(f"step enforcer blocked tool call: {blocked_tool}"),
+                    ErrorCategory.PERMISSION,
+                )
+            else:
+                cfg.error_tracker.record_error(
+                    session_id,
+                    "",
+                    {},
+                    Exception("validation failed"),
+                    ErrorCategory.UNKNOWN,
+                )
 
         if attempts >= cfg.max_attempts:
             raise RetriesExhaustedError(f"retries exhausted after {attempts} attempts")
@@ -271,7 +287,9 @@ async def run_inference(
             )
             current_messages.append(failed_msg)
 
-        if validation_result and validation_result.nudge:
+        if retry_nudge is not None:
+            current_messages.append(retry_nudge)
+        elif validation_result and validation_result.nudge:
             nudge_msg = Message(
                 role=Role.USER,
                 content=validation_result.nudge.content,

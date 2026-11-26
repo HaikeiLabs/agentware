@@ -58,16 +58,18 @@ type stepArgs struct {
 		SessionID  string `json:"session_id"`
 	} `json:"session"`
 	Request struct {
-		Tool            string `json:"tool"`
-		Action          string `json:"action"`
-		Resource        string `json:"resource"`
-		SpanID          string `json:"span_id"`
-		ParentSpan      string `json:"parent_span"`
-		DelegationDepth int    `json:"delegation_depth"`
-		Framework       string `json:"framework"`
-		ToolArgsDigest  string `json:"tool_args_digest"`
-		ConnectorID     string `json:"connector_id"`
-		Capability      string `json:"capability"`
+		Tool            string         `json:"tool"`
+		Action          string         `json:"action"`
+		Resource        string         `json:"resource"`
+		SpanID          string         `json:"span_id"`
+		ParentSpan      string         `json:"parent_span"`
+		DelegationDepth int            `json:"delegation_depth"`
+		Framework       string         `json:"framework"`
+		ToolArgsDigest  string         `json:"tool_args_digest"`
+		ConnectorID     string         `json:"connector_id"`
+		Capability      string         `json:"capability"`
+		ToolArgs        map[string]any `json:"tool_args"`
+		ToolContext     map[string]any `json:"tool_context"`
 	} `json:"request"`
 }
 
@@ -119,8 +121,10 @@ func runStep(ctx context.Context, c *Client, op string, a stepArgs) (any, error)
 			Tool: r.Tool, ConnectorID: r.ConnectorID, Capability: r.Capability,
 			Resource: r.Resource, SpanID: r.SpanID, ParentSpan: r.ParentSpan,
 			DelegationDepth: r.DelegationDepth, Framework: r.Framework,
-			ToolArgsDigest: r.ToolArgsDigest,
+			ToolArgsDigest: r.ToolArgsDigest, ToolArgs: r.ToolArgs, ToolContext: r.ToolContext,
 		})
+	case "agent_config":
+		return c.AgentConfig(ctx)
 	}
 	return nil, fmt.Errorf("unknown op %q", op)
 }

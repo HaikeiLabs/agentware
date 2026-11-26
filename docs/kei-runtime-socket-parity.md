@@ -16,6 +16,7 @@ cannot drift apart.
 | Drop cached session | `forget_session(identity)` | `forgetSession(identity)` | `ForgetSession(identity)` | `forget_session(&identity)` |
 | `POST /v1/authorize` | `await authorize(session, tool=, action=, ...)` | `await authorize(session, { tool, action, ... })` | `Authorize(ctx, session, evaluator.AuthorizeRequest{...})` | `authorize(&session, &fields)` |
 | `POST /v1/credentials:release` | `await release_credential(session, connector_id=, capability=, resource=, ...)` | `await releaseCredential(session, { connectorId, capability, resource, ... })` | `ReleaseCredential(ctx, session, ReleaseRequest{...})` | `release_credential(&session, &ReleaseRequest { .. })` |
+| `GET /v1/agent-config` (kei-proxy 0.12.0+) | `await agent_config()` | `await agentConfig()` | `AgentConfig(ctx)` (`*runtimesocket.AgentConfig`) | `agent_config()` |
 | `GET /v1/model-config` | `await model_config(agent_id=None, profile_id=None)` | `await modelConfig(agentId?, profileId?)` | `ModelConfig(ctx, agentID, profileID)` | `model_config(agent_id, profile_id)` |
 | `GET /v1/model-profiles` | `await list_model_profiles(agent_id=None)` | `await listModelProfiles(agentId?)` | `ListModelProfiles(ctx, agentID)` | `list_model_profiles(agent_id)` |
 | `GET /v1/models` | `await list_models(agent_id=None, profile_id=None)` | `await listModels(agentId?, profileId?)` | `ListModels(ctx, agentID, profileID)` | `list_models(agent_id, profile_id)` |
@@ -50,6 +51,24 @@ cannot drift apart.
   response is `{"model_profiles": [...]}`. SDK model-config/list methods remove
   credential, API-key, and secret-reference fields before returning data; they
   never surface API keys.
+- **Agent config.** `GET /v1/agent-config` (kei-proxy 0.12.0 or later,
+  token-authenticated, Unix socket only) returns `kei.agent-config/v1`: the
+  agent's assigned `model_profile` and the `connectors` bound to it, each with
+  its connector_binding `tools` (`tool`, plan `operations`, `binding_version`,
+  `resource_template`) and, when the platform projects them, `connection` and
+  `base_url`. A wrong schema or a missing `connectors` list is
+  `malformed_response`; credential and secret-reference fields are removed. An
+  older daemon answers 404 and one without a fresh v2 bundle 503
+  (`agent_config_unavailable`), both `proxy_error`. The operation runners'
+  builders (`connector_config` / `connectorConfig` / `operations.ConnectorConfigs`)
+  turn either into a typed `connectors_unavailable` refusal.
+- **Credential release without a connector.** For a registered
+  connector_binding tool the release may omit `connector`: leave the connector
+  ID and capability empty and send the tool with its `tool_args`, and
+  kei-proxy 0.12.0 or later derives both from the tool's binding and plan. The
+  connector ID and capability are given together or not at all, and a release
+  without them needs the tool and its arguments; anything else is a caller
+  error raised before any request.
 - **Fail closed.** These all raise the socket error, so `KeiProxyEvaluator`
   denies with the matching reason:
 

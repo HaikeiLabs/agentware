@@ -16,7 +16,8 @@
     "authorize_response": "kei.authorize-response/v1",
     "policy_bundle_status": "kei.policy-bundle-status/v1",
     "credential_release_request": "kei.credential-release-request/v1",
-    "credential_release_response": "kei.credential-release-response/v1"
+    "credential_release_response": "kei.credential-release-response/v1",
+    "agent_config": "kei.agent-config/v1"
   },
   "routes": {
     "open_session": ["PUT", "/v1/session"],
@@ -25,7 +26,8 @@
     "list_models": ["GET", "/v1/models"],
     "chat_completion": ["POST", "/v1/chat/completions"],
     "policy_bundle_status": ["GET", "/v1/policy-bundle/status"],
-    "release_credential": ["POST", "/v1/credentials:release"]
+    "release_credential": ["POST", "/v1/credentials:release"],
+    "agent_config": ["GET", "/v1/agent-config"]
   },
   "authorize_optional_fields": [
     "action", "resource", "span_id", "parent_span", "delegation_depth",

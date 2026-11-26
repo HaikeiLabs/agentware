@@ -180,6 +180,29 @@ const runner = new OperationRunner(client, session, {
 const issue = await runner.run(caller, OP_GET_ISSUE, request, { tool: 'get_issue' });
 ```
 
+With kei-proxy 0.12.0 or later the harness can leave connector IDs to the
+platform: `connectorConfig(client, bindings)` reads the agent's bound
+connectors from `GET /v1/agent-config` and returns the runner's config keyed by
+tool name. `bindings` maps each connector_binding tool to its generated
+operation bindings. Each entry has no connector ID: pass `tool` and
+`toolArgs` to `run`, and kei-proxy derives the connector from the tool's
+binding when it releases the credential. When kei-proxy cannot answer (an
+older daemon, or no fresh v2 policy bundle), `connectorConfig` rejects with
+`ConnectorsUnavailable` (`reasonCode` `connectors_unavailable`).
+
+```ts
+const connectors = await connectorConfig(socketClient, {
+  'github.get_issue': {
+    [OP_GET_ISSUE.id]: {
+      requestSchema: GetIssueRequestSchema,
+      queries: connection => new GithubQueries(connection),
+    },
+  },
+});
+const runner = new OperationRunner(socketClient, session, connectors);
+await runner.run(caller, OP_GET_ISSUE, request, { tool: 'github.get_issue', toolArgs });
+```
+
 A tool can supply `resourceTemplateOverride`; kei-proxy must validate the
 rendered resource against the policy bundle. SQL connection pools are a
 follow-up: SQL and unsupported connection kinds throw `UnsupportedConnection`.
