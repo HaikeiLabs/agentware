@@ -229,8 +229,8 @@ async def _run_op(client: rs.KeiProxySocketAuthorizeClient, op: str, args: dict[
         request = args["request"]
         body = await client.release_credential(
             _session(args["session"]),
-            connector_id=request["connector_id"],
-            capability=request["capability"],
+            connector_id=request.get("connector_id", ""),
+            capability=request.get("capability", ""),
             resource=request["resource"],
             tool=request.get("tool", ""),
             span_id=request.get("span_id", ""),
@@ -238,8 +238,12 @@ async def _run_op(client: rs.KeiProxySocketAuthorizeClient, op: str, args: dict[
             delegation_depth=request.get("delegation_depth", 0),
             framework=request.get("framework", ""),
             tool_args_digest=request.get("tool_args_digest", ""),
+            tool_args=request.get("tool_args"),
+            tool_context=request.get("tool_context"),
         )
         return _release_result(body)
+    if op == "agent_config":
+        return await client.agent_config()
     if op == "list_models":
         return await client.list_models(agent_id=args.get("agent_id"), profile_id=args.get("profile_id"))
     if op == "model_config":

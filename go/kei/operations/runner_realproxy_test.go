@@ -215,3 +215,61 @@ func TestRealProxyToolArgsViolatingArgsSchemaAreDenied(t *testing.T) {
 		t.Errorf("audit = %+v", audit)
 	}
 }
+
+// TestRealProxyAgentConfigAndReleaseWithoutAConnector needs kei-proxy 0.12.0
+// or later (GET /v1/agent-config and a credential release that derives the
+// connector from the tool binding); it skips on an older binary. The fake
+// control plane's descriptor names no connection yet, so the runner's config
+// is the platform's apart from the connection.
+func TestRealProxyAgentConfigAndReleaseWithoutAConnector(t *testing.T) {
+	p := startRealProxy(t)
+	socket := &runtimesocket.Client{SocketPath: p.socketPath, Env: p.env}
+	cfg, err := socket.AgentConfig(context.Background())
+	var se *runtimesocket.Error
+	if errors.As(err, &se) && se.Code == "" && strings.Contains(se.Error(), "404") {
+		t.Skip("kei-proxy older than 0.12.0: no GET /v1/agent-config")
+	}
+	if err != nil {
+		t.Fatalf("AgentConfig: %v", err)
+	}
+	var bound *runtimesocket.AgentTool
+	for _, c := range cfg.Connectors {
+		for i, tool := range c.Tools {
+			if tool.Tool == realProxyTool && c.ConnectorID == realProxyConnectorID {
+				bound = &c.Tools[i]
+			}
+		}
+	}
+	if bound == nil {
+		t.Fatalf("agent config %+v does not bind %s to %s", cfg, realProxyTool, realProxyConnectorID)
+	}
+
+	provider := newPullsProvider(t)
+	client := &runtimesocket.AuthorizationClient{Source: "ci", Socket: socket}
+	r := NewRunner(client, "ci-user", ConnectorConfig{
+		ConnectorID:     "github",
+		ConnectionName:  "pat",
+		Conn:            &contracts.Connection{Kind: contracts.ConnectionKind_CONNECTION_KIND_HTTP_BEARER},
+		BaseURL:         provider.URL,
+		BindingVersion:  bound.BindingVersion,
+		DeriveConnector: true,
+	})
+	_, err = Run(context.Background(), r, testCaller(), githubops.OpListPulls,
+		func(conn any) (*github.ListPullsResponse, error) {
+			status, _, _, err := conn.(connection.HTTP).Do(context.Background(), "GET", "/repos/acme/widgets/pulls", nil, nil)
+			if err != nil || status != http.StatusOK {
+				return nil, errors.New("provider call failed")
+			}
+			return &github.ListPullsResponse{}, nil
+		},
+		&github.ListPullsRequest{Owner: "acme", Repository: "widgets"},
+		WithToolCall(realProxyTool, map[string]any{"owner": "acme", "repository": "widgets"}, map[string]any{}))
+	if err != nil {
+		t.Fatalf("Run without a connector: %v", err)
+	}
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	if provider.auth != "Bearer "+realProxyConnectorToken {
+		t.Error("the provider did not get the released credential")
+	}
+}

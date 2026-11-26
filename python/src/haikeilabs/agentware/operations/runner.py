@@ -116,7 +116,16 @@ class OperationBinding:
 
 @dataclass
 class ConnectorEntry:
-    """Installed connector routing metadata, indexed by the contract connector prefix.
+    """Installed connector routing metadata.
+
+    A :data:`ConnectorConfig` indexes entries by registered tool name (what
+    :func:`~haikeilabs.agentware.operations.connector_config` builds from the
+    platform) or by the contract connector prefix (``github``); the tool's
+    entry wins. ``connector_id`` may be empty for a ``connector_binding``
+    tool: the runner then releases the credential without a connector, and
+    kei-proxy 0.12.0 or later derives it from the tool's binding. An explicit
+    ``connector_id`` is still sent, and kei-proxy checks it against the
+    binding.
 
     Metadata only: no credential lives here; the token is released per call.
     """
@@ -336,13 +345,16 @@ class OperationRunner:
             if caller is None or op is None or not isinstance(getattr(op, "id", None), str):
                 raise OperationDeniedError("invalid_context")
             prefix = op.id.split(".")[0]
-            config = self._connectors.get(prefix)
+            config = (self._connectors.get(tool) if tool else None) or self._connectors.get(prefix)
             binding = config.operations.get(op.id) if config is not None else None
+            # Without a connector ID the daemon derives the connector from the
+            # bound tool, which needs the tool and its arguments.
+            derived = config is not None and not config.connector_id
             if (
                 config is None
                 or binding is None
-                or not config.connector_id
                 or not config.connection_name
+                or (derived and (not tool or tool_args is None))
             ):
                 raise OperationDeniedError("connector_not_named")
             meta = operation_meta(op, binding.request_type)
@@ -386,7 +398,7 @@ class OperationRunner:
                 result = await self._client.release_credential(
                     self._session,
                     connector_id=config.connector_id,
-                    capability=capability,
+                    capability=capability if config.connector_id else "",
                     resource=resource,
                     tool=tool,
                     parent_span=parent_span,

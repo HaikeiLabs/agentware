@@ -35,7 +35,15 @@ export interface OperationBinding {
   /** Version of the installed tool binding used for authorization. */
   bindingVersion?: string;
 }
-/** Installed connector routing metadata, indexed by the contract connector ID. */
+/**
+ * Installed connector routing metadata, indexed by registered tool name (what
+ * `connectorConfig` builds from the platform) or by the contract connector ID
+ * (`github`); the tool's entry wins. `connectorId` may be empty for a
+ * connector_binding tool: the runner then releases the credential without a
+ * connector, and kei-proxy 0.12.0 or later derives it from the tool's binding
+ * (this needs `tool` and `toolArgs`). An explicit `connectorId` is still sent,
+ * and kei-proxy checks it against the binding.
+ */
 export type ConnectorConfig = Record<
   string,
   {
@@ -196,9 +204,19 @@ export class OperationRunner {
     try {
       if (!caller || !op || typeof op.id !== "string")
         throw new OperationDenied("invalid_context");
-      const config = this.connectors[op.id.split(".")[0]];
+      const config =
+        (opts.tool ? this.connectors[opts.tool] : undefined) ??
+        this.connectors[op.id.split(".")[0]];
       const binding = config?.operations[op.id];
-      if (!config || !binding || !config.connectorId || !config.connectionName)
+      // Without a connector ID the daemon derives the connector from the
+      // bound tool, which needs the tool and its arguments.
+      const derived = config !== undefined && !config.connectorId;
+      if (
+        !config ||
+        !binding ||
+        !config.connectionName ||
+        (derived && (!opts.tool || opts.toolArgs === undefined))
+      )
         throw new OperationDenied("connector_not_named");
       const meta = operationMeta(op, binding.requestSchema);
       if (
@@ -247,8 +265,7 @@ export class OperationRunner {
       checkDecision(result);
       try {
         result = await this.client.releaseCredential(this.session, {
-          connectorId: config.connectorId,
-          capability,
+          ...(derived ? {} : { connectorId: config.connectorId, capability }),
           resource,
           tool: opts.tool,
           ...context,

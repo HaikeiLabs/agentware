@@ -147,6 +147,7 @@ from .runtime_link import (
     parse_child_line_counted,
 )
 from .runtime_socket import (
+    AGENT_CONFIG_SCHEMA,
     AUTHORIZE_REQUEST_SCHEMA,
     AUTHORIZE_RESPONSE_SCHEMA,
     DEFAULT_RUNTIME_SOCKET_PATH,
@@ -261,6 +262,7 @@ __all__ = [
     "MetricsSink",
     "LifecycleAuditSink",
     "new_link",
+    "AGENT_CONFIG_SCHEMA",
     "AUTHORIZE_REQUEST_SCHEMA",
     "AUTHORIZE_RESPONSE_SCHEMA",
     "DEFAULT_RUNTIME_SOCKET_PATH",

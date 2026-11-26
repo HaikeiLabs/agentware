@@ -46,6 +46,7 @@ from .auth import BOOTSTRAP_TOKEN_ENV
 from .evaluator import AuthorizationClient, KeiProxyAuthorizeError
 
 __all__ = [
+    "AGENT_CONFIG_SCHEMA",
     "AUTHORIZE_REQUEST_SCHEMA",
     "AUTHORIZE_RESPONSE_SCHEMA",
     "CREDENTIAL_RELEASE_REQUEST_SCHEMA",
@@ -75,8 +76,7 @@ AUTHORIZE_RESPONSE_SCHEMA = "kei.authorize-response/v1"
 CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
 CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
 POLICY_BUNDLE_STATUS_SCHEMA = "kei.policy-bundle-status/v1"
-CREDENTIAL_RELEASE_REQUEST_SCHEMA = "kei.credential-release-request/v1"
-CREDENTIAL_RELEASE_RESPONSE_SCHEMA = "kei.credential-release-response/v1"
+AGENT_CONFIG_SCHEMA = "kei.agent-config/v1"
 SESSION_NOT_FOUND = "session_not_found"
 
 DEFAULT_SOCKET_TIMEOUT = 10.0
@@ -311,8 +311,8 @@ class KeiProxySocketAuthorizeClient:
         self,
         session: KeiProxySocketSession,
         *,
-        connector_id: str,
-        capability: str,
+        connector_id: str = "",
+        capability: str = "",
         resource: str,
         tool: str = "",
         span_id: str = "",
@@ -331,14 +331,27 @@ class KeiProxySocketAuthorizeClient:
         ``tool_args`` and ``tool_context`` let the local runtime independently
         re-derive and authorize the complete plan before releasing the token.
         They remain on the tenant-local socket and are not included in audit.
+
+        For a registered ``connector_binding`` tool, ``connector_id`` and
+        ``capability`` may both be left empty: kei-proxy 0.12.0 or later then
+        derives the connector from the tool's binding and the capability from
+        its plan, so the request carries no ``connector`` object. That form
+        needs ``tool`` and ``tool_args``. Either both of ``connector_id`` and
+        ``capability`` are set or neither is; anything else raises
+        ``ValueError`` before any request.
         """
         if not session.source or not session.external_id or not session.session_id:
             raise ValueError("socket release_credential needs an explicit named session")
+        if bool(connector_id) != bool(capability):
+            raise ValueError("connector_id and capability must be provided together")
+        if not connector_id and (not tool or tool_args is None):
+            raise ValueError("a release without a connector needs the bound tool and its tool_args")
         request: dict[str, Any] = {
             "schema": CREDENTIAL_RELEASE_REQUEST_SCHEMA,
             "resource": resource,
-            "connector": {"connector_id": connector_id, "capability": capability},
         }
+        if connector_id:
+            request["connector"] = {"connector_id": connector_id, "capability": capability}
         if tool:
             request["tool"] = tool
         optional: dict[str, Any] = {
@@ -381,6 +394,28 @@ class KeiProxySocketAuthorizeClient:
                 continue
             return response
         raise KeiProxySocketError("proxy_error", "socket credential release failed closed")
+
+    # Agent config ---------------------------------------------------------
+
+    async def agent_config(self) -> dict[str, Any]:
+        """The platform configuration of this runtime's agent (``GET /v1/agent-config``).
+
+        A ``kei.agent-config/v1`` object: the assigned ``model_profile`` (when
+        there is one) and the ``connectors`` bound to the agent, each with
+        the ``connector_binding`` tools routed through it. Metadata only:
+        credential and secret-reference fields are removed before returning.
+        Needs kei-proxy 0.12.0 or later; an older daemon answers 404
+        (``proxy_error``), and a daemon without a fresh v2 bundle answers 503
+        (``proxy_error`` with code ``agent_config_unavailable``).
+        """
+        body = _json_object(await self._send("GET", "/v1/agent-config"))
+        if body.get("schema") != AGENT_CONFIG_SCHEMA or not isinstance(
+            body.get("connectors"), list
+        ):
+            raise KeiProxySocketError(
+                "malformed_response", "the daemon returned an invalid agent config"
+            )
+        return _without_model_secrets(body)
 
     # Model routes ---------------------------------------------------------
 
@@ -648,8 +683,8 @@ class KeiProxySocketAuthorizationClient:
         self,
         user_id: str,
         *,
-        connector_id: str,
-        capability: str,
+        connector_id: str = "",
+        capability: str = "",
         resource: str,
         tool: str = "",
         span_id: str = "",
@@ -657,8 +692,15 @@ class KeiProxySocketAuthorizationClient:
         delegation_depth: int = 0,
         framework: str = "",
         tool_args_digest: str = "",
+        tool_args: Mapping[str, Any] | None = None,
+        tool_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Pull a session credential for ``user_id`` over the socket."""
+        """Pull a session credential for ``user_id`` over the socket.
+
+        For a registered ``connector_binding`` tool, leave ``connector_id``
+        and ``capability`` empty and pass ``tool`` and ``tool_args``: the
+        daemon derives the connector from the tool's binding.
+        """
         if not user_id:
             raise KeiProxySocketError("proxy_error", "no invoking subject to open a session for")
         identity = KeiProxySocketIdentity(self._source, user_id)
@@ -676,6 +718,8 @@ class KeiProxySocketAuthorizationClient:
                 delegation_depth=delegation_depth,
                 framework=framework,
                 tool_args_digest=tool_args_digest,
+                tool_args=tool_args,
+                tool_context=tool_context,
             )
 
         return _run_blocking(run)
@@ -725,7 +769,14 @@ def _run_blocking(factory: Callable[[], Awaitable[_T]]) -> _T:
 
 def _without_model_secrets(value: Any) -> Any:
     """Recursively remove credential-bearing fields from model metadata."""
-    forbidden = {"secret_ref", "credential", "api_key", "apiKey"}
+    forbidden = {
+        "secret_ref",
+        "credential",
+        "credential_ref",
+        "credential_backend",
+        "api_key",
+        "apiKey",
+    }
     if isinstance(value, dict):
         return {k: _without_model_secrets(v) for k, v in value.items() if k not in forbidden}
     if isinstance(value, list):

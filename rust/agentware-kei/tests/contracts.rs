@@ -287,10 +287,13 @@ fn runtime_socket_supported_client_cases_replay() {
                             delegation_depth: r["delegation_depth"].as_u64().unwrap_or(0),
                             framework: r["framework"].as_str().unwrap_or("").into(),
                             tool_args_digest: r["tool_args_digest"].as_str().unwrap_or("").into(),
+                            tool_args: r.get("tool_args").cloned(),
+                            tool_context: r.get("tool_context").cloned(),
                         },
                     )
                     .map(release_result_value)
                 }
+                "agent_config" => c.agent_config(),
                 _ => unreachable!(),
             };
             let expect = &step["expect"];

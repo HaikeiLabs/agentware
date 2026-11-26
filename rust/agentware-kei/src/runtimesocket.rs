@@ -28,6 +28,8 @@ pub const POLICY_BUNDLE_STATUS_SCHEMA: &str = "kei.policy-bundle-status/v1";
 pub const CREDENTIAL_RELEASE_REQUEST_SCHEMA: &str = "kei.credential-release-request/v1";
 /// Schema for POST /v1/credentials:release responses.
 pub const CREDENTIAL_RELEASE_RESPONSE_SCHEMA: &str = "kei.credential-release-response/v1";
+/// Schema for GET /v1/agent-config answers.
+pub const AGENT_CONFIG_SCHEMA: &str = "kei.agent-config/v1";
 pub const SESSION_HEADER: &str = "X-Kei-Session";
 pub const SESSION_NOT_FOUND: &str = "session_not_found";
 pub const TOOLS_REGISTER_PATH: &str = "/v1/tools:register";
@@ -92,9 +94,13 @@ pub struct Session {
 /// credential is requested.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ReleaseRequest {
-    /// Harness tool name. Exactly one of `tool` or `connector_id`+`capability`.
+    /// Harness tool name.
     pub tool: String,
-    /// Connector to release a credential for.
+    /// Connector to release a credential for. For a registered
+    /// connector_binding tool, leave it and `capability` empty and set `tool`
+    /// and `tool_args`: kei-proxy 0.12.0 or later derives the connector from
+    /// the tool's binding, and the request carries no connector object.
+    /// `connector_id` and `capability` are set together or not at all.
     pub connector_id: String,
     /// Capability on that connector, e.g. "read".
     pub capability: String,
@@ -106,6 +112,10 @@ pub struct ReleaseRequest {
     pub delegation_depth: u64,
     pub framework: String,
     pub tool_args_digest: String,
+    /// The tool call's arguments and context: local-only inputs the daemon
+    /// re-derives the registered plan from before releasing.
+    pub tool_args: Option<Value>,
+    pub tool_context: Option<Value>,
 }
 /// A released connector credential value. It is short-lived and must never be
 /// logged or printed.
@@ -420,13 +430,26 @@ impl Client {
         {
             return Err(err(ErrorKind::InvalidArgument));
         }
+        if req.connector_id.is_empty() != req.capability.is_empty()
+            || (req.connector_id.is_empty() && (req.tool.is_empty() || req.tool_args.is_none()))
+        {
+            return Err(err(ErrorKind::InvalidArgument));
+        }
         let mut body = Map::new();
         body.insert("schema".into(), json!(CREDENTIAL_RELEASE_REQUEST_SCHEMA));
         body.insert("resource".into(), json!(req.resource));
-        body.insert(
-            "connector".into(),
-            json!({"connector_id": req.connector_id, "capability": req.capability}),
-        );
+        if !req.connector_id.is_empty() {
+            body.insert(
+                "connector".into(),
+                json!({"connector_id": req.connector_id, "capability": req.capability}),
+            );
+        }
+        if let Some(args) = &req.tool_args {
+            body.insert("tool_args".into(), args.clone());
+        }
+        if let Some(context) = &req.tool_context {
+            body.insert("tool_context".into(), context.clone());
+        }
         if !req.tool.is_empty() {
             body.insert("tool".into(), json!(req.tool));
         }
@@ -524,6 +547,21 @@ impl Client {
             return Err(err(ErrorKind::MalformedResponse));
         }
         Ok(v)
+    }
+    /// The platform configuration of the runtime's agent
+    /// (GET /v1/agent-config, kei-proxy 0.12.0 or later): the assigned model
+    /// profile and the connectors bound to the agent. Credential and
+    /// secret-reference fields are removed. An older daemon answers 404 and
+    /// one without a fresh v2 bundle 503 (`agent_config_unavailable`).
+    pub fn agent_config(&self) -> Result<Value, SocketError> {
+        let (status, v) = self.request("GET", "/v1/agent-config", "", None, self.timeout())?;
+        check_status(status, &v)?;
+        if v.get("schema").and_then(Value::as_str) != Some(AGENT_CONFIG_SCHEMA)
+            || !v.get("connectors").is_some_and(Value::is_array)
+        {
+            return Err(err(ErrorKind::MalformedResponse));
+        }
+        Ok(without_model_secrets(&v))
     }
     /// Read the daemon liveness endpoint.
     pub fn readyz(&self) -> Result<Value, SocketError> {
@@ -909,7 +947,12 @@ fn without_model_secrets(value: &Value) -> Value {
             .filter(|(k, _)| {
                 !matches!(
                     k.as_str(),
-                    "secret_ref" | "credential" | "api_key" | "apiKey"
+                    "secret_ref"
+                        | "credential"
+                        | "credential_ref"
+                        | "credential_backend"
+                        | "api_key"
+                        | "apiKey"
                 )
             })
             .map(|(k, v)| (k.clone(), without_model_secrets(v)))
