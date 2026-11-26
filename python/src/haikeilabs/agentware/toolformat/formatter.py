@@ -54,6 +54,24 @@ class ToolFormatter(Protocol):
         ...
 
 
+def _result_text(data: Any) -> str:
+    """Render a successful tool result's data as model-facing text.
+
+    One rule for every formatter: a string is returned verbatim; ``None`` is
+    the empty string; dicts, lists, numbers and booleans are compact JSON
+    that keeps dict insertion order and non-ASCII text. A value JSON cannot
+    encode falls back to ``str()``.
+    """
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    try:
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return str(data)
+
+
 def _get_input_schema(tool: ToolFormatInput) -> dict[str, Any] | None:
     """Get input schema from a tool if available."""
     return schema_of(tool)
@@ -123,7 +141,7 @@ class GenericFormatter:
 
     def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
         if result.success:
-            return str(result.data) if result.data is not None else ""
+            return _result_text(result.data)
         return f"Error: {result.error}"
 
     def model_family(self) -> str:
@@ -275,7 +293,7 @@ class AnthropicFormatter:
         else:
             block["tool_name"] = name
         if result.success:
-            block["content"] = str(result.data) if result.data is not None else ""
+            block["content"] = _result_text(result.data)
         else:
             block["content"] = result.error or ""
             block["is_error"] = True
@@ -395,8 +413,13 @@ class QwenFormatter:
         return calls
 
     def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
-        value = result.data if result.success else {"error": result.error}
-        return f"<tool_response>\n{json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True)}\n</tool_response>"
+        # The official Qwen chat template emits a tool message's content
+        # verbatim between the tool_response tags, so a string is not quoted.
+        if result.success:
+            text = _result_text(result.data)
+        else:
+            text = json.dumps({"error": result.error}, ensure_ascii=False, separators=(",", ":"))
+        return f"<tool_response>\n{text}\n</tool_response>"
 
     def model_family(self) -> str:
         return "qwen"

@@ -104,12 +104,16 @@ func (f *QwenFormatter) ParseToolCalls(response string) ([]ParsedToolCall, error
 	}
 	return calls, nil
 }
+// FormatToolResult renders the result inside tool_response tags. Output goes
+// in verbatim: the official Qwen chat template emits a tool message's content
+// unchanged, and structured data is already JSON text. A failure renders as
+// {"error": ...}.
 func (f *QwenFormatter) FormatToolResult(_ string, r *tools.Result, _ ...string) string {
-	var value any = r.Output
+	text := r.Output
 	if !r.Success {
-		value = map[string]any{"error": r.Error}
+		text = qwenJSON(map[string]any{"error": r.Error})
 	}
-	return "<tool_response>\n" + qwenJSON(value) + "\n</tool_response>"
+	return "<tool_response>\n" + text + "\n</tool_response>"
 }
 func (f *QwenFormatter) ModelFamily() string { return "qwen" }
 func (f *QwenFormatter) ValidateFormat(response string) error {

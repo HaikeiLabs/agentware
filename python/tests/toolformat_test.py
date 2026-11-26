@@ -579,16 +579,13 @@ class TestQwenFormatter:
         fmt = QwenFormatter()
         result = Result(success=True, data="Sunny, 22°C")
         output = fmt.format_tool_result("get_weather", result)
-        assert "<tool_response>" in output
-        assert "get_weather" not in output
-        assert '"Sunny, 22°C"' in output
-        assert "</tool_response>" in output
+        assert output == "<tool_response>\nSunny, 22°C\n</tool_response>"
 
     def test_format_tool_result_success_none_data(self):
         fmt = QwenFormatter()
         result = Result(success=True, data=None)
         output = fmt.format_tool_result("get_weather", result)
-        assert "null" in output
+        assert output == "<tool_response>\n\n</tool_response>"
 
     def test_format_tool_result_error(self):
         fmt = QwenFormatter()
@@ -786,3 +783,54 @@ class TestGetFormatter:
     def test_get_formatter_case_insensitive(self):
         fmt = get_formatter("QWEN2.5")
         assert isinstance(fmt, QwenFormatter)
+
+
+# ---------------------------------------------------------------------------
+# Result serialization (the shared fixtures cover string, dict, list, number,
+# boolean and error; these cover what Go and Rust cannot express there)
+# ---------------------------------------------------------------------------
+
+_ALL_FORMATTERS = [
+    GenericFormatter,
+    OpenAIFOrmatter,
+    AnthropicFormatter,
+    QwenFormatter,
+    DeepSeekFormatter,
+    GLMFormatter,
+]
+
+
+def _content(fmt: object, output: str) -> str:
+    """Strip each family's result envelope so the payload can be compared."""
+    if isinstance(fmt, AnthropicFormatter):
+        return str(json.loads(output)["content"])
+    if isinstance(fmt, QwenFormatter):
+        prefix, suffix = "<tool_response>\n", "\n</tool_response>"
+        assert output.startswith(prefix) and output.endswith(suffix)
+        return output[len(prefix) : -len(suffix)]
+    return output
+
+
+class TestResultSerialization:
+    def test_none_data_is_empty_in_every_formatter(self):
+        for cls in _ALL_FORMATTERS:
+            fmt = cls()
+            output = fmt.format_tool_result("t", Result(success=True, data=None))
+            assert _content(fmt, output) == "", cls
+
+    def test_nested_dict_keeps_insertion_order_in_every_formatter(self):
+        data = {"z": 1, "a": {"y": [True, None], "b": "é"}}
+        for cls in _ALL_FORMATTERS:
+            fmt = cls()
+            got = _content(fmt, fmt.format_tool_result("t", Result(success=True, data=data)))
+            assert got == '{"z":1,"a":{"y":[true,null],"b":"é"}}', cls
+
+    def test_value_json_cannot_encode_falls_back_to_str(self):
+        class Opaque:
+            def __str__(self) -> str:
+                return "opaque value"
+
+        for cls in _ALL_FORMATTERS:
+            fmt = cls()
+            got = _content(fmt, fmt.format_tool_result("t", Result(success=True, data=Opaque())))
+            assert got == "opaque value", cls
