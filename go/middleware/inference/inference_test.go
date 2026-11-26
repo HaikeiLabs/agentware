@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/haikeilabs/agentware/go/llm"
 	"github.com/haikeilabs/agentware/go/middleware/guardrails"
@@ -625,5 +626,115 @@ func TestRunInference_RetryHistoryHasNoOrphanToolCalls(t *testing.T) {
 	resultTail := result.NewMessages[len(result.NewMessages)-2:]
 	if resultTail[0].Role != llm.RoleAssistant || resultTail[1].Role != llm.RoleUser {
 		t.Errorf("expected result.NewMessages tail [assistant, user], got [%v, %v]", resultTail[0].Role, resultTail[1].Role)
+	}
+}
+
+// A blocked tool call fails the attempt and is retried, not returned as
+// success. The retry history follows the #347 order: the failed assistant
+// turn first, then the user step nudge.
+func TestRunInference_StepEnforcerBlockRetries(t *testing.T) {
+	backend := &recordingBackend{
+		responses: []*llm.Response{
+			{
+				Content:      "Calling final_tool now.",
+				ToolCalls:    []llm.ToolCall{{ID: "1", Name: "final_tool", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+			},
+			{
+				Content:      "",
+				ToolCalls:    []llm.ToolCall{{ID: "2", Name: "step1", Args: map[string]any{}}},
+				FinishReason: "tool_calls",
+				UsageTokens:  llm.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+			},
+		},
+	}
+
+	enforcer := guardrails.NewStepEnforcer()
+	enforcer.AddStep("final_tool", []string{"step1"})
+	cfg := InferenceConfig{
+		Client:    backend,
+		Validator: guardrails.NewResponseValidator([]string{"final_tool", "step1"}, false),
+		ToolSpecs: []llm.ToolDefinition{
+			{Name: "final_tool", Description: "A final tool", InputSchema: map[string]any{}},
+			{Name: "step1", Description: "A prerequisite step", InputSchema: map[string]any{}},
+		},
+		StepEnforcer: enforcer,
+		MaxAttempts:  3,
+	}
+
+	messages := []llm.Message{
+		{Role: llm.RoleUser, Content: "test", Meta: llm.MessageMeta{Type: llm.MessageTypeUserInput}},
+	}
+
+	result, err := RunInference(context.Background(), messages, cfg)
+	if err != nil {
+		t.Fatalf("expected the retry to succeed, got %v", err)
+	}
+	if result.Attempts != 2 {
+		t.Errorf("expected 2 attempts, got %d", result.Attempts)
+	}
+	if len(result.Response.ToolCalls) != 1 || result.Response.ToolCalls[0].Name != "step1" {
+		t.Errorf("expected the allowed step1 call to be returned, got %+v", result.Response.ToolCalls)
+	}
+	if len(backend.requests) != 2 {
+		t.Fatalf("expected 2 recorded requests, got %d", len(backend.requests))
+	}
+
+	second := backend.requests[1]
+	tail := second[len(second)-2:]
+	if tail[0].Role != llm.RoleAssistant || tail[0].Content != "Calling final_tool now." {
+		t.Errorf("expected the failed assistant turn before the nudge, got role %v content %q", tail[0].Role, tail[0].Content)
+	}
+	if tail[0].Meta.Type != llm.MessageTypeTextResponse {
+		t.Errorf("expected text_response meta on the failed turn, got %v", tail[0].Meta.Type)
+	}
+	if tail[1].Role != llm.RoleUser || !strings.Contains(tail[1].Content, "final_tool") {
+		t.Errorf("expected a user step nudge naming final_tool, got role %v content %q", tail[1].Role, tail[1].Content)
+	}
+	if tail[1].Meta.Type != llm.MessageTypeStepNudge {
+		t.Errorf("expected step_nudge meta on the last message, got %v", tail[1].Meta.Type)
+	}
+
+	resultTail := result.NewMessages[len(result.NewMessages)-2:]
+	if resultTail[0].Role != llm.RoleAssistant || resultTail[1].Meta.Type != llm.MessageTypeStepNudge {
+		t.Errorf("expected result.NewMessages tail [assistant, step_nudge], got [%v, %v]", resultTail[0].Role, resultTail[1].Meta.Type)
+	}
+}
+
+// Every blocked attempt is recorded as an error and never returned as success.
+func TestRunInference_StepEnforcerBlockRecordsError(t *testing.T) {
+	backend := &mockBackend{
+		resp: &llm.Response{
+			Content:      "",
+			ToolCalls:    []llm.ToolCall{{ID: "1", Name: "final_tool", Args: map[string]any{}}},
+			FinishReason: "tool_calls",
+			UsageTokens:  llm.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		},
+	}
+
+	enforcer := guardrails.NewStepEnforcer()
+	enforcer.AddStep("final_tool", []string{"step1"})
+	tracker := guardrails.NewErrorTracker()
+	tracker.SetThresholds(5, time.Minute)
+	cfg := InferenceConfig{
+		Client:       backend,
+		Validator:    guardrails.NewResponseValidator([]string{"final_tool"}, false),
+		ToolSpecs:    []llm.ToolDefinition{{Name: "final_tool", Description: "A final tool", InputSchema: map[string]any{}}},
+		StepEnforcer: enforcer,
+		ErrorTracker: tracker,
+		MaxAttempts:  2,
+	}
+
+	messages := []llm.Message{
+		{Role: llm.RoleUser, Content: "test", Meta: llm.MessageMeta{Type: llm.MessageTypeUserInput}},
+	}
+
+	_, err := RunInference(context.Background(), messages, cfg)
+	if !errors.Is(err, ErrRetriesExhausted) {
+		t.Fatalf("expected ErrRetriesExhausted, got %v", err)
+	}
+	if got := tracker.GetErrorCount("", "final_tool"); got != 2 {
+		t.Errorf("expected 2 recorded final_tool errors, got %d", got)
 	}
 }

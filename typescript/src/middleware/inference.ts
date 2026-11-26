@@ -176,45 +176,62 @@ export async function runInference(
 
     lastResponse = resp;
 
+    // A tool call the step enforcer blocks fails the attempt like a
+    // validation failure: the attempt is retried with the step nudge instead
+    // of returning the blocked call as success.
+    let retryNudge: Message | null = null;
+    let blockedCall: LlmToolCall | null = null;
     if (validationResult && !validationResult.needsRetry) {
-      if (cfg.errorTracker) {
-        cfg.errorTracker.resetSession(sessionId);
-      }
-
-      if (cfg.stepEnforcer && resp.tool_calls && resp.tool_calls.length > 0) {
+      if (cfg.stepEnforcer && resp.tool_calls) {
         for (const tc of resp.tool_calls) {
           const [allowed, missing] = cfg.stepEnforcer.canExecute(sessionId, tc.name);
           if (!allowed) {
             const nudge = stepNudge(tc.name, missing, 1);
-            const nudgeMsg: Message = {
+            retryNudge = {
               role: Role.USER,
               content: nudge.content,
               meta: { type: MessageType.STEP_NUDGE },
             };
-            currentMessages.push(nudgeMsg);
-            continue;
+            blockedCall = tc;
+            break;
           }
         }
       }
 
-      toolCallCounter += resp.tool_calls ? resp.tool_calls.length : 0;
-      return {
-        response: lastResponse,
-        newMessages: currentMessages,
-        toolCallCounter,
-        attempts,
-        reasoningTree,
-      };
+      if (blockedCall === null) {
+        if (cfg.errorTracker) {
+          cfg.errorTracker.resetSession(sessionId);
+        }
+
+        toolCallCounter += resp.tool_calls ? resp.tool_calls.length : 0;
+        return {
+          response: lastResponse,
+          newMessages: currentMessages,
+          toolCallCounter,
+          attempts,
+          reasoningTree,
+        };
+      }
     }
 
     if (cfg.errorTracker) {
-      cfg.errorTracker.recordError(
-        sessionId,
-        "",
-        {},
-        new Error("validation failed"),
-        ErrorCategory.UNKNOWN
-      );
+      if (blockedCall !== null) {
+        cfg.errorTracker.recordError(
+          sessionId,
+          blockedCall.name,
+          blockedCall.arguments,
+          new Error(`step enforcer blocked tool call: ${blockedCall.name}`),
+          ErrorCategory.PERMISSION
+        );
+      } else {
+        cfg.errorTracker.recordError(
+          sessionId,
+          "",
+          {},
+          new Error("validation failed"),
+          ErrorCategory.UNKNOWN
+        );
+      }
     }
 
     if (attempts >= maxAttempts) {
@@ -238,7 +255,9 @@ export async function runInference(
       currentMessages.push(failedMsg);
     }
 
-    if (validationResult && validationResult.nudge) {
+    if (retryNudge !== null) {
+      currentMessages.push(retryNudge);
+    } else if (validationResult && validationResult.nudge) {
       const nudgeMsg: Message = {
         role: Role.USER,
         content: validationResult.nudge.content,
