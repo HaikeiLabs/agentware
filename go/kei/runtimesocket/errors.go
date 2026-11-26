@@ -19,6 +19,10 @@ var (
 	// ErrInvalidSession is a Session with an empty source, external id or
 	// session id. It is a caller error, returned before any request.
 	ErrInvalidSession = errors.New("socket calls need an explicit named session")
+	// ErrInvalidRelease is a credential release that names only one of
+	// ConnectorID and Capability, or names neither without the bound Tool
+	// and its ToolArgs. It is a caller error, returned before any request.
+	ErrInvalidRelease = errors.New("a credential release needs connector_id and capability, or a bound tool and its tool_args")
 	// ErrInvalidSource is an empty session source for SelectAuthorizationClient.
 	ErrInvalidSource = errors.New("source must be non-empty")
 	// ErrUnsupportedPlatform is wrapped by every refusal on Windows.

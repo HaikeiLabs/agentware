@@ -12,6 +12,12 @@ from .connections import (
     assert_supported_connection,
     build_connection,
 )
+from .platform_config import (
+    AgentConfigSource,
+    ConnectorsUnavailableError,
+    ToolBindings,
+    connector_config,
+)
 from .runner import (
     ConnectorConfig,
     ConnectorEntry,
@@ -28,10 +34,12 @@ from .runner import (
 )
 
 __all__ = [
+    "AgentConfigSource",
     "ConnectRequiredError",
     "ConnectionKind",
     "ConnectorConfig",
     "ConnectorEntry",
+    "ConnectorsUnavailableError",
     "EnrollmentRequiredError",
     "OperationAudit",
     "OperationAuditSink",
@@ -40,8 +48,10 @@ __all__ = [
     "OperationMeta",
     "OperationRunner",
     "OperationSocketClient",
+    "ToolBindings",
     "UnsupportedConnectionError",
     "assert_supported_connection",
     "build_connection",
+    "connector_config",
     "operation_meta",
 ]

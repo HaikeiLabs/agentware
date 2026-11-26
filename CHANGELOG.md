@@ -5,6 +5,12 @@ one shared version across npm, PyPI, Go and crates.io.
 
 ## Unreleased
 
+### Added
+
+- Platform-delivered connector config for the operation runners. The socket client reads `GET /v1/agent-config` (kei-proxy 0.12.0 or later) in every language: Python `agent_config()`, TypeScript `agentConfig()`, Go `AgentConfig(ctx)`, Rust `agent_config()`; metadata only, credential and secret-reference fields removed. `connector_config(client, bindings)` (Python), `connectorConfig(client, bindings)` (TypeScript) and `operations.ConnectorConfigs(ctx, client, tools)` (Go) build the runner's config from it, keyed by the bound tool: the connection name and base URL come from the platform, the kind and header from the contracts `Connection` of that name, and the harness names no connector ID. When kei-proxy cannot answer (404 from an older daemon, 503 `agent_config_unavailable`, unreachable, malformed) they fail closed with a typed `connectors_unavailable` error. New shared socket parity cases in `testing/contracts/runtime-socket/client-cases.json`.
+- Credential release without a connector for a registered connector_binding tool: the socket clients omit the `connector` object when the connector ID and capability are both empty and the tool and its `tool_args` are set (kei-proxy 0.12.0 derives the connector from the tool binding). The runners release this way for a platform-built entry (Python/TypeScript: an empty `connector_id`; Go: `ConnectorConfig.DeriveConnector`). An explicit connector entry keeps working unchanged, and the runners also look an entry up by tool name before the contract connector prefix.
+- `fixtures/kei/KEI_PROXY_SHA256` carries the verified kei-proxy 0.12.0 Linux x86_64 checksum; `KEI_PROXY_VERSION` moves to v0.12.0 with the 0.19.0 release.
+
 ## [0.18.0] - 2026-11-25
 
 ### Added

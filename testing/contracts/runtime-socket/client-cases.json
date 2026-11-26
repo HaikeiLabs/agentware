@@ -2173,6 +2173,480 @@
       ]
     },
     {
+      "name": "agent_config_returns_the_config_without_secret_fields",
+      "steps": [
+        {
+          "op": "agent_config",
+          "args": {},
+          "expect": {
+            "result": {
+              "schema": "kei.agent-config/v1",
+              "model_profile": {
+                "profile_id": "p1",
+                "status": "active",
+                "model": "m1",
+                "endpoint": "https://model.example",
+                "is_default": true
+              },
+              "connectors": [
+                {
+                  "connector_id": "c-1",
+                  "name": "acme-github",
+                  "kind": "native",
+                  "connection": "pat",
+                  "base_url": "https://ghe.example",
+                  "tools": [
+                    {
+                      "tool": "github.get_issue",
+                      "operations": [
+                        "get"
+                      ],
+                      "binding_version": "v1",
+                      "resource_template": "repos/{owner}/{repository}"
+                    }
+                  ]
+                },
+                {
+                  "connector_id": "c-2",
+                  "tools": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/agent-config",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.agent-config/v1",
+              "model_profile": {
+                "profile_id": "p1",
+                "status": "active",
+                "model": "m1",
+                "endpoint": "https://model.example",
+                "is_default": true,
+                "credential": "hidden"
+              },
+              "connectors": [
+                {
+                  "connector_id": "c-1",
+                  "name": "acme-github",
+                  "kind": "native",
+                  "connection": "pat",
+                  "base_url": "https://ghe.example",
+                  "tools": [
+                    {
+                      "tool": "github.get_issue",
+                      "operations": [
+                        "get"
+                      ],
+                      "binding_version": "v1",
+                      "resource_template": "repos/{owner}/{repository}"
+                    }
+                  ],
+                  "credential_ref": "kei://connectors/c-1/token"
+                },
+                {
+                  "connector_id": "c-2",
+                  "tools": []
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent_config_without_a_model_profile_omits_it",
+      "steps": [
+        {
+          "op": "agent_config",
+          "args": {},
+          "expect": {
+            "result": {
+              "schema": "kei.agent-config/v1",
+              "connectors": []
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/agent-config",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.agent-config/v1",
+              "connectors": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent_config_503_is_a_proxy_error_with_the_code",
+      "steps": [
+        {
+          "op": "agent_config",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": "agent_config_unavailable"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/agent-config",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 503,
+            "body": {
+              "error": {
+                "code": "agent_config_unavailable",
+                "message": "runtime identity or verified v2 policy bundle is unavailable"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent_config_404_from_an_older_daemon_is_a_proxy_error",
+      "steps": [
+        {
+          "op": "agent_config",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "proxy_error",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/agent-config",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 404
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent_config_wrong_schema_is_malformed",
+      "steps": [
+        {
+          "op": "agent_config",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/agent-config",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.agent-config/v2",
+              "connectors": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent_config_without_a_connector_list_is_malformed",
+      "steps": [
+        {
+          "op": "agent_config",
+          "args": {},
+          "expect": {
+            "error": {
+              "reason_class": "malformed_response",
+              "code": ""
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/agent-config",
+            "session": "",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.agent-config/v1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "release_credential_for_a_bound_tool_omits_the_connector",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "test",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "release_credential",
+          "args": {
+            "session": {
+              "source": "test",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue",
+              "resource": "repos/acme/widgets",
+              "tool_args": {
+                "owner": "acme",
+                "repository": "widgets"
+              },
+              "tool_context": {}
+            }
+          },
+          "expect": {
+            "result": {
+              "decision": "allow",
+              "bundle_state": "ready",
+              "credential": {
+                "connector_id": "c-1",
+                "issuer": "https://auth.example.com",
+                "resource": "repos/acme/widgets",
+                "account_model": "shared",
+                "access_token": "ghs_secret",
+                "expires_at": "2026-12-01T10:00:00Z"
+              }
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "test",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/v1/credentials:release",
+            "session": "sess-1",
+            "body": {
+              "schema": "kei.credential-release-request/v1",
+              "resource": "repos/acme/widgets",
+              "tool": "github.get_issue",
+              "tool_args": {
+                "owner": "acme",
+                "repository": "widgets"
+              },
+              "tool_context": {}
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "schema": "kei.credential-release-response/v1",
+              "decision": "allow",
+              "bundle_state": "ready",
+              "credential": {
+                "connector_id": "c-1",
+                "issuer": "https://auth.example.com",
+                "resource": "repos/acme/widgets",
+                "account_model": "shared",
+                "access_token": "ghs_secret",
+                "expires_at": "2026-12-01T10:00:00Z"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "release_credential_without_a_connector_needs_a_tool_and_its_args",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "test",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "release_credential",
+          "args": {
+            "session": {
+              "source": "test",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "tool": "github.get_issue",
+              "resource": "repos/acme/widgets"
+            }
+          },
+          "expect": {
+            "invalid_argument": true
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "test",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "release_credential_with_a_connector_but_no_capability_is_invalid",
+      "steps": [
+        {
+          "op": "open_session",
+          "args": {
+            "source": "test",
+            "external_id": "ada"
+          },
+          "expect": {
+            "result": {
+              "session_id": "sess-1"
+            }
+          }
+        },
+        {
+          "op": "release_credential",
+          "args": {
+            "session": {
+              "source": "test",
+              "external_id": "ada",
+              "session_id": "sess-1"
+            },
+            "request": {
+              "connector_id": "c-1",
+              "resource": "repos/acme/widgets",
+              "tool": "github.get_issue",
+              "tool_args": {
+                "owner": "acme",
+                "repository": "widgets"
+              }
+            }
+          },
+          "expect": {
+            "invalid_argument": true
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/v1/session",
+            "session": "",
+            "body": {
+              "schema": "kei.session/v2",
+              "source": "test",
+              "external_id": "ada"
+            }
+          },
+          "response": {
+            "status": 201,
+            "body": {
+              "schema": "kei.session/v2",
+              "session_id": "sess-1",
+              "user_id": "u-ada",
+              "status": "linked"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "a_missing_token_fails_before_any_call",
       "env": {},
       "steps": [
