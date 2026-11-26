@@ -11,6 +11,8 @@ one shared version across npm, PyPI, Go and crates.io.
 - Credential release without a connector for a registered connector_binding tool: the socket clients omit the `connector` object when the connector ID and capability are both empty and the tool and its `tool_args` are set (kei-proxy 0.12.0 derives the connector from the tool binding). The runners release this way for a platform-built entry (Python/TypeScript: an empty `connector_id`; Go: `ConnectorConfig.DeriveConnector`). An explicit connector entry keeps working unchanged, and the runners also look an entry up by tool name before the contract connector prefix.
 - `fixtures/kei/KEI_PROXY_SHA256` carries the verified kei-proxy 0.12.0 Linux x86_64 checksum; `KEI_PROXY_VERSION` moves to v0.12.0 with the 0.19.0 release.
 
+## [0.18.1] - 2026-11-26
+
 ### Changed
 
 - The Python and TypeScript `InferenceExecutor` now send each tool message as the configured formatter's `format_tool_result` / `formatToolResult` output, passing the tool call id, as the Go and Rust executors already do. The tool message content changes from `Tool <name> result: <value>` to the formatter's shape (for example a Qwen `tool_response` block, an Anthropic `tool_result` block with `tool_use_id`, or `Error: <message>` for a generic failure). The formatter field is now optional: with none configured (Python `formatter=None`, TypeScript `formatter` omitted) the executor keeps the old plain text. The TypeScript `AgentLoop` gains the same optional `formatter`; when set, an executed tool's result, failure or policy denial goes through it, and without it the tool messages are unchanged. A Python formatter that `InferenceExecutor` calls must accept the `call_id` argument added in 0.18.0.
