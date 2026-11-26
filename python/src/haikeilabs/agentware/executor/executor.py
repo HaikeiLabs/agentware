@@ -10,7 +10,7 @@ from ..llm.backend import accepts_tools
 from ..llm.request import Role, ToolDefinition
 from ..middleware import CallerContext
 from ..toolformat import ToolFormatter
-from ..tools import ToolRegistry, schema_of
+from ..tools import Result, ToolRegistry, schema_of
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +57,17 @@ class Executor(Protocol):
 
 @dataclass
 class InferenceExecutorConfig:
-    """Configuration for InferenceExecutor."""
+    """Configuration for InferenceExecutor.
+
+    ``formatter`` renders each tool message with ``format_tool_result``, as
+    the Go and Rust executors do. With no formatter (``None``) the tool
+    message keeps the plain text ``Tool <name> result: <value>``.
+    """
 
     backend: Backend
     registry: ToolRegistry
     tool_executor: Any
-    formatter: ToolFormatter
+    formatter: ToolFormatter | None
     max_iterations: int = 20
     completion_signal: str = "TASK_COMPLETE"
 
@@ -83,6 +88,20 @@ class InferenceExecutor:
             )
             for tool in self._config.registry.all()
         ]
+
+    def _tool_message_content(
+        self, name: str, call_id: str, result: Any, success: bool, error: Any
+    ) -> str:
+        """Render a tool outcome as the tool message content (mirrors Go)."""
+        formatter = self._config.formatter
+        if formatter is None:
+            return f"Tool {name} result: {result if success else error}"
+        outcome = (
+            Result(success=True, data=result)
+            if success
+            else Result(success=False, error=str(error) if error else None)
+        )
+        return formatter.format_tool_result(name, outcome, call_id or None)
 
     def execute(self, req: ExecuteRequest) -> ExecuteResult:
         """Run the inference loop."""
@@ -136,7 +155,9 @@ class InferenceExecutor:
                 conversation.append(
                     Message(
                         role=Role.TOOL,
-                        content=f"Tool {tool_name} result: {result if success else error}",
+                        content=self._tool_message_content(
+                            tool_name, tool_call.id, result, success, error
+                        ),
                         tool_call_id=tool_call.id,
                     )
                 )

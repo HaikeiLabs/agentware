@@ -1,5 +1,6 @@
 """Cross-language contract tests for the executor agent loop."""
 
+import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,9 +15,10 @@ from haikeilabs.agentware.executor.executor import (
 )
 from haikeilabs.agentware.llm import Message, Role
 from haikeilabs.agentware.llm.request import ToolDefinition
-from haikeilabs.agentware.llm.response import Response, TokenUsage
+from haikeilabs.agentware.llm.response import Response
 from haikeilabs.agentware.llm.response import ToolCall as LLMToolCall
-from haikeilabs.agentware.tools import ToolRegistry
+from haikeilabs.agentware.toolformat import AnthropicFormatter, GenericFormatter, QwenFormatter
+from haikeilabs.agentware.tools import Result, ToolRegistry
 
 
 @dataclass
@@ -54,7 +56,7 @@ class NoopFormatter:
     def parse_tool_calls(self, response: str) -> list[Any]:
         return []
 
-    def format_tool_result(self, name: str, result: Any) -> str:
+    def format_tool_result(self, name: str, result: Any, call_id: str | None = None) -> str:
         return ""
 
     def model_family(self) -> str:
@@ -175,9 +177,16 @@ def test_native_tool_history_keeps_metadata() -> None:
 
 
 def _native_executor(
-    backend: RecordingBackend, tool: RecordingTool
+    backend: RecordingBackend,
+    tool: RecordingTool,
+    formatter: Any = None,
+    tool_error: str = "",
 ) -> tuple[InferenceExecutor, list[tuple[str, dict[str, Any]]]]:
-    """Executor over a registry holding one tool, with a recording executor."""
+    """Executor over a registry holding one tool, with a recording executor.
+
+    ``formatter`` defaults to none configured, the plain-text tool message.
+    A non-empty ``tool_error`` makes the tool executor report a failure.
+    """
     registry = ToolRegistry()
     registry.register(tool)
     executed: list[tuple[str, dict[str, Any]]] = []
@@ -185,6 +194,8 @@ def _native_executor(
     class ToolExecutor:
         def execute(self, name: str, args: dict[str, Any], ctx: Any) -> tuple[str, bool, str]:
             executed.append((name, args))
+            if tool_error:
+                return (None, False, tool_error)
             return (tool.execute(args), True, "")
 
     executor = InferenceExecutor(
@@ -192,7 +203,7 @@ def _native_executor(
             backend=backend,
             registry=registry,
             tool_executor=ToolExecutor(),
-            formatter=NoopFormatter(),
+            formatter=formatter,
             max_iterations=5,
         )
     )
@@ -308,6 +319,63 @@ def test_executor_runs_native_tool_calls_and_keeps_ids() -> None:
     assert tool_msg.role == Role.TOOL
     assert tool_msg.tool_call_id == "call_1"
     assert tool_msg.content == "Tool hn_top_stories result: 1. Story one"
+
+
+def _tool_message(formatter: Any, tool_error: str = "") -> Message:
+    """Run one native tool call and return the tool message sent back to the model."""
+    backend = RecordingBackend(
+        responses=[
+            Response(
+                tool_calls=[LLMToolCall(id="call_1", name="hn_top_stories", arguments={"limit": 5})]
+            ),
+            Response(content="done"),
+        ]
+    )
+    executor, _ = _native_executor(backend, RecordingTool(), formatter, tool_error)
+    executor.execute(ExecuteRequest(system_prompt="sys", user_message="summarize"))
+    return backend.calls[1][3]
+
+
+def test_executor_tool_message_uses_configured_formatter() -> None:
+    """With a formatter configured, the tool message is its format_tool_result (mirrors Go)."""
+    formatter = QwenFormatter()
+    tool_msg = _tool_message(formatter)
+
+    want = formatter.format_tool_result(
+        "hn_top_stories", Result(success=True, data="1. Story one"), "call_1"
+    )
+    assert tool_msg.role == Role.TOOL
+    assert tool_msg.tool_call_id == "call_1"
+    assert tool_msg.content == want
+
+
+def test_executor_tool_message_passes_call_id_to_formatter() -> None:
+    """The tool call id reaches the formatter (Anthropic renders it as tool_use_id)."""
+    tool_msg = _tool_message(AnthropicFormatter())
+
+    assert json.loads(tool_msg.content) == {
+        "type": "tool_result",
+        "tool_use_id": "call_1",
+        "content": "1. Story one",
+    }
+
+
+def test_executor_tool_error_uses_configured_formatter() -> None:
+    """A failed tool call is formatted as an error result by the formatter."""
+    formatter = GenericFormatter()
+    tool_msg = _tool_message(formatter, tool_error="rate limited")
+
+    assert tool_msg.content == formatter.format_tool_result(
+        "hn_top_stories", Result(success=False, error="rate limited"), "call_1"
+    )
+    assert tool_msg.content == "Error: rate limited"
+
+
+def test_executor_tool_error_without_formatter_keeps_plain_text() -> None:
+    """With no formatter configured, a failure keeps today's plain text."""
+    tool_msg = _tool_message(None, tool_error="rate limited")
+
+    assert tool_msg.content == "Tool hn_top_stories result: rate limited"
 
 
 def test_executor_plain_text_answer_completes() -> None:
