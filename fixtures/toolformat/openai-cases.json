@@ -48,6 +48,36 @@
       "call_id": "call_01A",
       "result": {"success": true, "output": "Sunny, 22°C"},
       "expected": "Sunny, 22°C"
+    },
+    {
+      "name": "string that looks like JSON stays verbatim",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": "{\"temp\":22}"},
+      "expected": "{\"temp\":22}"
+    },
+    {
+      "name": "dict result is compact JSON in key order",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": {"temp": 22, "sky": "rain", "note": "22°C"}},
+      "expected": "{\"temp\":22,\"sky\":\"rain\",\"note\":\"22°C\"}"
+    },
+    {
+      "name": "list result is compact JSON",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": [1, "a", true, null]},
+      "expected": "[1,\"a\",true,null]"
+    },
+    {
+      "name": "number result is JSON",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": 22.5},
+      "expected": "22.5"
+    },
+    {
+      "name": "boolean result is JSON",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": false},
+      "expected": "false"
     }
   ],
   "validate_format": [

@@ -90,7 +90,7 @@
         "success": true,
         "output": "Sunny, 22°C"
       },
-      "expected": "<tool_response>\n\"Sunny, 22°C\"\n</tool_response>"
+      "expected": "<tool_response>\nSunny, 22°C\n</tool_response>"
     },
     {
       "name": "error",
@@ -100,6 +100,36 @@
         "error": "API unavailable"
       },
       "expected": "<tool_response>\n{\"error\":\"API unavailable\"}\n</tool_response>"
+    },
+    {
+      "name": "string that looks like JSON stays verbatim",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": "{\"temp\":22}"},
+      "expected": "<tool_response>\n{\"temp\":22}\n</tool_response>"
+    },
+    {
+      "name": "dict result is compact JSON in key order",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": {"temp": 22, "sky": "rain", "note": "22°C"}},
+      "expected": "<tool_response>\n{\"temp\":22,\"sky\":\"rain\",\"note\":\"22°C\"}\n</tool_response>"
+    },
+    {
+      "name": "list result is compact JSON",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": [1, "a", true, null]},
+      "expected": "<tool_response>\n[1,\"a\",true,null]\n</tool_response>"
+    },
+    {
+      "name": "number result is JSON",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": 22.5},
+      "expected": "<tool_response>\n22.5\n</tool_response>"
+    },
+    {
+      "name": "boolean result is JSON",
+      "tool_name": "get_weather",
+      "result": {"success": true, "output": false},
+      "expected": "<tool_response>\nfalse\n</tool_response>"
     }
   ],
   "validate_format": [
