@@ -7,6 +7,7 @@ import {
   AgentLoop,
   AgentTerminationReason,
   categorizeError,
+  type AgentLoopConfig,
 } from "../src/executor/index.js";
 import {
   BaseTool,
@@ -22,6 +23,7 @@ import {
   StepEnforcer,
 } from "../src/middleware/index.js";
 import { Format } from "../src/reasoning/index.js";
+import { AnthropicFormatter, GenericFormatter, QwenFormatter } from "../src/toolformat/index.js";
 
 const USAGE: TokenUsage = {
   prompt_tokens: 10,
@@ -524,5 +526,57 @@ describe("categorizeError", () => {
     expect(categorizeError("permission denied")).toBe(ErrorCategory.PERMISSION);
     expect(categorizeError("rate limit exceeded")).toBe(ErrorCategory.RATE_LIMIT);
     expect(categorizeError("something else")).toBe(ErrorCategory.UNKNOWN);
+  });
+});
+
+describe("AgentLoop tool messages with a configured formatter", () => {
+  async function toolMessage(
+    formatter: AgentLoopConfig["formatter"],
+    tool: string,
+    loopOptions: Partial<AgentLoopConfig> = {}
+  ): Promise<Message> {
+    const backend = scriptedBackend([toolCallResponse(tool, {}), textResponse("done")]);
+    const registry = makeRegistry();
+    const loop = new AgentLoop({
+      backend,
+      registry,
+      validator: new ResponseValidator(registry.names(), false),
+      formatter,
+      ...loopOptions,
+    });
+    const result = await loop.run("sys", "do it");
+    return result.conversation.find((m) => m.role === Role.TOOL)!;
+  }
+
+  it("sends the formatter's formatToolResult as the tool message (mirrors Go)", async () => {
+    const formatter = new QwenFormatter();
+    const message = await toolMessage(formatter, "ok_tool");
+    expect(message.tool_call_id).toBe("call_ok_tool");
+    expect(message.content).toBe(formatter.formatToolResult("ok_tool", new Result(true, "ok"), "call_ok_tool"));
+  });
+
+  it("passes the tool call id to the formatter", async () => {
+    const message = await toolMessage(new AnthropicFormatter(), "ok_tool");
+    expect(JSON.parse(message.content)).toEqual({ type: "tool_result", tool_use_id: "call_ok_tool", content: "ok" });
+  });
+
+  it("formats a failed tool result through the formatter", async () => {
+    const message = await toolMessage(new GenericFormatter(), "flaky_tool");
+    expect(message.content).toBe("Error: request timed out after 5000ms");
+  });
+
+  it("formats a policy denial through the formatter", async () => {
+    const message = await toolMessage(new GenericFormatter(), "ok_tool", {
+      policy: { evaluate: () => createDenyDecision("restricted") },
+      caller_context: { trusted: false },
+    });
+    expect(message.content).toBe("Error: denied by policy: restricted");
+  });
+
+  it("keeps the plain text tool message with no formatter", async () => {
+    expect((await toolMessage(undefined, "ok_tool")).content).toBe('Tool ok_tool result: "ok"');
+    expect((await toolMessage(undefined, "flaky_tool")).content).toBe(
+      "Tool flaky_tool error: request timed out after 5000ms"
+    );
   });
 });

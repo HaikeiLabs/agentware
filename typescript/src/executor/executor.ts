@@ -3,6 +3,7 @@ import type { Backend, Message, ToolDefinition } from "../llm/index.js";
 import type { Response, ToolCall } from "../llm/response.js";
 import { Role } from "../llm/index.js";
 import type { CallerContext } from "../middleware/index.js";
+import { Result } from "../tools/index.js";
 import type { ToolRegistry } from "../tools/index.js";
 import type { ToolFormatter } from "../toolformat/index.js";
 
@@ -38,7 +39,10 @@ export interface InferenceExecutorConfig {
   backend: Backend;
   registry: ToolRegistry;
   tool_executor: unknown;
-  formatter: ToolFormatter;
+  /** Renders each tool message with formatToolResult, as the Go and Rust
+   * executors do. Without one the tool message keeps the plain text
+   * `Tool <name> result: <json>` / `Tool <name> error: <error>`. */
+  formatter?: ToolFormatter;
   max_iterations: number;
   completion_signal: string;
 }
@@ -52,6 +56,24 @@ export class InferenceExecutor implements Executor {
       max_iterations: config.max_iterations || 20,
       completion_signal: config.completion_signal || "TASK_COMPLETE",
     };
+  }
+
+  /** Renders a tool outcome as the tool message content (mirrors Go). */
+  private toolMessageContent(
+    name: string,
+    callId: string,
+    result: unknown,
+    success: boolean,
+    error: string
+  ): string {
+    const formatter = this.config.formatter;
+    if (!formatter) {
+      return success
+        ? `Tool ${name} result: ${JSON.stringify(result)}`
+        : `Tool ${name} error: ${error}`;
+    }
+    const outcome = success ? new Result(true, result) : new Result(false, null, error || undefined);
+    return formatter.formatToolResult(name, outcome, callId || undefined);
   }
 
   execute(req: ExecuteRequest): ExecuteResult {
@@ -98,9 +120,7 @@ export class InferenceExecutor implements Executor {
 
         conversation.push({
           role: Role.TOOL,
-          content: success
-            ? `Tool ${tool_call.name} result: ${JSON.stringify(result)}`
-            : `Tool ${tool_call.name} error: ${error}`,
+          content: this.toolMessageContent(tool_call.name, tool_call.id, result, success, error),
           tool_call_id: tool_call.id,
         });
       }
