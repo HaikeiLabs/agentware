@@ -136,6 +136,17 @@ fn assert_parse_calls(fixture: &str, family: &str, cases: &Value) {
     }
 }
 
+/// A fixture's result output as `ToolResult::output`. A JSON string is the
+/// output itself; any other JSON value stands for structured data, which
+/// reaches Rust already serialized by the caller as compact JSON in key order.
+fn fixture_output(output: &Value) -> String {
+    match output {
+        Value::Null => String::new(),
+        Value::String(s) => s.clone(),
+        other => serde_json::to_string(other).expect("Value serialization cannot fail"),
+    }
+}
+
 fn assert_format_result(fixture: &str, family: &str, cases: &Value) {
     let formatter = family_formatter(family);
     for case in cases.as_array().expect("format_result array") {
@@ -143,7 +154,7 @@ fn assert_format_result(fixture: &str, family: &str, cases: &Value) {
         let result = &case["result"];
         let tool_result = ToolResult {
             success: result["success"].as_bool().expect("result.success"),
-            output: result["output"].as_str().unwrap_or_default().to_owned(),
+            output: fixture_output(&result["output"]),
             error: result["error"].as_str().unwrap_or_default().to_owned(),
         };
         let got = formatter.format_tool_result_with_call_id(

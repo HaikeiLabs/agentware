@@ -312,7 +312,76 @@ class TestRunInference:
 
     @pytest.mark.asyncio
     async def test_step_enforcer_blocks_premature_tools(self):
-        """Test step enforcer blocks tools without prerequisites."""
+        """A blocked tool call fails the attempt and is retried, not returned.
+
+        The attempt that calls a tool whose prerequisites are unmet must not
+        be returned as success: run_inference retries, and the retry history
+        follows the #347 order (failed assistant turn first, then the user
+        nudge).
+        """
+        messages = [Message(role=Role.USER, content="test")]
+
+        tool_defs = [
+            ToolDefinition(
+                name="final_tool",
+                description="A final tool",
+                input_schema={"type": "object", "properties": {}},
+            ),
+            ToolDefinition(
+                name="step1",
+                description="A prerequisite step",
+                input_schema={"type": "object", "properties": {}},
+            ),
+        ]
+
+        blocked_resp = Response(
+            content="Calling final_tool now.",
+            tool_calls=[LLMToolCall(id="1", name="final_tool", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+        allowed_resp = Response(
+            content="",
+            tool_calls=[LLMToolCall(id="2", name="step1", arguments={})],
+            finish_reason="tool_calls",
+            usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+        backend = RecordingBackend(responses=[blocked_resp, allowed_resp])
+        validator = ResponseValidator(tool_names=["final_tool", "step1"], rescue_enabled=False)
+        step_enforcer = StepEnforcer()
+        step_enforcer.add_step("final_tool", prerequisites=["step1"])
+
+        cfg = InferenceConfig(
+            client=backend,
+            tool_specs=tool_defs,
+            validator=validator,
+            step_enforcer=step_enforcer,
+            max_attempts=3,
+        )
+
+        result = await run_inference(messages, cfg, session_id="test-session")
+
+        assert result is not None
+        assert result.attempts == 2
+        assert [tc.name for tc in result.response.tool_calls] == ["step1"]
+
+        # The blocked attempt was retried, not returned as success.
+        assert len(backend.requests) == 2
+        second = backend.requests[1]
+        assert second[-2].role == Role.ASSISTANT
+        assert second[-2].content == "Calling final_tool now."
+        assert second[-2].meta.type == MessageType.TEXT_RESPONSE
+        assert second[-1].role == Role.USER
+        assert "final_tool" in second[-1].content
+        assert second[-1].meta.type == MessageType.STEP_NUDGE
+
+        # The returned history carries the same order.
+        assert result.new_messages[-2:] == second[-2:]
+
+    @pytest.mark.asyncio
+    async def test_step_enforcer_blocked_attempt_records_error(self):
+        """Every blocked attempt is an error and never a success."""
         messages = [Message(role=Role.USER, content="test")]
 
         tool_def = ToolDefinition(
@@ -321,28 +390,33 @@ class TestRunInference:
             input_schema={"type": "object", "properties": {}},
         )
 
-        mock_resp = Response(
+        blocked_resp = Response(
             content="",
             tool_calls=[LLMToolCall(id="1", name="final_tool", arguments={})],
             finish_reason="tool_calls",
             usage_tokens=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
         )
 
-        backend = MockBackend(responses=[mock_resp])
-        validator = ResponseValidator(tool_names=["final_tool", "step1"], rescue_enabled=False)
+        backend = MockBackend(responses=[blocked_resp])
+        validator = ResponseValidator(tool_names=["final_tool"], rescue_enabled=False)
         step_enforcer = StepEnforcer()
         step_enforcer.add_step("final_tool", prerequisites=["step1"])
+        error_tracker = ErrorTracker(max_errors_per_tool=5)
 
         cfg = InferenceConfig(
             client=backend,
             tool_specs=[tool_def],
             validator=validator,
             step_enforcer=step_enforcer,
-            max_attempts=3,
+            error_tracker=error_tracker,
+            max_attempts=2,
         )
 
-        result = await run_inference(messages, cfg, session_id="test-session")
-        assert result is not None
+        with pytest.raises(RetriesExhaustedError):
+            await run_inference(messages, cfg, session_id="test-session")
+
+        # Each blocked attempt was recorded, and none reset the session.
+        assert error_tracker.get_error_count("test-session", "final_tool") == 2
 
     @pytest.mark.asyncio
     async def test_empty_response_triggers_retry(self):

@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/haikeilabs/agentware/go/llm"
@@ -164,40 +165,54 @@ func RunInference(ctx context.Context, messages []llm.Message, cfg InferenceConf
 
 		lastResponse = *resp
 
+		// A tool call the step enforcer blocks fails the attempt like a
+		// validation failure: the attempt is retried with the step nudge
+		// instead of returning the blocked call as success.
+		var retryNudge *llm.Message
+		var blockedCall *llm.ToolCall
 		if !validationResult.NeedsRetry {
-			if cfg.ErrorTracker != nil {
-				cfg.ErrorTracker.ResetSession("")
-			}
-
-			if cfg.StepEnforcer != nil && len(resp.ToolCalls) > 0 {
-				for _, tc := range resp.ToolCalls {
+			if cfg.StepEnforcer != nil {
+				for i := range resp.ToolCalls {
+					tc := resp.ToolCalls[i]
 					allowed, missing := cfg.StepEnforcer.CanExecute("", tc.Name)
 					if !allowed {
 						nudge := guardrails.StepNudge(tc.Name, missing, 1)
-						currentMessages = append(currentMessages, llm.Message{
+						retryNudge = &llm.Message{
 							Role:    llm.RoleUser,
 							Content: nudge.Content,
 							Meta: llm.MessageMeta{
 								Type: llm.MessageTypeStepNudge,
 							},
-						})
-						continue
+						}
+						blockedCall = &tc
+						break
 					}
 				}
 			}
 
-			toolCallCounter += len(resp.ToolCalls)
-			return &InferenceResult{
-				Response:        lastResponse,
-				NewMessages:     currentMessages,
-				ToolCallCounter: toolCallCounter,
-				Attempts:        attempt,
-				ReasoningTree:   reasoningTree,
-			}, nil
+			if blockedCall == nil {
+				if cfg.ErrorTracker != nil {
+					cfg.ErrorTracker.ResetSession("")
+				}
+
+				toolCallCounter += len(resp.ToolCalls)
+				return &InferenceResult{
+					Response:        lastResponse,
+					NewMessages:     currentMessages,
+					ToolCallCounter: toolCallCounter,
+					Attempts:        attempt,
+					ReasoningTree:   reasoningTree,
+				}, nil
+			}
 		}
 
 		if cfg.ErrorTracker != nil {
-			cfg.ErrorTracker.RecordError("", "", nil, errors.New("validation failed"), guardrails.ErrCategoryUnknown)
+			if blockedCall != nil {
+				cfg.ErrorTracker.RecordError("", blockedCall.Name, blockedCall.Args,
+					fmt.Errorf("step enforcer blocked tool call: %s", blockedCall.Name), guardrails.ErrCategoryPermission)
+			} else {
+				cfg.ErrorTracker.RecordError("", "", nil, errors.New("validation failed"), guardrails.ErrCategoryUnknown)
+			}
 		}
 
 		if attempt >= cfg.MaxAttempts {
@@ -224,7 +239,9 @@ func RunInference(ctx context.Context, messages []llm.Message, cfg InferenceConf
 			currentMessages = append(currentMessages, failedMsg)
 		}
 
-		if validationResult.Nudge != nil {
+		if retryNudge != nil {
+			currentMessages = append(currentMessages, *retryNudge)
+		} else if validationResult.Nudge != nil {
 			nudgeMsg := llm.Message{
 				Role:    llm.RoleUser,
 				Content: validationResult.Nudge.Content,

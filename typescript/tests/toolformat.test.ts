@@ -556,7 +556,7 @@ describe("QwenFormatter", () => {
     it("wraps success result in XML", () => {
       const r = makeResult("output");
       expect(fmt.formatToolResult("my_tool", r)).toBe(
-        "<tool_response>\n\"output\"\n</tool_response>",
+        "<tool_response>\noutput\n</tool_response>",
       );
     });
 
@@ -657,5 +657,46 @@ describe("getFormatter", () => {
     expect(getFormatter("unknown-model")).toBeInstanceOf(GenericFormatter);
     expect(getFormatter("llama-3")).toBeInstanceOf(GenericFormatter);
     expect(getFormatter("")).toBeInstanceOf(GenericFormatter);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Result serialization (the shared fixtures cover string, object, array,
+// number, boolean and error; these cover what Go and Rust cannot express there)
+// ---------------------------------------------------------------------------
+
+describe("result serialization", () => {
+  const formatters = [
+    new GenericFormatter(),
+    new OpenAIFOrmatter(),
+    new AnthropicFormatter(),
+    new QwenFormatter(),
+    new DeepSeekFormatter(),
+    new GLMFormatter(),
+  ];
+
+  // Strips each family's result envelope so the payload can be compared.
+  function content(f: unknown, output: string): string {
+    if (f instanceof AnthropicFormatter) return String(JSON.parse(output).content);
+    if (f instanceof QwenFormatter) {
+      const prefix = "<tool_response>\n";
+      const suffix = "\n</tool_response>";
+      expect(output.startsWith(prefix) && output.endsWith(suffix)).toBe(true);
+      return output.slice(prefix.length, -suffix.length);
+    }
+    return output;
+  }
+
+  it.each(formatters)("renders null data as empty text (%o)", (f) => {
+    expect(content(f, f.formatToolResult("t", makeResult(null)))).toBe("");
+  });
+
+  it.each(formatters)("keeps nested key order (%o)", (f) => {
+    const data = { z: 1, a: { y: [true, null], b: "é" } };
+    expect(content(f, f.formatToolResult("t", makeResult(data)))).toBe('{"z":1,"a":{"y":[true,null],"b":"é"}}');
+  });
+
+  it.each(formatters)("falls back to String() for a value JSON cannot encode (%o)", (f) => {
+    expect(content(f, f.formatToolResult("t", makeResult(BigInt(7))))).toBe("7");
   });
 });
