@@ -2,6 +2,7 @@ import type { AsyncBackend, Message, ToolDefinition } from "../llm/index.js";
 import { Role } from "../llm/index.js";
 import type { Response } from "../llm/response.js";
 import type { ToolRegistry } from "../tools/index.js";
+import type { ToolFormatter } from "../toolformat/index.js";
 import { executeTool, Result } from "../tools/index.js";
 import type {
   ResponseValidator,
@@ -52,6 +53,11 @@ export interface AgentLoopConfig {
   /** Optional reasoning adapter override for limits and registered model
    * fields. */
   reasoning?: ReasoningAdapter;
+  /** Optional tool formatter. When set, each executed tool's result
+   * (including a policy denial or execution failure) is sent as its
+   * formatToolResult, as the Go and Rust executors do. Without one the
+   * tool message keeps the plain text `Tool <name> result: <json>`. */
+  formatter?: ToolFormatter;
 }
 
 export interface AgentResult {
@@ -385,12 +391,15 @@ export class AgentLoop {
           }
         }
 
+        const formatter = this.config.formatter;
         if (result.success) {
           this.config.step_enforcer?.markStepComplete(session_id, call.tool);
           conversation.push({
             role: Role.TOOL,
             ...(nativeCalls ? { tool_call_id: toolCallId } : {}),
-            content: `Tool ${call.tool} result: ${JSON.stringify(result.data)}`,
+            content: formatter
+              ? formatter.formatToolResult(call.tool, result, toolCallId)
+              : `Tool ${call.tool} result: ${JSON.stringify(result.data)}`,
             meta: { type: MessageType.TOOL_RESULT },
           });
         } else {
@@ -405,7 +414,9 @@ export class AgentLoop {
           conversation.push({
             role: Role.TOOL,
             ...(nativeCalls ? { tool_call_id: toolCallId } : {}),
-            content: `Tool ${call.tool} error: ${message}`,
+            content: formatter
+              ? formatter.formatToolResult(call.tool, result, toolCallId)
+              : `Tool ${call.tool} error: ${message}`,
             meta: { type: MessageType.TOOL_RESULT },
           });
         }
