@@ -11,6 +11,10 @@ one shared version across npm, PyPI, Go and crates.io.
 - Credential release without a connector for a registered connector_binding tool: the socket clients omit the `connector` object when the connector ID and capability are both empty and the tool and its `tool_args` are set (kei-proxy 0.12.0 derives the connector from the tool binding). The runners release this way for a platform-built entry (Python/TypeScript: an empty `connector_id`; Go: `ConnectorConfig.DeriveConnector`). An explicit connector entry keeps working unchanged, and the runners also look an entry up by tool name before the contract connector prefix.
 - `fixtures/kei/KEI_PROXY_SHA256` carries the verified kei-proxy 0.12.0 Linux x86_64 checksum; `KEI_PROXY_VERSION` moves to v0.12.0 with the 0.19.0 release.
 
+### Fixed
+
+- Tool results serialize the same way in every formatter and every port. A string result is sent verbatim; a dict/object, list, number or boolean is compact JSON in key insertion order; no data is the empty string; errors keep each family's own convention. Before this, the Python generic, OpenAI, DeepSeek, GLM and Anthropic formatters sent a dict or list result as a Python repr (`{'temp': 22}`) and a boolean as `True`, and the Qwen formatter JSON-quoted a string result (`"Sunny, 22°C"`, which double-encoded a Go or Rust `Output` that already held JSON) and sorted dict keys in Python and TypeScript. Qwen now sends the result text as is between the `tool_response` tags, as the official Qwen chat template does. New `format_result` cases in every shared toolformat fixture pin the rule in all four ports.
+
 ## [0.18.0] - 2026-11-25
 
 ### Added
