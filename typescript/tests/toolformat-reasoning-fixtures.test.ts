@@ -31,6 +31,9 @@ describe("shared toolformat fixtures", () => {
       const actual = formatter.formatToolDefinitions(sharedTools as any);
       if (data.family === "qwen") {
         expect(normalizeEmbeddedJSON(actual)).toBe(normalizeEmbeddedJSON(c.expected));
+      } else if (data.family === "gpt-oss") {
+        // Harmony renders a TypeScript-style namespace, not JSON.
+        expect(actual).toBe(c.expected);
       } else {
         expect(JSON.parse(actual)).toEqual(JSON.parse(c.expected));
       }

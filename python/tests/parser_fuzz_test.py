@@ -53,6 +53,7 @@ FAMILY_MODELS = {
     "deepseek": "deepseek-chat",
     "anthropic": "claude-3",
     "qwen": "qwen-2",
+    "gpt-oss": "openai/gpt-oss-20b",
 }
 
 

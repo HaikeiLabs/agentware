@@ -3,13 +3,14 @@
 //!
 //! Port of `go/toolformat`. The [`Formatter`] trait is implemented once per
 //! model family (openai/generic, anthropic, deepseek, qwen, glm, llama,
-//! mistral, minimax, nemotron); [`for_model`] picks the family from a model id
+//! mistral, minimax, nemotron, gpt-oss Harmony); [`for_model`] picks the family from a model id
 //! by substring, mirroring Go's `GetFormatter`.
 
 pub mod anthropic;
 pub mod deepseek;
 pub mod generic;
 pub mod glm;
+pub mod harmony;
 pub mod llama;
 pub mod minimax;
 pub mod mistral;
@@ -23,6 +24,11 @@ pub use anthropic::AnthropicFormatter;
 pub use deepseek::DeepSeekFormatter;
 pub use generic::GenericFormatter;
 pub use glm::GLMFormatter;
+pub use harmony::{
+    DEFAULT_HARMONY_MODEL_IDENTITY, HARMONY_JSON_CONTENT_TYPE, HARMONY_STOP_TOKENS,
+    HarmonyCompletion, HarmonyFormatter, HarmonyMessage, HarmonyPromptOptions, HarmonySystem,
+    parse_harmony_completion, render_harmony_message, render_harmony_prompt,
+};
 pub use llama::LlamaFormatter;
 pub use minimax::MiniMaxFormatter;
 pub use mistral::MistralFormatter;
@@ -131,6 +137,8 @@ pub fn for_model(model_name: &str) -> Box<dyn Formatter> {
         Box::new(DeepSeekFormatter)
     } else if lower.contains("glm") || lower.contains("chatglm") {
         Box::new(GLMFormatter)
+    } else if lower.contains("gpt-oss") || lower.contains("gpt_oss") || lower.contains("gptoss") {
+        Box::new(HarmonyFormatter)
     } else if lower.contains("gpt") || lower.contains("o1") || lower.contains("o3") {
         Box::new(OpenAIFormatter)
     } else {

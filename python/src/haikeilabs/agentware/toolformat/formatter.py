@@ -470,6 +470,11 @@ def get_formatter(model_name: str) -> ToolFormatter:
         return DeepSeekFormatter()
     if "chatglm" in lower or "glm" in lower:
         return GLMFormatter()
+    if "gpt-oss" in lower or "gpt_oss" in lower or "gptoss" in lower:
+        # Imported here: the harmony module builds on this one.
+        from .harmony import HarmonyFormatter
+
+        return HarmonyFormatter()
     if "o1" in lower or "o3" in lower or "gpt" in lower:
         return OpenAIFOrmatter()
     return GenericFormatter()

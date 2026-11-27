@@ -22,6 +22,7 @@ from haikeilabs.agentware.toolformat.formatter import (
     OpenAIFOrmatter,
     QwenFormatter,
 )
+from haikeilabs.agentware.toolformat.harmony import HarmonyFormatter
 from haikeilabs.agentware.tools import Result
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -30,6 +31,7 @@ TOOLFORMAT_FORMATTERS = {
     "anthropic": AnthropicFormatter,
     "deepseek": DeepSeekFormatter,
     "glm": GLMFormatter,
+    "gpt-oss": HarmonyFormatter,
     "openai": OpenAIFOrmatter,
     "qwen": QwenFormatter,
 }

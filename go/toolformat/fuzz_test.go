@@ -17,6 +17,7 @@ var fuzzFamilyModels = map[string]string{
 	"deepseek":  "deepseek-chat",
 	"anthropic": "claude-3",
 	"qwen":      "qwen-2",
+	"gpt-oss":   "openai/gpt-oss-20b",
 }
 
 // FuzzParseToolCalls fuzzes every formatter family, selected through

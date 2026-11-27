@@ -1,6 +1,7 @@
 import type { AnyTool, Result } from "../tools/index.js";
 import type { ToolSpec } from "../toolspec/index.js";
 import type { ToolDefinition } from "../llm/request.js";
+import { HarmonyFormatter } from "./harmony.js";
 
 export interface ParsedToolCall {
   id: string;
@@ -31,7 +32,7 @@ type FormatterTool = AnyTool | ToolSpec | ToolDefinition;
  * the empty string; objects, arrays, numbers and booleans are compact JSON in
  * key insertion order. A value JSON cannot encode falls back to String().
  */
-function resultText(data: unknown): string {
+export function resultText(data: unknown): string {
   if (data === null || data === undefined) return "";
   if (typeof data === "string") return data;
   try {
@@ -429,6 +430,7 @@ export function getFormatter(modelName: string): ToolFormatter {
   if (lower.includes("qwen") || lower.includes("qwq")) return new QwenFormatter();
   if (lower.includes("deepseek")) return new DeepSeekFormatter();
   if (lower.includes("glm") || lower.includes("chatglm")) return new GLMFormatter();
+  if (lower.includes("gpt-oss") || lower.includes("gpt_oss") || lower.includes("gptoss")) return new HarmonyFormatter();
   if (lower.includes("gpt") || lower.includes("o1") || lower.includes("o3")) return new OpenAIFOrmatter();
   return new GenericFormatter();
 }

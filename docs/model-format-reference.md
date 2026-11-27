@@ -15,6 +15,7 @@ and the reasoning adapter handles its reasoning shape.
 | **Qwen** | Hermes JSON lines in `<tools>` | JSON in `<tool_call>` | Result text in `<tool_response>` | `reasoning_content` | `<thinking>...</thinking>`; the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
 | **DeepSeek** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` | `[THINK]...[/THINK]` |
 | **GLM** | JSON function array (Generic) | JSON array: `{name, arguments}` | JSON | `reasoning_content` (GLM-4); `reasoning` (GLM-5.3-Flash on vLLM) | the plain think pair (`THINK_OPEN`/`THINK_CLOSE`) without a reasoning parser |
+| **GPT-OSS** | Harmony `functions` namespace in the developer message | `to=functions.NAME` on the commentary channel, ending `<\|call\|>` | `functions.NAME` tool message | `analysis` channel (raw completions); server reasoning field (chat) | none |
 
 ---
 
@@ -296,6 +297,70 @@ Python and TypeScript decode that string. Go's `GenericFormatter.ParseToolCalls`
 currently drops such a call without an error (case "glm-5.3 single call,
 arguments as JSON string").
 
+### GPT-OSS Harmony (`HarmonyFormatter` in Go, Python, TypeScript and Rust)
+
+GPT-OSS is trained on OpenAI's [Harmony](https://github.com/openai/harmony)
+format. Over chat completions the server applies Harmony and returns
+OpenAI-style `tool_calls`. Over raw `/v1/completions` the caller renders the
+prompt and parses the completion text itself, which is what this formatter and
+the Harmony prompt renderer do. The rendering follows the reference renderer
+(`src/encoding.rs` in openai/harmony) byte for byte; the shared fixture
+`fixtures/toolformat/harmony-cases.json` replays openai/harmony's test-data.
+
+| | Detail |
+|---|---|
+| **Model names** | Any id containing `gpt-oss`, `gpt_oss` or `gptoss` (`openai/gpt-oss-20b`, `gpt-oss-120b`, GGUF builds). Checked before the `gpt` rule that selects `OpenAIFOrmatter` |
+| **Definitions format** | The developer message's `# Tools` section: a TypeScript-style `namespace functions { ... }`, one `type NAME = (_: {...}) => any;` per tool, descriptions as `//` comments. JSON Schema maps as the reference does: `?` for optional properties, string enums as unions of literals, `// default: ...` comments, `T[]` arrays, `\| null` for `nullable`, `oneOf` as a `\|` list, nested objects inline. A tool with no schema is `() => any` |
+| **Parse format** | An assistant message on the commentary channel addressed `to=functions.NAME`, optionally with `<\|constrain\|>json`, its JSON arguments between `<\|message\|>` and `<\|call\|>`. The recipient is read after the role (`<\|start\|>assistant to=functions.NAME<\|channel\|>commentary ...`, the reference renderer) or after the channel (`<\|channel\|>commentary to=functions.NAME ...`, what the model emits). A message may also end at `<\|end\|>`, `<\|return\|>` or the end of the text, because servers strip the stop sequence. Calls have no id. `functions.github.get_issue` is the tool `github.get_issue` |
+| **Result format** | A tool message: `<\|start\|>functions.NAME to=assistant<\|channel\|>commentary<\|message\|>TEXT<\|end\|>` (see [Tool result serialization](#tool-result-serialization)); a failure is `{"error": <message>}` |
+| **Validate** | Calls to `functions.*` must name a function and carry a JSON object. Parsing leaves out a call that does not (fail closed) |
+| **Reasoning** | The `analysis` channel. Over raw completions `parse_harmony_completion` / `ParseHarmonyCompletion` / `parseHarmonyCompletion` returns it as `reasoning`, and the `final` channel as `content`. Over chat completions servers return it in a reasoning field |
+| **Stop sequences** | `<\|return\|>` (final answer) and `<\|call\|>` (tool call): `HARMONY_STOP_TOKENS` / `HarmonyStopTokens()` |
+
+**Prompt renderer.** `render_harmony_prompt(messages, system=..., instructions=..., tools=..., auto_drop_analysis=True, next_role="assistant")`
+(Go `RenderHarmonyPrompt(messages, HarmonyPromptOptions{...})`, TypeScript
+`renderHarmonyPrompt(messages, {...})`, Rust `render_harmony_prompt(&messages, &HarmonyPromptOptions {...})`)
+renders the system message (model identity, knowledge cutoff, optional date,
+`Reasoning: low|medium|high`, the valid channels, and the commentary-channel
+rule when there are tools), a developer message with the instructions and the
+tools namespace, the conversation, and `<|start|>assistant`. A message is a
+`HarmonyMessage` with a role (system, developer, user, assistant, tool), a
+channel, a recipient, a content type and, for a tool message, the author name
+(`functions.NAME`). An assistant message with a recipient ends with `<|call|>`;
+every other message ends with `<|end|>`, so a final answer that ended with
+`<|return|>` goes back into history ending with `<|end|>`.
+
+**Analysis in history.** As in the reference renderer, analysis messages
+before the first `final` message are dropped once the last assistant message is
+a final one. While a tool-calling turn is still running, its analysis stays in
+the prompt. Turn this off with `auto_drop_analysis=False` (Go
+`KeepAnalysis: true`).
+
+**Go property order.** A Go `map[string]any` keeps no key order, so the Go port
+renders an object's required properties first, in `required` order, and then
+the rest by name. The other ports keep schema order, as the reference does. The
+fixture schemas are written in that order, so every port renders them the same.
+
+**Example: one tool-calling step over `/v1/completions`.**
+
+The prompt ends by opening the assistant turn:
+
+```text
+<|start|>user<|message|>Which is warmer right now, Tokyo or Seoul?<|end|><|start|>assistant
+```
+
+The model continues it:
+
+```text
+<|channel|>analysis<|message|>Need weather for Tokyo.<|end|><|start|>assistant<|channel|>commentary to=functions.get_weather <|constrain|>json<|message|>{"city":"Tokyo"}<|call|>
+```
+
+The next prompt keeps the turn and adds the result:
+
+```text
+<|start|>assistant<|channel|>analysis<|message|>Need weather for Tokyo.<|end|><|start|>assistant to=functions.get_weather<|channel|>commentary <|constrain|>json<|message|>{"city":"Tokyo"}<|call|><|start|>functions.get_weather to=assistant<|channel|>commentary<|message|>{"temp": 22, "sky": "rain"}<|end|><|start|>assistant
+```
+
 ---
 
 ## Implementation Matrix
@@ -307,6 +372,7 @@ arguments as JSON string").
 | `QwenFormatter` | `go/toolformat/qwen.go` | same | same |
 | `DeepSeekFormatter` | `go/toolformat/deepseek.go` | same | same |
 | `GLMFormatter` | `go/toolformat/glm.go` | same | same |
+| `HarmonyFormatter`, Harmony prompt renderer and parser | `go/toolformat/harmony.go` | `python/.../toolformat/harmony.py` | `typescript/src/toolformat/harmony.ts` (Rust: `rust/agentware-kei/src/toolformat/harmony.rs`) |
 | `get_formatter()` / `GetFormatter()` / `getFormatter()` | `go/toolformat/selector.go` | `formatter.py:get_formatter()` | `formatter.ts:getFormatter()` |
 | Shared fixtures | `fixtures/toolformat/{family}-cases.json` | same | same |
 | Reasoning fixtures | `fixtures/reasoning/{family}-cases.json` | same | same |
