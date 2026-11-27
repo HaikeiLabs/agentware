@@ -6,12 +6,13 @@ A framework for evaluating LLM agents on tool-calling capabilities. Supports mul
 
 ```bash
 # Python - table-test suites (canonical; see "Table-test suites" below)
+# Installed: `pip install haikeilabs-agentware[evals]` provides `agentware-evals`.
 cd python
-PYTHONPATH=src python3 -m evals.main --suite ../evals/suites \
+PYTHONPATH=src python3 -m haikeilabs.agentware.evals.main --suite ../evals/suites \
   --model-profile glm-5.3-flash --out /tmp/eval-out --jobs 1
 
 # Python - legacy case modules against local llama.cpp
-PYTHONPATH=src python3 -m evals.main --all --models qwen3.6-27b-mtp
+PYTHONPATH=src python3 -m haikeilabs.agentware.evals.main --all --models qwen3.6-27b-mtp
 
 # Go - run all evals
 cd go && go run ./cmd/evals
@@ -31,7 +32,9 @@ better per suite per model; the CI gate fails a suite below 95%.
 ```bash
 cd python && pip install -e ".[evals]"   # PyYAML for model profiles
 export EVAL_DEEPSEEK_BASE_URL=<openai-compatible base URL incl. /v1>
-PYTHONPATH=src python3 -m evals.main \
+# From a pip install, the same run is: agentware-evals --suite <suites dir> ... \
+#   --model-profile glm-5.3-flash --out <dir> --jobs 1 --threshold 0.95
+PYTHONPATH=src python3 -m haikeilabs.agentware.evals.main \
   --suite ../evals/suites/agentware.beta-tools.json \
   --model-profile glm-5.3-flash \
   --out ../evals-out/$(date +%F)-glm-5.3-flash \
@@ -306,7 +309,7 @@ cd python && pytest tests/beta_tool_authorization_test.py
 ### Blocked runs
 
 If the endpoint is unreachable, the runner raises `EndpointUnavailableError`
-during preflight and `evals.main` exits **2** with a `BLOCKED:` message. A
+during preflight and the CLI exits **2** with a `BLOCKED:` message. A
 blocked run is never written out as a 0% score, which would be
 indistinguishable from a model that failed every case. Report it as blocked.
 

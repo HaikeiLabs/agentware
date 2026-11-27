@@ -10,8 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from evals.expectations import ContentChecks, check_content
-from evals.models import BaseModelClient, ModelBackend, create_model_client
+from haikeilabs.agentware.evals.expectations import ContentChecks, check_content
+from haikeilabs.agentware.evals.models import BaseModelClient, ModelBackend, create_model_client
 from haikeilabs.agentware.middleware import (
     Action,
     CallerContext,
@@ -455,7 +455,11 @@ class EvalRunner:
                             # arguments that fail the schema is a failure,
                             # not a retry.
                             ok, reason = validate_tool_call(case, tc["name"], tc["arguments"])
-                            return ok, turns, "" if ok else f"invalid call to {tc['name']}: {reason}"
+                            return (
+                                ok,
+                                turns,
+                                "" if ok else f"invalid call to {tc['name']}: {reason}",
+                            )
 
                     if not isinstance(parsed_args, dict):
                         parsed_args = {}
@@ -469,7 +473,11 @@ class EvalRunner:
                                     "id": tc["id"],
                                     "type": "function",
                                     "function": {"name": tc["name"], "arguments": tc["arguments"]},
-                                **({"extra_content": tc["metadata"]} if "metadata" in tc else {}),
+                                    **(
+                                        {"extra_content": tc["metadata"]}
+                                        if "metadata" in tc
+                                        else {}
+                                    ),
                                 }
                             ],
                         }

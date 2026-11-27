@@ -246,7 +246,7 @@ class TestTenancyStaysDelegated:
     def test_delegated_fields_are_not_agent_parameters(self) -> None:
         # Import the eval-side schemas and assert the agent is never offered a
         # scoping parameter it could use to cross tenants.
-        from evals.cases.beta_tools import BETA_CONNECTOR_READ_TOOLS
+        from haikeilabs.agentware.evals.cases.beta_tools import BETA_CONNECTOR_READ_TOOLS
 
         for tool in BETA_CONNECTOR_READ_TOOLS:
             fn = tool["function"]

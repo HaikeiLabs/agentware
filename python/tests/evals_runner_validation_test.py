@@ -14,9 +14,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-from evals.cases.beta_tools import BETA_TOOL_CASES, BETA_TOOLS, DELEGATED_SCOPING
-from evals.models import ModelResult
-from evals.runner import (
+from haikeilabs.agentware.evals.cases.beta_tools import (
+    BETA_TOOL_CASES,
+    BETA_TOOLS,
+    DELEGATED_SCOPING,
+)
+from haikeilabs.agentware.evals.models import ModelResult
+from haikeilabs.agentware.evals.runner import (
     EndpointUnavailableError,
     EvalCase,
     EvalRunner,
@@ -116,9 +120,9 @@ class TestValidateToolCall:
 class TestBetaCasesCarryAssertions:
     def test_every_beta_case_asserts_arguments(self) -> None:
         for case in BETA_TOOL_CASES:
-            assert (
-                case.expected_args or case.required_arg_keys or case.forbidden_arg_keys
-            ), f"{case.name} asserts tool selection only"
+            assert case.expected_args or case.required_arg_keys or case.forbidden_arg_keys, (
+                f"{case.name} asserts tool selection only"
+            )
 
     def test_connector_cases_forbid_delegated_scoping(self) -> None:
         connector_cases = [c for c in BETA_TOOL_CASES if "." in c.expected_tool]
@@ -161,13 +165,15 @@ def _tool_call(name: str, arguments: str) -> ModelResult:
 
 def _install(monkeypatch: pytest.MonkeyPatch, client: _StubClient) -> None:
     monkeypatch.setattr(
-        "evals.runner.create_model_client", lambda *args, **kwargs: client
+        "haikeilabs.agentware.evals.runner.create_model_client", lambda *args, **kwargs: client
     )
 
 
 class TestRunnerScoring:
     def test_correct_arguments_pass(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _install(monkeypatch, _StubClient([_tool_call("github.get_issue", '{"issue_number": 412}')]))
+        _install(
+            monkeypatch, _StubClient([_tool_call("github.get_issue", '{"issue_number": 412}')])
+        )
         runner = EvalRunner(base_url="stub")
         result = runner.run_case(
             _case(expected_args={"issue_number": 412}), "stub-model", lambda n, a: "{}"

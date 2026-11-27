@@ -32,7 +32,8 @@ Usage:
     python3 scripts/live-captures/capture.py capture --out _captures [--profile glm-5.3-flash]
     python3 scripts/live-captures/capture.py compare --captures _captures
 
-``capture`` needs PyYAML (it reads the profiles with python/src/evals).
+``capture`` needs PyYAML (it reads the profiles with the eval runner at
+python/src/haikeilabs/agentware/evals).
 ``compare`` needs the toolchains of the languages it runs.
 """
 
@@ -87,7 +88,7 @@ def load_tools(path: Path) -> list[dict[str, Any]]:
 
 def build_request(profile: Any, prompt: dict[str, Any], tools: list[dict[str, Any]], max_tokens: int) -> dict[str, Any]:
     """The chat-completions payload, sampled the way the eval runner samples."""
-    from evals.models import thinking_template_kwargs
+    from haikeilabs.agentware.evals.models import thinking_template_kwargs
 
     payload: dict[str, Any] = {
         "model": profile.model,
@@ -240,7 +241,7 @@ def capture_profile(
 
 def cmd_capture(args: argparse.Namespace) -> int:
     sys.path.insert(0, str(REPO / "python" / "src"))
-    from evals.profiles import ProfileError, load_profiles
+    from haikeilabs.agentware.evals.profiles import ProfileError, load_profiles
 
     prompts = json.loads(args.prompts.read_text(encoding="utf-8"))
     tools = load_tools(args.tools)

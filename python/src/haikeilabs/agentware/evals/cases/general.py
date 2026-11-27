@@ -1,7 +1,8 @@
 """
 General tool calling test cases.
 """
-from evals.runner import EvalCase
+
+from haikeilabs.agentware.evals.runner import EvalCase
 
 GENERAL_TOOLS = [
     {
@@ -12,11 +13,14 @@ GENERAL_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "expression": {"type": "string", "description": "Mathematical expression to evaluate"}
+                    "expression": {
+                        "type": "string",
+                        "description": "Mathematical expression to evaluate",
+                    }
                 },
-                "required": ["expression"]
-            }
-        }
+                "required": ["expression"],
+            },
+        },
     },
     {
         "type": "function",
@@ -27,11 +31,15 @@ GENERAL_TOOLS = [
                 "type": "object",
                 "properties": {
                     "location": {"type": "string", "description": "City name"},
-                    "units": {"type": "string", "enum": ["celsius", "fahrenheit"], "description": "Temperature units"}
+                    "units": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "Temperature units",
+                    },
                 },
-                "required": ["location"]
-            }
-        }
+                "required": ["location"],
+            },
+        },
     },
     {
         "type": "function",
@@ -43,12 +51,15 @@ GENERAL_TOOLS = [
                 "properties": {
                     "text": {"type": "string", "description": "Text to translate"},
                     "target_lang": {"type": "string", "description": "Target language code"},
-                    "source_lang": {"type": "string", "description": "Source language code (optional, auto-detect if not provided)"}
+                    "source_lang": {
+                        "type": "string",
+                        "description": "Source language code (optional, auto-detect if not provided)",
+                    },
                 },
-                "required": ["text", "target_lang"]
-            }
-        }
-    }
+                "required": ["text", "target_lang"],
+            },
+        },
+    },
 ]
 
 GENERAL_CASES = [
@@ -58,7 +69,7 @@ GENERAL_CASES = [
         system_prompt="You are a helpful assistant with access to tools. Use them when needed.",
         user_message="What is 123 + 456?",
         tools=GENERAL_TOOLS,
-        expected_tool="calculator"
+        expected_tool="calculator",
     ),
     EvalCase(
         name="calculator_complex",
@@ -66,7 +77,7 @@ GENERAL_CASES = [
         system_prompt="You are a helpful assistant with access to tools. Use them when needed.",
         user_message="Calculate (15 * 8) + (100 / 4) - 50",
         tools=GENERAL_TOOLS,
-        expected_tool="calculator"
+        expected_tool="calculator",
     ),
     EvalCase(
         name="get_weather",
@@ -74,7 +85,7 @@ GENERAL_CASES = [
         system_prompt="You are a helpful assistant with access to tools. Use them when needed.",
         user_message="What's the weather like in Tokyo?",
         tools=GENERAL_TOOLS,
-        expected_tool="get_weather"
+        expected_tool="get_weather",
     ),
     EvalCase(
         name="translate_english_to_spanish",
@@ -82,7 +93,7 @@ GENERAL_CASES = [
         system_prompt="You are a helpful assistant with access to tools. Use them when needed.",
         user_message="Translate 'Hello, how are you?' to Spanish",
         tools=GENERAL_TOOLS,
-        expected_tool="translate"
+        expected_tool="translate",
     ),
     EvalCase(
         name="translate_with_source",
@@ -90,6 +101,6 @@ GENERAL_CASES = [
         system_prompt="You are a helpful assistant with access to tools. Use them when needed.",
         user_message="Translate 'Bonjour' from French to English",
         tools=GENERAL_TOOLS,
-        expected_tool="translate"
+        expected_tool="translate",
     ),
 ]

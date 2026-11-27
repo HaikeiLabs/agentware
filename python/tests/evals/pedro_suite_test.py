@@ -62,8 +62,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from evals.expectations import check_content
-from evals.suite import load_suite
+from haikeilabs.agentware.evals.expectations import check_content
+from haikeilabs.agentware.evals.suite import load_suite
 
 SUITES = Path(__file__).resolve().parents[3] / "evals" / "suites"
 SHORT = SUITES / "pedro-realtime.tools.json"

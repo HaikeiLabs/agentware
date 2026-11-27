@@ -3,11 +3,12 @@
 Evals measure model behaviour, so tools never touch real systems: each
 executor returns canned, connector-shaped results for a tool name.
 """
+
 import json
 from pathlib import Path
 from typing import Any
 
-from evals.cases.beta_tools import BETA_TOOLS
+from haikeilabs.agentware.evals.cases.beta_tools import BETA_TOOLS
 
 
 def beta_tool_executor(tool_name: str, args: dict[str, Any]) -> str:
@@ -177,49 +178,49 @@ def mock_tool_executor(tool_name: str, args: dict[str, Any]) -> str:
         return json.dumps({"location": args.get("location"), "temp": 72, "condition": "sunny"})
 
     if tool_name == "translate":
-        return json.dumps({
-            "original": args.get("text"),
-            "translated": f"[translated: {args.get('text')}]",
-            "target": args.get("target_lang")
-        })
+        return json.dumps(
+            {
+                "original": args.get("text"),
+                "translated": f"[translated: {args.get('text')}]",
+                "target": args.get("target_lang"),
+            }
+        )
 
     if tool_name == "list_prs":
-        return json.dumps([
-            {"title": "Add feature", "number": 1, "state": "open"},
-            {"title": "Fix bug", "number": 2, "state": "open"},
-        ])
+        return json.dumps(
+            [
+                {"title": "Add feature", "number": 1, "state": "open"},
+                {"title": "Fix bug", "number": 2, "state": "open"},
+            ]
+        )
 
     if tool_name == "list_issues":
-        return json.dumps([
-            {"title": "Bug in login", "number": 1, "state": "open"},
-        ])
+        return json.dumps(
+            [
+                {"title": "Bug in login", "number": 1, "state": "open"},
+            ]
+        )
 
     if tool_name == "create_issue":
-        return json.dumps({
-            "number": 3,
-            "title": args.get("title"),
-            "state": "open"
-        })
+        return json.dumps({"number": 3, "title": args.get("title"), "state": "open"})
 
     if tool_name == "get_workflow_status":
         return json.dumps({"status": "success", "conclusion": "passed"})
 
     if tool_name == "schedule_meeting":
-        return json.dumps({
-            "id": "meeting-123",
-            "title": args.get("title"),
-            "start_time": args.get("start_time"),
-        })
+        return json.dumps(
+            {
+                "id": "meeting-123",
+                "title": args.get("title"),
+                "start_time": args.get("start_time"),
+            }
+        )
 
     if tool_name == "list_events":
-        return json.dumps([
-            {"title": "Team standup", "start": "2024-01-15T09:00:00Z"}
-        ])
+        return json.dumps([{"title": "Team standup", "start": "2024-01-15T09:00:00Z"}])
 
     if tool_name == "find_free_time":
-        return json.dumps([
-            {"start": "2024-01-15T14:00:00Z", "end": "2024-01-15T14:30:00Z"}
-        ])
+        return json.dumps([{"start": "2024-01-15T14:00:00Z", "end": "2024-01-15T14:30:00Z"}])
 
     return f"Mock result for {tool_name}"
 

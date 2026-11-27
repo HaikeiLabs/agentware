@@ -1,12 +1,13 @@
 """Batch table-test execution: suites x repeats on one model, with a job cap."""
+
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from typing import Any
 
-from evals.benchmark import CaseOutcome, SuiteResult
-from evals.runner import EvalCase, EvalResult, EvalRunner
-from evals.suite import Suite
+from haikeilabs.agentware.evals.benchmark import CaseOutcome, SuiteResult
+from haikeilabs.agentware.evals.runner import EvalCase, EvalResult, EvalRunner
+from haikeilabs.agentware.evals.suite import Suite
 
 EXIT_OK = 0
 EXIT_BELOW_THRESHOLD = 1

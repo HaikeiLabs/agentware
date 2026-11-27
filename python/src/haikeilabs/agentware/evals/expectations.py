@@ -4,6 +4,7 @@ Every check is case-insensitive and applied to the model's final text (the
 reply after the tool loop ends). There is no LLM grader: a check either
 matches or it does not.
 """
+
 import re
 from dataclasses import dataclass, field
 

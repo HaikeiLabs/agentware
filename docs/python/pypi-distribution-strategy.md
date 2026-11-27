@@ -61,8 +61,13 @@ stands, and each maps to a follow-up item below:
    `evals` and `haikeilabs.agentware`. Installing the package therefore claims the
    generic top-level name `evals` in the consumer's environment. This is a
    namespace collision hazard and must be fixed before the first publish.
-   *Closed:* `[tool.setuptools.packages.find] include = ["haikeilabs.agentware*"]`;
-   the release workflow fails if the wheel has any other top-level entry.
+   *Closed:* the eval runner moved under the namespace as
+   `haikeilabs.agentware.evals` (shipped by the wheel, with its PyYAML
+   dependency behind the `[evals]` extra and an `agentware-evals` console
+   script), and `[tool.setuptools.packages.find] include =
+   ["haikeilabs.agentware*", "pedro_agentware*"]` keeps `evals` out as a
+   top-level package; the release workflow fails if the wheel has any other
+   top-level entry.
 2. **No `README.md` under `python/`.** `pyproject.toml` declares
    `readme = "README.md"`, and the build silently emits metadata with
    `Description-Content-Type: text/markdown` and an empty body. The published
@@ -108,8 +113,10 @@ haikeilabs_agentware-<version>.dist-info/RECORD
 haikeilabs_agentware-<version>.dist-info/licenses/LICENSE
 ```
 
-It must not contain `evals`, tests, fixtures, evaluation cases, adapters,
-coverage output, or repository-level documentation. The wheel's
+It must not contain a top-level `evals` package, tests, fixtures,
+adapters, coverage output, or repository-level documentation. The eval
+runner ships inside the namespace as `haikeilabs.agentware.evals` (its
+optional PyYAML dependency stays behind the `[evals]` extra). The wheel's
 top-level entries must be exactly `haikeilabs` and `pedro_agentware`; the
 release workflow fails on anything else, and on a packaged
 `haikeilabs/__init__.py`.

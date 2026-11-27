@@ -23,7 +23,8 @@ Tool schemas mirror the exposed beta catalog:
   local tool loop and gated by a write permission.
 - local capabilities (``search_wiki``, ``web_search``).
 """
-from evals.runner import EvalCase
+
+from haikeilabs.agentware.evals.runner import EvalCase
 
 # Scoping the tenant-side proxy supplies. No connector-read case may pass
 # these as arguments; asserted per-case via ``forbidden_arg_keys``.
@@ -55,9 +56,7 @@ BETA_CONNECTOR_READ_TOOLS = [
         "type": "function",
         "function": {
             "name": "github.get_pull_request",
-            "description": (
-                "Read a single GitHub pull request from the governed connector."
-            ),
+            "description": ("Read a single GitHub pull request from the governed connector."),
             "parameters": {
                 "type": "object",
                 "properties": {
