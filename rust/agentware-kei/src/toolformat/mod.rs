@@ -24,7 +24,7 @@ pub use deepseek::DeepSeekFormatter;
 pub use generic::GenericFormatter;
 pub use glm::GLMFormatter;
 pub use llama::LlamaFormatter;
-pub use minimax::MiniMaxFormatter;
+pub use minimax::{MINIMAX_M3_NAMESPACE, MiniMaxFormatter, MiniMaxVersion};
 pub use mistral::MistralFormatter;
 pub use nemotron::NemotronFormatter;
 pub use openai::OpenAIFormatter;
@@ -117,7 +117,11 @@ pub trait Formatter {
 /// through to the generic default.
 pub fn for_model(model_name: &str) -> Box<dyn Formatter> {
     let lower = model_name.to_lowercase();
-    if lower.contains("nemotron") {
+    if lower.contains("minimax-m3") {
+        Box::new(MiniMaxFormatter::new(MiniMaxVersion::M3))
+    } else if lower.contains("minimax-m2") {
+        Box::new(MiniMaxFormatter::new(MiniMaxVersion::M2))
+    } else if lower.contains("nemotron") {
         Box::new(NemotronFormatter)
     } else if lower.contains("qwen") || lower.contains("qwq") {
         Box::new(QwenFormatter)

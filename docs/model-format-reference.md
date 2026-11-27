@@ -296,6 +296,59 @@ Python and TypeScript decode that string. Go's `GenericFormatter.ParseToolCalls`
 currently drops such a call without an error (case "glm-5.3 single call,
 arguments as JSON string").
 
+### MiniMax (`MiniMaxFormatter` in Go, Python, TypeScript and Rust)
+
+Sources: the `chat_template.jinja` of `MiniMaxAI/MiniMax-M2` (M2.1 and M2.5
+render tool calls the same way) and `MiniMaxAI/MiniMax-M3`, and vLLM's
+`vllm/parser/minimax_m2.py` and `minimax_m3.py`. The shared fixture is
+`fixtures/toolformat/minimax-cases.json`.
+
+| | Detail |
+|---|---|
+| **Model names** | `minimax-m2*` routes to the M2 version, `minimax-m3*` to the M3 version (case-insensitive substring, so `MiniMaxAI/MiniMax-M2.5` matches). Other MiniMax ids (MiniMax-Text-01, MiniMax-M1) use a different format and fall through to `GenericFormatter` |
+| **Version** | Python `MiniMaxFormatter(version="m2" \| "m3")`, Go `MiniMaxFormatter{Version: MiniMaxM2 \| MiniMaxM3}` (zero value is M2), TypeScript `new MiniMaxFormatter({ version })`, Rust `MiniMaxFormatter::new(MiniMaxVersion::M2 \| M3)`. Default M2. Only the definitions prompt differs |
+| **Definitions format** | The template's `# Tools` block: one `<tool>{function JSON}</tool>` line per tool inside `<tools>`, then the version's calling instructions. The function JSON is compact with sorted keys, as for Qwen |
+| **Parse format, M2** | `<invoke name="…">` blocks of `<parameter name="…">value</parameter>` tags, inside a `minimax:tool_call` block. Names may be double-quoted, single-quoted or bare. A value ends at its closing tag or at the next parameter tag; an unterminated last parameter is dropped |
+| **Parse format, M3** | Every structural tag starts with the namespace marker (`MINIMAX_M3_NAMESPACE`, `MiniMaxM3Namespace` in Go). Invokes count only after the marker's `tool_call` opener. Parameters are elements named after the argument and may nest: a nested element becomes an object, a repeated name becomes a list (list items arrive as `item` elements), and text mixed with child elements is kept under `$text`. Parsing an invoke stops at the first malformed element and keeps the parameters before it |
+| **Argument values** | Not coerced to the tool schema, which the formatter does not see at parse time: every leaf value is a string (`"3"`, not `3`), as vLLM returns without a request schema. Coerce by schema in the tool |
+| **Result format** | The result text inside `<response>` (see [Tool result serialization](#tool-result-serialization)); a failure is `{"error": <message>}` |
+| **Validate** | Fails on an unterminated invoke, an invoke without a name, an unterminated last M2 parameter, a malformed M3 element, a tool-call block with no invoke, and an M3 invoke outside a `tool_call` block |
+| **Reasoning, M2** | M2 emits the plain think pair (`THINK_OPEN`/`THINK_CLOSE`), but the chat template writes the opening tag into the generation prompt, so the response starts inside the block and carries only the close. Turn on `implicit_open` for MiniMax M2 (see below) |
+| **Reasoning, M3** | M3 emits the mm:think pair (`MMTHINK_OPEN`/`MMTHINK_CLOSE`) inline in content. The adapter strips it by default; no option needed |
+
+A response that contains the M3 namespace marker is parsed as M3; any other
+is parsed as M2. Both versions parse both syntaxes. The earlier Go and Rust
+patterns (`function_call: name(args)`, a `tool_call` block with `tool_name`
+and `parameters` children, and a bare JSON array) are no longer parsed: no
+MiniMax version emits them.
+
+**MiniMax M2 reasoning (implicit open):** without the option, the leading
+close tag is a stray close and the adapter fails closed. Turn it on when the
+model is MiniMax M2:
+
+| Port | Adapter with `implicit_open` |
+|---|---|
+| Python | `ReasoningAdapter(ReasoningOptions(implicit_open=True))` |
+| Go | `reasoning.New(reasoning.Options{ImplicitOpen: true})` |
+| TypeScript | `new ReasoningAdapter({ implicitOpen: true })` |
+| Rust | `reasoning::Adapter::with_options(reasoning::Options { implicit_open: true, ..Default::default() })` |
+
+**Example M2 tool call** (as the template renders an assistant turn):
+
+```text
+<minimax:tool_call>
+<invoke name="get_weather">
+<parameter name="location">Tokyo</parameter>
+<parameter name="unit">celsius</parameter>
+</invoke>
+</minimax:tool_call>
+```
+
+parses to `get_weather` with `{"location": "Tokyo", "unit": "celsius"}`. The
+same call from M3 writes `<invoke name="get_weather">`, `<location>Tokyo`,
+`</location>` and each other tag with the namespace marker in front; see the
+"M3 call as the chat template renders it" case in the fixture.
+
 ---
 
 ## Implementation Matrix

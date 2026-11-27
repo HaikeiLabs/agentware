@@ -43,6 +43,7 @@ var formattersByFamily = map[string]ToolFormatter{
 	"deepseek":  &DeepSeekFormatter{},
 	"anthropic": &AnthropicFormatter{},
 	"qwen":      &QwenFormatter{},
+	"minimax":   &MiniMaxFormatter{},
 }
 
 type toolformatFixture struct {
