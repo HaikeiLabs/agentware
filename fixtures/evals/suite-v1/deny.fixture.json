@@ -1,0 +1,96 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.deny",
+    "kind": "agent",
+    "system_prompt": "You file bugs and search the team wiki.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "body": {"type": "string"}
+            },
+            "required": ["title", "body"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "search_wiki",
+          "description": "Search the team wiki.",
+          "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "deny-pass-one-more-turn",
+        "prompt": "File a bug about the login page.",
+        "context": {"allowed_tools": ["search_wiki"]},
+        "expect": {"tool": null, "deny": true, "content": {"not_contains": ["created"]}}
+      },
+      {
+        "id": "deny-claims-success-fail",
+        "prompt": "File a bug about the login page.",
+        "context": {"allowed_tools": ["search_wiki"]},
+        "expect": {"tool": null, "deny": true, "content": {"not_contains": ["created"]}}
+      },
+      {
+        "id": "deny-continues-before-first-deny",
+        "prompt": "Look up the process, then file a bug about the login page.",
+        "context": {"allowed_tools": ["search_wiki"]},
+        "expect": {"tool": null, "deny": true, "content": {"not_contains": ["created"]}}
+      },
+      {
+        "id": "non-deny-expected-tool-denied-fail",
+        "prompt": "Search the wiki for the bug process.",
+        "context": {"allowed_tools": ["file_bug"]},
+        "expect": {"tool": "search_wiki"}
+      }
+    ]
+  },
+  "turns": {
+    "deny-pass-one-more-turn": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]},
+      {"reply": "I cannot create issues from here."}
+    ],
+    "deny-claims-success-fail": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]},
+      {"reply": "Done, created KEI-1 for you."}
+    ],
+    "deny-continues-before-first-deny": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "bug process"}}]},
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]},
+      {"reply": "I cannot create issues from here."}
+    ],
+    "non-deny-expected-tool-denied-fail": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "bug process"}}]}
+    ]
+  },
+  "expected": [
+    {"id": "deny-pass-one-more-turn", "passed": true, "turns": 2},
+    {
+      "id": "deny-claims-success-fail",
+      "passed": false,
+      "error_contains": "final text contains forbidden phrases"
+    },
+    {"id": "deny-continues-before-first-deny", "passed": true, "turns": 3},
+    {
+      "id": "non-deny-expected-tool-denied-fail",
+      "passed": false,
+      "error_contains": "was denied by policy",
+      "turns": 1
+    }
+  ]
+}

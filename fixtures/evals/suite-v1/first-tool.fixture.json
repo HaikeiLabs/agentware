@@ -1,0 +1,77 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.first-tool",
+    "kind": "agent",
+    "system_prompt": "You file bugs and search the team wiki.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "body": {"type": "string"},
+              "priority": {"type": "string", "enum": ["low", "high"]}
+            },
+            "required": ["title", "body"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "search_wiki",
+          "description": "Search the team wiki.",
+          "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "expected-first-tool-passes",
+        "prompt": "File a bug titled 'Login broken'.",
+        "expect": {"tool": "file_bug"}
+      },
+      {
+        "id": "wrong-first-tool-fails",
+        "prompt": "File a bug titled 'Login broken'.",
+        "expect": {"tool": "file_bug"}
+      },
+      {
+        "id": "no-call-fails",
+        "prompt": "File a bug titled 'Login broken'.",
+        "expect": {"tool": "file_bug"}
+      }
+    ]
+  },
+  "turns": {
+    "expected-first-tool-passes": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]}
+    ],
+    "wrong-first-tool-fails": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "login"}}]},
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]}
+    ],
+    "no-call-fails": [
+      {"reply": "I looked into it but could not file anything."}
+    ]
+  },
+  "expected": [
+    {"id": "expected-first-tool-passes", "passed": true},
+    {
+      "id": "wrong-first-tool-fails",
+      "passed": false,
+      "error_contains": "invalid first call to search_wiki",
+      "turns": 1
+    },
+    {"id": "no-call-fails", "passed": false, "error_contains": "no tool was called"}
+  ]
+}

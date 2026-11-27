@@ -1,0 +1,74 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.tool-loop",
+    "kind": "agent",
+    "system_prompt": "You file bugs and search the team wiki.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "search_wiki",
+          "description": "Search the team wiki.",
+          "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "body": {"type": "string"}
+            },
+            "required": ["title", "body"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "loop-to-limit-fail",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"contains_all": ["KEI-1"]}}
+      },
+      {
+        "id": "stop-after-first-tool-message",
+        "prompt": "File a bug about the login page.",
+        "expect": {"tool": "file_bug"}
+      }
+    ]
+  },
+  "runner": {"max_turns": 3},
+  "turns": {
+    "loop-to-limit-fail": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "login"}}]},
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "login page"}}]},
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "bug process"}}]}
+    ],
+    "stop-after-first-tool-message": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]},
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "login"}}]}
+    ]
+  },
+  "expected": [
+    {
+      "id": "loop-to-limit-fail",
+      "passed": false,
+      "error_contains": "no final reply before the turn limit",
+      "turns": 3
+    },
+    {
+      "id": "stop-after-first-tool-message",
+      "passed": true,
+      "turns": 1
+    }
+  ]
+}

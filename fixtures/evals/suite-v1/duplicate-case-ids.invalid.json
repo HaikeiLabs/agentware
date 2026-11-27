@@ -1,0 +1,39 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.duplicate-case-ids",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "same-id",
+        "prompt": "Do something.",
+        "expect": {
+          "tool": "file_bug"
+        }
+      },
+      {
+        "id": "same-id",
+        "prompt": "Do something else.",
+        "expect": {
+          "tool": "file_bug"
+        }
+      }
+    ]
+  },
+  "error_contains": "duplicate case ids"
+}

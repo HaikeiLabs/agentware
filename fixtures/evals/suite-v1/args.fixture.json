@@ -1,0 +1,133 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.args",
+    "kind": "agent",
+    "system_prompt": "You file bugs with well-formed arguments.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "body": {"type": "string"},
+              "priority": {"type": "string", "enum": ["low", "high"]},
+              "user_id": {"type": "string"}
+            },
+            "required": ["title", "body"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "exact-args-pass",
+        "prompt": "File a high-priority bug about the login page.",
+        "expect": {"tool": "file_bug", "args": {"title": "Login broken", "priority": "high"}}
+      },
+      {
+        "id": "args-mismatch-fails",
+        "prompt": "File a high-priority bug about the login page.",
+        "expect": {"tool": "file_bug", "args": {"title": "Login broken", "priority": "high"}}
+      },
+      {
+        "id": "required-key-missing-fails",
+        "prompt": "File a bug.",
+        "expect": {"tool": "file_bug", "required_arg_keys": ["priority"]}
+      },
+      {
+        "id": "forbidden-key-fails",
+        "prompt": "File a bug and say who reported it.",
+        "expect": {"tool": "file_bug", "forbidden_arg_keys": ["user_id"]}
+      },
+      {
+        "id": "schema-required-missing-fails",
+        "prompt": "File a bug.",
+        "expect": {"tool": "file_bug"}
+      },
+      {
+        "id": "undeclared-arg-fails",
+        "prompt": "File a critical bug.",
+        "expect": {"tool": "file_bug"}
+      },
+      {
+        "id": "args-not-json-fails",
+        "prompt": "File a bug.",
+        "expect": {"tool": "file_bug"}
+      },
+      {
+        "id": "args-not-object-fails",
+        "prompt": "File a bug.",
+        "expect": {"tool": "file_bug"}
+      }
+    ]
+  },
+  "turns": {
+    "exact-args-pass": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500.", "priority": "high"}}]}
+    ],
+    "args-mismatch-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500.", "priority": "low"}}]}
+    ],
+    "required-key-missing-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]}
+    ],
+    "forbidden-key-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500.", "user_id": "u-1"}}]}
+    ],
+    "schema-required-missing-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken"}}]}
+    ],
+    "undeclared-arg-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500.", "severity": "critical"}}]}
+    ],
+    "args-not-json-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": "{not json"}]}
+    ],
+    "args-not-object-fails": [
+      {"tool_calls": [{"name": "file_bug", "arguments": "[1, 2]"}]}
+    ]
+  },
+  "expected": [
+    {"id": "exact-args-pass", "passed": true},
+    {
+      "id": "args-mismatch-fails",
+      "passed": false,
+      "error_contains": "argument 'priority' is 'low', expected 'high'"
+    },
+    {
+      "id": "required-key-missing-fails",
+      "passed": false,
+      "error_contains": "missing expected arguments: ['priority']"
+    },
+    {
+      "id": "forbidden-key-fails",
+      "passed": false,
+      "error_contains": "forbidden arguments present: ['user_id']"
+    },
+    {
+      "id": "schema-required-missing-fails",
+      "passed": false,
+      "error_contains": "missing schema-required arguments: ['body']"
+    },
+    {
+      "id": "undeclared-arg-fails",
+      "passed": false,
+      "error_contains": "arguments not declared in the tool schema: ['severity']"
+    },
+    {
+      "id": "args-not-json-fails",
+      "passed": false,
+      "error_contains": "arguments are not valid JSON"
+    },
+    {
+      "id": "args-not-object-fails",
+      "passed": false,
+      "error_contains": "arguments are not a JSON object"
+    }
+  ]
+}

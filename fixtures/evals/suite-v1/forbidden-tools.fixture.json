@@ -1,0 +1,109 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.forbidden-tools",
+    "kind": "agent",
+    "system_prompt": "You file bugs and search the team wiki.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "body": {"type": "string"}
+            },
+            "required": ["title", "body"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "search_wiki",
+          "description": "Search the team wiki.",
+          "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "delete_page",
+          "description": "Delete a wiki page.",
+          "parameters": {
+            "type": "object",
+            "properties": {"page": {"type": "string"}},
+            "required": ["page"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "forbidden-not-called-pass",
+        "prompt": "File a bug about the login page.",
+        "expect": {"tool": "file_bug", "forbidden_tools": ["delete_page"]}
+      },
+      {
+        "id": "forbidden-same-turn-fail",
+        "prompt": "File a bug about the login page.",
+        "expect": {"tool": "file_bug", "forbidden_tools": ["delete_page"]}
+      },
+      {
+        "id": "forbidden-later-turn-fail",
+        "prompt": "Look up the process, then file a bug about the login page.",
+        "expect": {"content": {"contains_all": ["KEI-1"]}, "forbidden_tools": ["delete_page"]}
+      },
+      {
+        "id": "forbidden-beats-tool-null-fail",
+        "prompt": "Clean up the wiki.",
+        "expect": {"tool": null, "forbidden_tools": ["delete_page"]}
+      }
+    ]
+  },
+  "turns": {
+    "forbidden-not-called-pass": [
+      {"tool_calls": [{"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}}]}
+    ],
+    "forbidden-same-turn-fail": [
+      {"tool_calls": [
+        {"name": "file_bug", "arguments": {"title": "Login broken", "body": "The login page returns 500."}},
+        {"name": "delete_page", "arguments": {"page": "On-call"}}
+      ]}
+    ],
+    "forbidden-later-turn-fail": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "bug process"}}]},
+      {"tool_calls": [{"name": "delete_page", "arguments": {"page": "On-call"}}]},
+      {"reply": "Filed KEI-1 for you."}
+    ],
+    "forbidden-beats-tool-null-fail": [
+      {"tool_calls": [{"name": "delete_page", "arguments": {"page": "On-call"}}]}
+    ]
+  },
+  "expected": [
+    {"id": "forbidden-not-called-pass", "passed": true},
+    {
+      "id": "forbidden-same-turn-fail",
+      "passed": false,
+      "error_contains": "called forbidden tool(s): ['delete_page']"
+    },
+    {
+      "id": "forbidden-later-turn-fail",
+      "passed": false,
+      "error_contains": "called forbidden tool(s): ['delete_page']"
+    },
+    {
+      "id": "forbidden-beats-tool-null-fail",
+      "passed": false,
+      "error_contains": "called forbidden tool(s): ['delete_page']",
+      "turns": 1
+    }
+  ]
+}
