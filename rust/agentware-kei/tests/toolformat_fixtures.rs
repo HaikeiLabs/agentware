@@ -3,7 +3,9 @@
 //! Every case asserts the same render/parse output the other language SDKs
 //! produce against the same fixture files.
 
-use haikeilabs_agentware::toolformat::{Formatter, ToolDef, ToolResult, for_model};
+use haikeilabs_agentware::toolformat::{
+    Formatter, HarmonyFormatter, ToolDef, ToolResult, for_model,
+};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
@@ -67,6 +69,10 @@ fn shared_tools() -> Vec<ToolDef> {
 /// Select the formatter for a fixture family through the public selector,
 /// using model ids the way real callers do.
 fn family_formatter(family: &str) -> Box<dyn Formatter> {
+    // Harmony is opt-in: no model id selects it, so callers construct it.
+    if family == "gpt-oss" {
+        return Box::new(HarmonyFormatter);
+    }
     let model = family_model(family)
         .unwrap_or_else(|| panic!("no model id wired for fixture family {family}"));
     for_model(model)
@@ -240,6 +246,11 @@ fn live_capture_cases() {
 #[test]
 fn qwen_cases() {
     assert_fixture_file("qwen-cases.json");
+}
+
+#[test]
+fn gpt_oss_cases() {
+    assert_fixture_file("harmony-cases.json");
 }
 
 #[test]

@@ -18,6 +18,18 @@ var fuzzFamilyModels = map[string]string{
 	"anthropic": "claude-3",
 	"qwen":      "qwen-2",
 	"minimax":   "MiniMax-M2.5",
+	// Harmony is opt-in, so no model name selects it: this sentinel stands
+	// for the explicit formatter (see fuzzFormatter).
+	"gpt-oss": harmonyFuzzModel,
+}
+
+const harmonyFuzzModel = "opt-in:harmony"
+
+func fuzzFormatter(model string) ToolFormatter {
+	if model == harmonyFuzzModel {
+		return &HarmonyFormatter{}
+	}
+	return GetFormatter(model)
 }
 
 // FuzzParseToolCalls fuzzes every formatter family, selected through
@@ -68,7 +80,7 @@ func FuzzParseToolCalls(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, modelName, response string) {
-		formatter := GetFormatter(modelName)
+		formatter := fuzzFormatter(modelName)
 		calls, err := formatter.ParseToolCalls(response)
 		if err != nil {
 			return

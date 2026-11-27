@@ -1,6 +1,6 @@
 import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { getFormatter } from "../src/toolformat/index.js";
+import { HarmonyFormatter, getFormatter } from "../src/toolformat/index.js";
 import { Result } from "../src/tools/index.js";
 import { ReasoningAdapter } from "../src/reasoning/index.js";
 
@@ -29,11 +29,17 @@ describe("shared toolformat fixtures", () => {
     const fixturePath = `toolformat/${file}`;
     const data = JSON.parse(readFileSync(resolve(toolRoot, file), "utf8")) as Record<string, any>;
     // A family name the selector does not route on its own gets a model id.
-    const formatter = getFormatter(selectorModels[data.family] ?? data.family);
+    // Harmony is opt-in: no model id selects it, so callers construct it.
+    const formatter = data.family === "gpt-oss"
+      ? new HarmonyFormatter()
+      : getFormatter(selectorModels[data.family] ?? data.family);
     for (const c of data.format_definitions) {
       const actual = formatter.formatToolDefinitions(sharedTools as any);
       if (data.family === "qwen" || data.family === "minimax") {
         expect(normalizeEmbeddedJSON(actual)).toBe(normalizeEmbeddedJSON(c.expected));
+      } else if (data.family === "gpt-oss") {
+        // Harmony renders a TypeScript-style namespace, not JSON.
+        expect(actual).toBe(c.expected);
       } else {
         expect(JSON.parse(actual)).toEqual(JSON.parse(c.expected));
       }

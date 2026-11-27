@@ -1,0 +1,869 @@
+{
+  "family": "gpt-oss",
+  "description": "GPT-OSS Harmony format: tools as a TypeScript-style functions namespace in the developer message, calls on the commentary channel addressed to=functions.NAME, results as a functions.NAME tool message. Sources: openai/harmony docs/format.md and test-data, and the openai-harmony renderer. render_prompt and parse_completion hold the Harmony prompt renderer and completion parser cases.",
+  "format_definitions": [
+    {
+      "name": "two tools",
+      "expected": "# Tools\n\n## functions\n\nnamespace functions {\n\n// Get current weather for a location\ntype get_weather = (_: {\n// City name, e.g. 'Tokyo'\nlocation: string,\nunit?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n// Search the web for information\ntype search_web = (_: {\n// Search query\nquery: string,\n}) => any;\n\n} // namespace functions"
+    }
+  ],
+  "parse_calls": [
+    {
+      "name": "course sample: analysis then call",
+      "input": "\u003c|channel|>analysis\u003c|message|>Need weather for Tokyo.\u003c|end|>\u003c|start|>assistant\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"city\":\"Tokyo\"}\u003c|call|>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "city": "Tokyo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "format.md: recipient after the channel",
+      "input": "\u003c|channel|>analysis\u003c|message|>Need to use function get_weather.\u003c|end|>\u003c|start|>assistant\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"location\":\"San Francisco\"}\u003c|call|>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "San Francisco"
+          }
+        }
+      ]
+    },
+    {
+      "name": "test-data: recipient in the role header",
+      "input": "\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>User asks: “What is the weather in SF?” We need to use lookup_weather tool.\u003c|end|>\u003c|start|>assistant to=functions.lookup_weather\u003c|channel|>commentary \u003c|constrain|>json\u003c|message|>{\"location\": \"San Francisco\"}\u003c|call|>",
+      "expected": [
+        {
+          "name": "lookup_weather",
+          "args": {
+            "location": "San Francisco"
+          }
+        }
+      ]
+    },
+    {
+      "name": "stop token stripped by the server",
+      "input": "\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"location\":\"Tokyo\",\"unit\":\"celsius\"}",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
+      ]
+    },
+    {
+      "name": "no constrain token",
+      "input": "\u003c|channel|>commentary to=functions.search_web\u003c|message|>{\"query\":\"forecast\"}\u003c|call|>",
+      "expected": [
+        {
+          "name": "search_web",
+          "args": {
+            "query": "forecast"
+          }
+        }
+      ]
+    },
+    {
+      "name": "dotted tool name keeps everything after functions.",
+      "input": "\u003c|channel|>commentary to=functions.github.get_issue \u003c|constrain|>json\u003c|message|>{\"number\":7}\u003c|call|>",
+      "expected": [
+        {
+          "name": "github.get_issue",
+          "args": {
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "name": "two calls in one completion",
+      "input": "\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"location\":\"Paris\"}\u003c|call|>\u003c|start|>assistant\u003c|channel|>commentary to=functions.search_web \u003c|constrain|>json\u003c|message|>{\"query\":\"forecast\"}\u003c|call|>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Paris"
+          }
+        },
+        {
+          "name": "search_web",
+          "args": {
+            "query": "forecast"
+          }
+        }
+      ]
+    },
+    {
+      "name": "final answer is not a call",
+      "input": "\u003c|channel|>analysis\u003c|message|>Seoul 17C clear. Tokyo warmer, umbrella for Tokyo.\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>Tokyo is warmer (22°C vs 17°C). Take an umbrella in Tokyo—it's raining. Seoul is clear.\u003c|return|>",
+      "expected": []
+    },
+    {
+      "name": "tool result message is not a call",
+      "input": "\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>{\"temp\": 22}\u003c|end|>",
+      "expected": []
+    },
+    {
+      "name": "built-in tool recipient is not a function call",
+      "input": "\u003c|channel|>analysis\u003c|message|>search it\u003c|end|>\u003c|start|>assistant\u003c|channel|>commentary to=browser.search\u003c|message|>{\"query\":\"openai\"}\u003c|call|>",
+      "expected": []
+    },
+    {
+      "name": "invalid JSON arguments are skipped",
+      "input": "\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"location\":\u003c|call|>",
+      "expected": []
+    },
+    {
+      "name": "non-object arguments are skipped",
+      "input": "\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>[\"Tokyo\"]\u003c|call|>",
+      "expected": []
+    },
+    {
+      "name": "empty response",
+      "input": "",
+      "expected": []
+    },
+    {
+      "name": "plain text",
+      "input": "Let me check the weather.",
+      "expected": []
+    }
+  ],
+  "format_result": [
+    {
+      "name": "course sample: string output verbatim",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": "{\"temp\": 22, \"sky\": \"rain\"}"
+      },
+      "expected": "\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>{\"temp\": 22, \"sky\": \"rain\"}\u003c|end|>"
+    },
+    {
+      "name": "structured output is compact JSON",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": {
+          "temp": 22,
+          "sky": "rain"
+        }
+      },
+      "expected": "\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>{\"temp\":22,\"sky\":\"rain\"}\u003c|end|>"
+    },
+    {
+      "name": "plain text output",
+      "tool_name": "search_web",
+      "result": {
+        "success": true,
+        "output": "Sunny, 22°C"
+      },
+      "expected": "\u003c|start|>functions.search_web to=assistant\u003c|channel|>commentary\u003c|message|>Sunny, 22°C\u003c|end|>"
+    },
+    {
+      "name": "error",
+      "tool_name": "get_weather",
+      "result": {
+        "success": false,
+        "error": "API unavailable"
+      },
+      "expected": "\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>{\"error\":\"API unavailable\"}\u003c|end|>"
+    },
+    {
+      "name": "call id is ignored",
+      "tool_name": "get_weather",
+      "call_id": "call_1",
+      "result": {
+        "success": true,
+        "output": "ok"
+      },
+      "expected": "\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>ok\u003c|end|>"
+    }
+  ],
+  "validate_format": [
+    {
+      "name": "valid call",
+      "input": "\u003c|channel|>analysis\u003c|message|>Need weather for Tokyo.\u003c|end|>\u003c|start|>assistant\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"city\":\"Tokyo\"}\u003c|call|>",
+      "valid": true
+    },
+    {
+      "name": "valid call in the role header",
+      "input": "\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>User asks: “What is the weather in SF?” We need to use lookup_weather tool.\u003c|end|>\u003c|start|>assistant to=functions.lookup_weather\u003c|channel|>commentary \u003c|constrain|>json\u003c|message|>{\"location\": \"San Francisco\"}\u003c|call|>",
+      "valid": true
+    },
+    {
+      "name": "final answer only",
+      "input": "\u003c|channel|>analysis\u003c|message|>Seoul 17C clear. Tokyo warmer, umbrella for Tokyo.\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>Tokyo is warmer (22°C vs 17°C). Take an umbrella in Tokyo—it's raining. Seoul is clear.\u003c|return|>",
+      "valid": true
+    },
+    {
+      "name": "empty response",
+      "input": "",
+      "valid": true
+    },
+    {
+      "name": "invalid JSON arguments",
+      "input": "\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"location\":\u003c|call|>",
+      "valid": false
+    },
+    {
+      "name": "non-object arguments",
+      "input": "\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>\"Tokyo\"\u003c|call|>",
+      "valid": false
+    },
+    {
+      "name": "missing function name",
+      "input": "\u003c|channel|>commentary to=functions. \u003c|constrain|>json\u003c|message|>{}\u003c|call|>",
+      "valid": false
+    }
+  ],
+  "render_prompt": [
+    {
+      "name": "test-data render_functions_with_parameters",
+      "source": "openai/harmony test-data/test_render_functions_with_parameters.txt",
+      "system": {
+        "current_date": "2025-06-28",
+        "reasoning_effort": "high"
+      },
+      "instructions": "Always respond in riddles",
+      "tools": [
+        {
+          "name": "get_location",
+          "description": "Gets the location of the user."
+        },
+        {
+          "name": "get_current_weather",
+          "description": "Gets the current weather in the provided location.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ],
+                "default": "celsius"
+              }
+            },
+            "required": [
+              "location"
+            ]
+          }
+        },
+        {
+          "name": "get_multiple_weathers",
+          "description": "Gets the current weather in the provided list of locations.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of city and state, e.g. [\"San Francisco, CA\", \"New York, NY\"]"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ],
+                "default": "celsius"
+              }
+            },
+            "required": [
+              "locations"
+            ]
+          }
+        },
+        {
+          "name": "kitchensink",
+          "description": "A function with various complex schemas.",
+          "input_schema": {
+            "description": "params object",
+            "type": "object",
+            "properties": {
+              "string": {
+                "type": "string",
+                "title": "STRING",
+                "description": "A string",
+                "examples": [
+                  "hello",
+                  "world"
+                ]
+              },
+              "string_nullable": {
+                "type": "string",
+                "nullable": true,
+                "description": "A nullable string",
+                "default": "the default"
+              },
+              "string_enum": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              },
+              "oneof_string_or_number": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "default": "default_string_in_oneof"
+                  },
+                  {
+                    "type": "number",
+                    "description": "numbers can happen too"
+                  }
+                ],
+                "description": "a oneof",
+                "default": 20
+              }
+            }
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather like in SF?"
+        }
+      ],
+      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\nCurrent date: 2025-06-28\n\nReasoning: high\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Instructions\n\nAlways respond in riddles\n\n# Tools\n\n## functions\n\nnamespace functions {\n\n// Gets the location of the user.\ntype get_location = () => any;\n\n// Gets the current weather in the provided location.\ntype get_current_weather = (_: {\n// The city and state, e.g. San Francisco, CA\nlocation: string,\nformat?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n// Gets the current weather in the provided list of locations.\ntype get_multiple_weathers = (_: {\n// List of city and state, e.g. [\"San Francisco, CA\", \"New York, NY\"]\nlocations: string[],\nformat?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n// A function with various complex schemas.\ntype kitchensink = (_: // params object\n{\n// STRING\n//\n// A string\n// Examples:\n// - \"hello\"\n// - \"world\"\nstring?: string,\n// A nullable string\nstring_nullable?: string | null, // default: \"the default\"\nstring_enum?: \"a\" | \"b\" | \"c\",\n// a oneof\n// default: 20\noneof_string_or_number?:\n | string // default: \"default_string_in_oneof\"\n | number // numbers can happen too\n,\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>What is the weather like in SF?\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data simple_convo",
+      "source": "openai/harmony test-data/test_simple_convo.txt",
+      "system": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 2?"
+        }
+      ],
+      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\n\nReasoning: medium\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\u003c|end|>\u003c|start|>user\u003c|message|>What is 2 + 2?\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data no_tools",
+      "source": "openai/harmony test-data/test_no_tools.txt",
+      "system": {
+        "current_date": "2025-06-28"
+      },
+      "messages": [],
+      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\nCurrent date: 2025-06-28\n\nReasoning: medium\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data reasoning_system_message",
+      "source": "openai/harmony test-data/test_reasoning_system_message.txt",
+      "system": {
+        "valid_channels": [
+          "analysis",
+          "final"
+        ]
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 2?"
+        }
+      ],
+      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\n\nReasoning: medium\n\n# Valid channels: analysis, final. Channel must be included for every message.\u003c|end|>\u003c|start|>user\u003c|message|>What is 2 + 2?\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data dropping_cot_by_default",
+      "source": "openai/harmony test-data/test_dropping_cot_by_default.txt",
+      "system": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 2?"
+        },
+        {
+          "role": "assistant",
+          "channel": "analysis",
+          "content": "User asks a simple question: \"What is 2 + 2?\" The answer: 4."
+        },
+        {
+          "role": "assistant",
+          "channel": "final",
+          "content": "2 + 2 equals 4."
+        },
+        {
+          "role": "user",
+          "content": "What about 9 / 2?"
+        }
+      ],
+      "expected": "\u003c|start|>user\u003c|message|>What is 2 + 2?\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>2 + 2 equals 4.\u003c|end|>\u003c|start|>user\u003c|message|>What about 9 / 2?\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data preserve_cot",
+      "source": "openai/harmony test-data/test_preserve_cot.txt",
+      "system": null,
+      "auto_drop_analysis": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 2?"
+        },
+        {
+          "role": "assistant",
+          "channel": "analysis",
+          "content": "User asks a simple question: \"What is 2 + 2?\" The answer: 4."
+        },
+        {
+          "role": "assistant",
+          "channel": "final",
+          "content": "2 + 2 equals 4."
+        },
+        {
+          "role": "user",
+          "content": "What about 9 / 2?"
+        }
+      ],
+      "expected": "\u003c|start|>user\u003c|message|>What is 2 + 2?\u003c|end|>\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>User asks a simple question: \"What is 2 + 2?\" The answer: 4.\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>2 + 2 equals 4.\u003c|end|>\u003c|start|>user\u003c|message|>What about 9 / 2?\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data does_not_drop_if_ongoing_analysis",
+      "source": "openai/harmony test-data/test_does_not_drop_if_ongoing_analysis.txt",
+      "system": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather in SF?"
+        },
+        {
+          "role": "assistant",
+          "channel": "analysis",
+          "content": "User asks: “What is the weather in SF?” We need to use lookup_weather tool."
+        },
+        {
+          "role": "assistant",
+          "channel": "commentary",
+          "recipient": "functions.lookup_weather",
+          "content_type": "\u003c|constrain|>json",
+          "content": "{\"location\": \"San Francisco\"}"
+        },
+        {
+          "role": "tool",
+          "name": "functions.lookup_weather",
+          "content": "{\"temperature\": 20, \"description\": \"sunny\"}"
+        }
+      ],
+      "expected": "\u003c|start|>user\u003c|message|>What is the weather in SF?\u003c|end|>\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>User asks: “What is the weather in SF?” We need to use lookup_weather tool.\u003c|end|>\u003c|start|>assistant to=functions.lookup_weather\u003c|channel|>commentary \u003c|constrain|>json\u003c|message|>{\"location\": \"San Francisco\"}\u003c|call|>\u003c|start|>functions.lookup_weather\u003c|message|>{\"temperature\": 20, \"description\": \"sunny\"}\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "test-data keep_analysis_between_finals",
+      "source": "openai/harmony test-data/test_keep_analysis_between_finals.txt",
+      "system": null,
+      "next_role": "",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 2?"
+        },
+        {
+          "role": "assistant",
+          "channel": "final",
+          "content": "4"
+        },
+        {
+          "role": "user",
+          "content": "What is 3 + 5?"
+        },
+        {
+          "role": "assistant",
+          "channel": "analysis",
+          "content": "thinking 3+5"
+        },
+        {
+          "role": "assistant",
+          "channel": "final",
+          "content": "8"
+        }
+      ],
+      "expected": "\u003c|start|>user\u003c|message|>What is 2 + 2?\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>4\u003c|end|>\u003c|start|>user\u003c|message|>What is 3 + 5?\u003c|end|>\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>thinking 3+5\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>8\u003c|end|>"
+    },
+    {
+      "name": "course lesson 4 agent loop",
+      "source": "Agentware course lesson 4 (gpt-oss tab) and its agent_loop_mock.py; expected from the openai-harmony renderer",
+      "system": {
+        "current_date": "2026-11-20"
+      },
+      "instructions": "You are a concise weather assistant.",
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "City name, e.g. Tokyo"
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ]
+              }
+            },
+            "required": [
+              "city"
+            ]
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "Which is warmer right now, Tokyo or Seoul?"
+        },
+        {
+          "role": "assistant",
+          "channel": "analysis",
+          "content": "Need weather for Tokyo."
+        },
+        {
+          "role": "assistant",
+          "channel": "commentary",
+          "recipient": "functions.get_weather",
+          "content_type": "\u003c|constrain|>json",
+          "content": "{\"city\":\"Tokyo\"}"
+        },
+        {
+          "role": "tool",
+          "name": "functions.get_weather",
+          "recipient": "assistant",
+          "channel": "commentary",
+          "content": "{\"temp\": 22, \"sky\": \"rain\"}"
+        }
+      ],
+      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\nCurrent date: 2026-11-20\n\nReasoning: medium\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Instructions\n\nYou are a concise weather assistant.\n\n# Tools\n\n## functions\n\nnamespace functions {\n\n// Get the current weather for a city.\ntype get_weather = (_: {\n// City name, e.g. Tokyo\ncity: string,\nunit?: \"celsius\" | \"fahrenheit\",\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>Which is warmer right now, Tokyo or Seoul?\u003c|end|>\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>Need weather for Tokyo.\u003c|end|>\u003c|start|>assistant to=functions.get_weather\u003c|channel|>commentary \u003c|constrain|>json\u003c|message|>{\"city\":\"Tokyo\"}\u003c|call|>\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>{\"temp\": 22, \"sky\": \"rain\"}\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "schema mapping",
+      "source": "expected from the openai-harmony renderer (json_schema_to_typescript)",
+      "system": {
+        "reasoning_effort": "low",
+        "model_identity": "You are a test assistant.",
+        "knowledge_cutoff": "2025-01"
+      },
+      "tools": [
+        {
+          "name": "kitchensink",
+          "description": "A function with various complex schemas.\nSecond description line.",
+          "input_schema": {
+            "type": "object",
+            "description": "params object",
+            "required": [
+              "mixed"
+            ],
+            "properties": {
+              "untyped_array": {
+                "type": "array"
+              },
+              "string_enum": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              },
+              "count": {
+                "type": "number",
+                "description": "How many",
+                "default": 1.5
+              },
+              "filter": {
+                "type": "object",
+                "description": "Nested filter",
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "active"
+                ]
+              },
+              "mixed": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "oneof_string_or_number": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "default": "default_string_in_oneof"
+                  },
+                  {
+                    "type": "number",
+                    "description": "numbers can happen too"
+                  }
+                ],
+                "description": "a oneof",
+                "default": 20
+              },
+              "string": {
+                "type": "string",
+                "title": "STRING",
+                "description": "A string",
+                "examples": [
+                  "hello",
+                  "world"
+                ]
+              },
+              "string_nullable": {
+                "type": "string",
+                "nullable": true,
+                "description": "A nullable string",
+                "default": "the default"
+              },
+              "untyped": {
+                "description": "No type at all"
+              }
+            }
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "expected": "\u003c|start|>system\u003c|message|>You are a test assistant.\nKnowledge cutoff: 2025-01\n\nReasoning: low\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Tools\n\n## functions\n\nnamespace functions {\n\n// A function with various complex schemas.\n// Second description line.\ntype kitchensink = (_: // params object\n{\nuntyped_array?: Array\u003cany>,\nstring_enum?: \"a\" | \"b\" | \"c\",\n// How many\ncount?: number, // default: 1.5\n// Nested filter\nfilter?:     // Nested filter\n{\n    active: boolean,\n    tags?: string[],\n    },\nmixed: number | string,\n// a oneof\n// default: 20\noneof_string_or_number?:\n | string // default: \"default_string_in_oneof\"\n | number // numbers can happen too\n,\n// STRING\n//\n// A string\n// Examples:\n// - \"hello\"\n// - \"world\"\nstring?: string,\n// A nullable string\nstring_nullable?: string | null, // default: \"the default\"\n// No type at all\nuntyped?: any,\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>go\u003c|end|>\u003c|start|>assistant"
+    },
+    {
+      "name": "user and developer names, no next role",
+      "source": "expected from the openai-harmony renderer",
+      "system": null,
+      "next_role": "",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi",
+          "name": "alice"
+        },
+        {
+          "role": "assistant",
+          "channel": "final",
+          "content": "hello"
+        }
+      ],
+      "expected": "\u003c|start|>user:alice\u003c|message|>hi\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>hello\u003c|end|>"
+    }
+  ],
+  "parse_completion": [
+    {
+      "name": "course sample: analysis then call",
+      "input": "\u003c|channel|>analysis\u003c|message|>Need weather for Tokyo.\u003c|end|>\u003c|start|>assistant\u003c|channel|>commentary to=functions.get_weather \u003c|constrain|>json\u003c|message|>{\"city\":\"Tokyo\"}\u003c|call|>",
+      "expected": {
+        "reasoning": "Need weather for Tokyo.",
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "get_weather",
+            "args": {
+              "city": "Tokyo"
+            }
+          }
+        ],
+        "messages": [
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "analysis",
+            "content_type": "",
+            "content": "Need weather for Tokyo."
+          },
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "functions.get_weather",
+            "channel": "commentary",
+            "content_type": "\u003c|constrain|>json",
+            "content": "{\"city\":\"Tokyo\"}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "course sample: final answer",
+      "input": "\u003c|channel|>analysis\u003c|message|>Seoul 17C clear. Tokyo warmer, umbrella for Tokyo.\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>Tokyo is warmer (22°C vs 17°C). Take an umbrella in Tokyo—it's raining. Seoul is clear.\u003c|return|>",
+      "expected": {
+        "reasoning": "Seoul 17C clear. Tokyo warmer, umbrella for Tokyo.",
+        "content": "Tokyo is warmer (22°C vs 17°C). Take an umbrella in Tokyo—it's raining. Seoul is clear.",
+        "tool_calls": [],
+        "messages": [
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "analysis",
+            "content_type": "",
+            "content": "Seoul 17C clear. Tokyo warmer, umbrella for Tokyo."
+          },
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "final",
+            "content_type": "",
+            "content": "Tokyo is warmer (22°C vs 17°C). Take an umbrella in Tokyo—it's raining. Seoul is clear."
+          }
+        ]
+      }
+    },
+    {
+      "name": "test-data: recipient in the role header",
+      "input": "\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>User asks: “What is the weather in SF?” We need to use lookup_weather tool.\u003c|end|>\u003c|start|>assistant to=functions.lookup_weather\u003c|channel|>commentary \u003c|constrain|>json\u003c|message|>{\"location\": \"San Francisco\"}\u003c|call|>",
+      "expected": {
+        "reasoning": "User asks: “What is the weather in SF?” We need to use lookup_weather tool.",
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "lookup_weather",
+            "args": {
+              "location": "San Francisco"
+            }
+          }
+        ],
+        "messages": [
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "analysis",
+            "content_type": "",
+            "content": "User asks: “What is the weather in SF?” We need to use lookup_weather tool."
+          },
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "functions.lookup_weather",
+            "channel": "commentary",
+            "content_type": "\u003c|constrain|>json",
+            "content": "{\"location\": \"San Francisco\"}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "two analysis messages join with a newline",
+      "input": "\u003c|channel|>analysis\u003c|message|>first\u003c|end|>\u003c|start|>assistant\u003c|channel|>analysis\u003c|message|>second\u003c|end|>\u003c|start|>assistant\u003c|channel|>final\u003c|message|>done",
+      "expected": {
+        "reasoning": "first\nsecond",
+        "content": "done",
+        "tool_calls": [],
+        "messages": [
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "analysis",
+            "content_type": "",
+            "content": "first"
+          },
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "analysis",
+            "content_type": "",
+            "content": "second"
+          },
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "final",
+            "content_type": "",
+            "content": "done"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool message and preamble",
+      "input": "\u003c|start|>functions.get_weather to=assistant\u003c|channel|>commentary\u003c|message|>{\"temp\": 22}\u003c|end|>\u003c|start|>assistant\u003c|channel|>commentary\u003c|message|>Checking one more city.\u003c|end|>",
+      "expected": {
+        "reasoning": "",
+        "content": "",
+        "tool_calls": [],
+        "messages": [
+          {
+            "role": "tool",
+            "name": "functions.get_weather",
+            "recipient": "assistant",
+            "channel": "commentary",
+            "content_type": "",
+            "content": "{\"temp\": 22}"
+          },
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "commentary",
+            "content_type": "",
+            "content": "Checking one more city."
+          }
+        ]
+      }
+    },
+    {
+      "name": "plain text without tokens is final content",
+      "input": "Hello there.",
+      "expected": {
+        "reasoning": "",
+        "content": "Hello there.",
+        "tool_calls": [],
+        "messages": [
+          {
+            "role": "assistant",
+            "name": "",
+            "recipient": "",
+            "channel": "",
+            "content_type": "",
+            "content": "Hello there."
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty completion",
+      "input": "",
+      "expected": {
+        "reasoning": "",
+        "content": "",
+        "tool_calls": [],
+        "messages": []
+      }
+    }
+  ]
+}

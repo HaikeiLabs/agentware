@@ -25,12 +25,28 @@ type fixtureTool struct {
 	name        string
 	description string
 	inputSchema map[string]any
+	schemaJSON  json.RawMessage
 }
 
-func (f fixtureTool) Name() string                  { return f.name }
-func (f fixtureTool) Description() string           { return f.description }
-func (f fixtureTool) InputSchema() map[string]any   { return f.inputSchema }
-func (f fixtureTool) Examples() []tools.ToolExample { return nil }
+// newFixtureTool builds a fixture tool from its schema's JSON text, keeping
+// the text for formatters that read schema order (OrderedSchemaTool).
+func newFixtureTool(t *testing.T, name, description string, schema json.RawMessage) fixtureTool {
+	t.Helper()
+	tool := fixtureTool{name: name, description: description}
+	if len(schema) > 0 && string(schema) != "null" {
+		if err := json.Unmarshal(schema, &tool.inputSchema); err != nil {
+			t.Fatal(err)
+		}
+		tool.schemaJSON = schema
+	}
+	return tool
+}
+
+func (f fixtureTool) Name() string                     { return f.name }
+func (f fixtureTool) Description() string              { return f.description }
+func (f fixtureTool) InputSchema() map[string]any      { return f.inputSchema }
+func (f fixtureTool) InputSchemaJSON() json.RawMessage { return f.schemaJSON }
+func (f fixtureTool) Examples() []tools.ToolExample    { return nil }
 func (f fixtureTool) Execute(context.Context, map[string]any) (*tools.Result, error) {
 	return &tools.Result{Success: true}, nil
 }
@@ -44,6 +60,7 @@ var formattersByFamily = map[string]ToolFormatter{
 	"anthropic": &AnthropicFormatter{},
 	"qwen":      &QwenFormatter{},
 	"minimax":   &MiniMaxFormatter{},
+	"gpt-oss":   &HarmonyFormatter{}, // opt-in: no model id selects it
 }
 
 type toolformatFixture struct {
@@ -195,9 +212,9 @@ func loadFixtureTools(t *testing.T) []tools.Tool {
 	}
 	var file struct {
 		Tools []struct {
-			Name        string         `json:"name"`
-			Description string         `json:"description"`
-			InputSchema map[string]any `json:"input_schema"`
+			Name        string          `json:"name"`
+			Description string          `json:"description"`
+			InputSchema json.RawMessage `json:"input_schema"`
 		} `json:"tools"`
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
@@ -205,7 +222,7 @@ func loadFixtureTools(t *testing.T) []tools.Tool {
 	}
 	toolList := make([]tools.Tool, 0, len(file.Tools))
 	for _, tt := range file.Tools {
-		toolList = append(toolList, fixtureTool{name: tt.Name, description: tt.Description, inputSchema: tt.InputSchema})
+		toolList = append(toolList, newFixtureTool(t, tt.Name, tt.Description, tt.InputSchema))
 	}
 	return toolList
 }

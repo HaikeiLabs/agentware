@@ -25,13 +25,26 @@ export interface ToolFormatter {
 
 type FormatterTool = AnyTool | ToolSpec | ToolDefinition;
 
+/** A tool that declares its JSON input schema through an inputSchema() method. */
+interface SchemaMethodTool {
+  inputSchema(): unknown;
+}
+
+function hasInputSchemaMethod(tool: object): tool is SchemaMethodTool {
+  return typeof (tool as { inputSchema?: unknown }).inputSchema === "function";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Renders a successful tool result's data as model-facing text, with one rule
  * for every formatter: a string is returned verbatim; null and undefined are
  * the empty string; objects, arrays, numbers and booleans are compact JSON in
  * key insertion order. A value JSON cannot encode falls back to String().
  */
-function resultText(data: unknown): string {
+export function resultText(data: unknown): string {
   if (data === null || data === undefined) return "";
   if (typeof data === "string") return data;
   try {
@@ -59,8 +72,8 @@ export class GenericFormatter implements ToolFormatter {
         func.parameters = sortedJsonValue(tool.parameters);
       } else if ("input_schema" in tool) {
         func.parameters = sortedJsonValue(tool.input_schema);
-      } else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
-        const schema = (tool as any).inputSchema();
+      } else if (hasInputSchemaMethod(tool)) {
+        const schema = tool.inputSchema();
         if (schema) {
           func.parameters = schema;
         }
@@ -73,17 +86,18 @@ export class GenericFormatter implements ToolFormatter {
   parseToolCalls(response: string): ParsedToolCall[] {
     if (!response) return [];
 
-    let parsed: any[];
+    let parsed: unknown;
     try {
       parsed = JSON.parse(response);
     } catch {
       return [];
     }
     if (!Array.isArray(parsed)) return [];
+    const calls: unknown[] = parsed;
 
     const result: ParsedToolCall[] = [];
-    for (const c of parsed) {
-      if (!c || !c.name) continue;
+    for (const c of calls) {
+      if (!isRecord(c) || !c.name) continue;
       let args: Record<string, unknown> = {};
       if (typeof c.arguments === "string") {
         try {
@@ -96,7 +110,8 @@ export class GenericFormatter implements ToolFormatter {
       }
       result.push({
         id: typeof c.id === "string" ? c.id : "",
-        name: c.name,
+        // Any truthy name passes through, as in the Go and Python ports.
+        name: c.name as string,
         args,
         raw: response,
       });
@@ -118,7 +133,7 @@ export class GenericFormatter implements ToolFormatter {
   validateFormat(response: string): string | null {
     if (!response) return null;
 
-    let parsed: any[];
+    let parsed: unknown;
     try {
       parsed = JSON.parse(response);
     } catch {
@@ -127,13 +142,14 @@ export class GenericFormatter implements ToolFormatter {
     if (!Array.isArray(parsed)) {
       return "expected JSON array";
     }
+    const calls: unknown[] = parsed;
 
-    for (const c of parsed) {
-      if (!c || !c.name) {
+    for (const c of calls) {
+      if (!isRecord(c) || !c.name) {
         return "tool call missing 'name' field";
       }
       if (c.arguments === undefined || c.arguments === null) {
-        return `tool call "${c.name}" missing 'arguments'`;
+        return `tool call "${String(c.name)}" missing 'arguments'`;
       }
     }
     return null;
@@ -184,8 +200,8 @@ export class AnthropicFormatter implements ToolFormatter {
         schema = sortedJsonValue(tool.parameters);
       } else if ("input_schema" in tool) {
         schema = sortedJsonValue(tool.input_schema);
-      } else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
-        schema = (tool as { inputSchema: () => unknown }).inputSchema();
+      } else if (hasInputSchemaMethod(tool)) {
+        schema = tool.inputSchema();
       }
       return {
         name: tool.name,
@@ -342,8 +358,8 @@ export class QwenFormatter implements ToolFormatter {
       const fn: Record<string, unknown> = { name: tool.name, description: tool.description };
       if ("parameters" in tool) fn.parameters = tool.parameters;
       else if ("input_schema" in tool) fn.parameters = tool.input_schema;
-      else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
-        const schema = (tool as any).inputSchema();
+      else if (hasInputSchemaMethod(tool)) {
+        const schema = tool.inputSchema();
         if (schema) fn.parameters = schema;
       }
       return JSON.stringify(sortedJsonValue({ type: "function", function: fn }));
@@ -622,8 +638,8 @@ export class MiniMaxFormatter implements ToolFormatter {
       const fn: Record<string, unknown> = { name: tool.name, description: tool.description };
       if ("parameters" in tool) fn.parameters = tool.parameters;
       else if ("input_schema" in tool) fn.parameters = tool.input_schema;
-      else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
-        const schema = (tool as any).inputSchema();
+      else if (hasInputSchemaMethod(tool)) {
+        const schema = tool.inputSchema();
         if (schema) fn.parameters = schema;
       }
       if (fn.parameters === undefined || fn.parameters === null) delete fn.parameters;

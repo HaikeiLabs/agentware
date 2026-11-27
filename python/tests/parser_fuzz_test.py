@@ -34,7 +34,7 @@ from hypothesis import example, given
 from hypothesis import strategies as st
 
 from haikeilabs.agentware.reasoning import ReasoningAdapter, ReasoningError
-from haikeilabs.agentware.toolformat import get_formatter
+from haikeilabs.agentware.toolformat import HarmonyFormatter, ToolFormatter, get_formatter
 from haikeilabs.agentware.toolspec import (
     ManifestV3Error,
     ToolSpec,
@@ -54,7 +54,14 @@ FAMILY_MODELS = {
     "anthropic": "claude-3",
     "qwen": "qwen-2",
     "minimax": "MiniMax-M2.5",
+    # Harmony is opt-in, so no model name selects it: this sentinel stands
+    # for the explicit formatter (see _formatter).
+    "gpt-oss": "opt-in:harmony",
 }
+
+
+def _formatter(model: str) -> ToolFormatter:
+    return HarmonyFormatter() if model == "opt-in:harmony" else get_formatter(model)
 
 
 def _fixture_tool_call_seeds() -> list[tuple[str, str]]:
@@ -176,7 +183,7 @@ def test_parse_tool_calls_yield_named_calls_with_object_args(seed):
     """FuzzParseToolCalls: parsing never raises, and every returned call
     carries a non-empty name and arguments that marshal to a JSON object."""
     model, response = seed
-    calls = get_formatter(model).parse_tool_calls(response)
+    calls = _formatter(model).parse_tool_calls(response)
     for call in calls:
         assert isinstance(call.name, str) and call.name, f"empty name: {call!r}"
         assert isinstance(call.args, dict), f"arguments are not an object: {call!r}"

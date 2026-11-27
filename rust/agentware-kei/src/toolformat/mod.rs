@@ -3,13 +3,15 @@
 //!
 //! Port of `go/toolformat`. The [`Formatter`] trait is implemented once per
 //! model family (openai/generic, anthropic, deepseek, qwen, glm, llama,
-//! mistral, minimax, nemotron); [`for_model`] picks the family from a model id
-//! by substring, mirroring Go's `GetFormatter`.
+//! mistral, minimax, nemotron, gpt-oss Harmony); [`for_model`] picks the family from a model id
+//! by substring, mirroring Go's `GetFormatter`. Harmony is opt-in: no model id
+//! selects [`HarmonyFormatter`], so raw-completions callers construct it.
 
 pub mod anthropic;
 pub mod deepseek;
 pub mod generic;
 pub mod glm;
+pub mod harmony;
 pub mod llama;
 pub mod minimax;
 pub mod mistral;
@@ -23,6 +25,11 @@ pub use anthropic::AnthropicFormatter;
 pub use deepseek::DeepSeekFormatter;
 pub use generic::GenericFormatter;
 pub use glm::GLMFormatter;
+pub use harmony::{
+    DEFAULT_HARMONY_MODEL_IDENTITY, HARMONY_JSON_CONTENT_TYPE, HARMONY_STOP_TOKENS,
+    HarmonyCompletion, HarmonyFormatter, HarmonyMessage, HarmonyPromptOptions, HarmonySystem,
+    parse_harmony_completion, render_harmony_message, render_harmony_prompt,
+};
 pub use llama::LlamaFormatter;
 pub use minimax::{MINIMAX_M3_NAMESPACE, MiniMaxFormatter, MiniMaxVersion};
 pub use mistral::MistralFormatter;
