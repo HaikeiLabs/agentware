@@ -1,0 +1,69 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.no-tool",
+    "kind": "agent",
+    "system_prompt": "You answer questions about the team wiki.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "search_wiki",
+          "description": "Search the team wiki.",
+          "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "tool-null-called-tool-fails",
+        "prompt": "What is our on-call rotation?",
+        "expect": {"tool": null}
+      },
+      {
+        "id": "tool-null-reply-passes",
+        "prompt": "What is our on-call rotation?",
+        "expect": {"tool": null}
+      },
+      {
+        "id": "tool-absent-call-passes",
+        "prompt": "Search the wiki for the on-call rotation.",
+        "expect": {}
+      },
+      {
+        "id": "tool-absent-reply-passes",
+        "prompt": "What is our on-call rotation?",
+        "expect": {}
+      }
+    ]
+  },
+  "turns": {
+    "tool-null-called-tool-fails": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "on-call"}}]}
+    ],
+    "tool-null-reply-passes": [
+      {"reply": "The rotation is weekly, starting Monday."}
+    ],
+    "tool-absent-call-passes": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "on-call"}}]}
+    ],
+    "tool-absent-reply-passes": [
+      {"reply": "The rotation is weekly, starting Monday."}
+    ]
+  },
+  "expected": [
+    {
+      "id": "tool-null-called-tool-fails",
+      "passed": false,
+      "error_contains": "expected no tool call",
+      "turns": 1
+    },
+    {"id": "tool-null-reply-passes", "passed": true},
+    {"id": "tool-absent-call-passes", "passed": true},
+    {"id": "tool-absent-reply-passes", "passed": true}
+  ]
+}

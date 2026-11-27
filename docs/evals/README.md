@@ -105,6 +105,18 @@ called:
 `system_prompt_file` is a relative path and resolves against the suite file's
 directory.
 
+### Conformance fixtures
+
+`fixtures/evals/suite-v1/` pins the loader and grader behaviour: every rule
+above, the pass/fail outcomes per case with the failing check's message
+fragment, and invalid suites with the expected loader error. Each fixture is
+a self-contained JSON bundle; `python/tests/evals_conformance_test.py`
+replays every one through the real loader and grader with a scripted client
+(no model, no network) and must pass. The format is specified in
+[`fixtures/evals/suite-v1/README.md`](../../fixtures/evals/suite-v1/README.md)
+so a port of the grader in another language can be checked against the same
+expectations.
+
 ### How a case is scored
 
 The runner drives a tool loop with the profile's `temperature` (default 0)

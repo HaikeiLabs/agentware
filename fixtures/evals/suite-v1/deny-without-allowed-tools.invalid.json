@@ -1,0 +1,33 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.deny-without-allowed-tools",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "deny-no-allowed",
+        "prompt": "Do something.",
+        "expect": {
+          "tool": null,
+          "deny": true
+        }
+      }
+    ]
+  },
+  "error_contains": "needs context.allowed_tools"
+}

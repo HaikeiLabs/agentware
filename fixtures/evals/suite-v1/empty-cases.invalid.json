@@ -1,0 +1,24 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.empty-cases",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": []
+  },
+  "error_contains": "at least 1 item"
+}

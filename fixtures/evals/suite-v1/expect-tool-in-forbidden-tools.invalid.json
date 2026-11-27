@@ -1,0 +1,35 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.expect-tool-in-forbidden-tools",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "contradiction",
+        "prompt": "Do something.",
+        "expect": {
+          "tool": "file_bug",
+          "forbidden_tools": [
+            "file_bug"
+          ]
+        }
+      }
+    ]
+  },
+  "error_contains": "is also in forbidden_tools"
+}

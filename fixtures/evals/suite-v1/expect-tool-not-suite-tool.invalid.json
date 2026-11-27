@@ -1,0 +1,32 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.expect-tool-not-suite-tool",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "any-call",
+        "prompt": "Do something.",
+        "expect": {
+          "tool": "create_issue"
+        }
+      }
+    ]
+  },
+  "error_contains": "is not a suite tool"
+}

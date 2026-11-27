@@ -1,0 +1,34 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.args-without-tool",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "args-no-tool",
+        "prompt": "Do something.",
+        "expect": {
+          "args": {
+            "title": "x"
+          }
+        }
+      }
+    ]
+  },
+  "error_contains": "need expect.tool"
+}

@@ -1,0 +1,141 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.content",
+    "kind": "agent",
+    "system_prompt": "You file bugs and report what you did.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "search_wiki",
+          "description": "Search the team wiki.",
+          "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "body": {"type": "string"}
+            },
+            "required": ["title", "body"]
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "contains-all-pass",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"contains_all": ["KEI-1", "filed"]}}
+      },
+      {
+        "id": "contains-all-fail",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"contains_all": ["KEI-1", "filed"]}}
+      },
+      {
+        "id": "contains-any-pass",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"contains_any": ["KEI-1", "KEI-2"]}}
+      },
+      {
+        "id": "contains-any-fail",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"contains_any": ["KEI-1", "KEI-2"]}}
+      },
+      {
+        "id": "regex-pass",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"regex": ["kei-\\d+"]}}
+      },
+      {
+        "id": "regex-fail",
+        "prompt": "File a bug about the login page.",
+        "expect": {"content": {"regex": ["kei-\\d+"]}}
+      },
+      {
+        "id": "not-contains-pass",
+        "prompt": "Try to file a bug.",
+        "expect": {"content": {"not_contains": ["created"]}}
+      },
+      {
+        "id": "not-contains-fail",
+        "prompt": "Try to file a bug.",
+        "expect": {"content": {"not_contains": ["created"]}}
+      },
+      {
+        "id": "content-after-tool-pass",
+        "prompt": "Look it up, then file a bug about the login page.",
+        "expect": {"content": {"contains_all": ["KEI-1"]}}
+      }
+    ]
+  },
+  "turns": {
+    "contains-all-pass": [
+      {"reply": "Filed KEI-1 for you."}
+    ],
+    "contains-all-fail": [
+      {"reply": "Filed KEI-2 for you."}
+    ],
+    "contains-any-pass": [
+      {"reply": "Created KEI-2 for you."}
+    ],
+    "contains-any-fail": [
+      {"reply": "Nothing to report."}
+    ],
+    "regex-pass": [
+      {"reply": "Filed KEI-1 for you."}
+    ],
+    "regex-fail": [
+      {"reply": "No ticket was needed."}
+    ],
+    "not-contains-pass": [
+      {"reply": "I was unable to help with that."}
+    ],
+    "not-contains-fail": [
+      {"reply": "Done, created it."}
+    ],
+    "content-after-tool-pass": [
+      {"tool_calls": [{"name": "search_wiki", "arguments": {"query": "bug process"}}]},
+      {"reply": "Filed KEI-1 for you."}
+    ]
+  },
+  "expected": [
+    {"id": "contains-all-pass", "passed": true},
+    {
+      "id": "contains-all-fail",
+      "passed": false,
+      "error_contains": "final text is missing required phrases"
+    },
+    {"id": "contains-any-pass", "passed": true},
+    {
+      "id": "contains-any-fail",
+      "passed": false,
+      "error_contains": "final text contains none of"
+    },
+    {"id": "regex-pass", "passed": true},
+    {
+      "id": "regex-fail",
+      "passed": false,
+      "error_contains": "final text does not match regex"
+    },
+    {"id": "not-contains-pass", "passed": true},
+    {
+      "id": "not-contains-fail",
+      "passed": false,
+      "error_contains": "final text contains forbidden phrases"
+    },
+    {"id": "content-after-tool-pass", "passed": true, "turns": 2}
+  ]
+}

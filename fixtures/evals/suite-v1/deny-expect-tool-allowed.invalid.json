@@ -1,0 +1,38 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.deny-expect-tool-allowed",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "deny-tool-allowed",
+        "prompt": "Do something.",
+        "context": {
+          "allowed_tools": [
+            "file_bug"
+          ]
+        },
+        "expect": {
+          "tool": "file_bug",
+          "deny": true
+        }
+      }
+    ]
+  },
+  "error_contains": "is allowed"
+}

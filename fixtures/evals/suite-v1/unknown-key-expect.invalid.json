@@ -1,0 +1,33 @@
+{
+  "suite": {
+    "schema": "agentware.eval-suite.v1",
+    "suite": "conformance.suite-v1.unknown-key-expect",
+    "kind": "agent",
+    "system_prompt": "You file bugs.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "file_bug",
+          "description": "File a bug report.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "any-call",
+        "prompt": "Do something.",
+        "expect": {
+          "tool": "file_bug",
+          "min_turns": 1
+        }
+      }
+    ]
+  },
+  "error_contains": "cases.0.expect.min_turns"
+}
