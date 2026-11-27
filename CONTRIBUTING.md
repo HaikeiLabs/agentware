@@ -84,14 +84,15 @@ through to `GenericFormatter` for anything unrecognized:
 
 Existing mappings (verified in `docs/model-format-reference.md` and the
 selector tests): `qwen`/`qwq` → Qwen, `claude`/`anthropic` → Anthropic,
-`deepseek` → DeepSeek, `glm`/`chatglm` → GLM, `gpt`/`o1`/`o3` → OpenAI.
+`deepseek` → DeepSeek, `glm`/`chatglm` → GLM, `gpt`/`o1`/`o3` → OpenAI,
+`minimax-m2`/`minimax-m3` → MiniMax (M2 or M3 version).
 Add the new family's name tokens to the selector **in all three languages**
 and extend the selector test in each suite.
 
-Note: Go additionally ships `LlamaFormatter`, `MistralFormatter`,
-`MiniMaxFormatter`, and `NemotronFormatter` (Go-only, selected only by the Go
-selector). Python and TypeScript selectors do not map those names; they fall
-through to `GenericFormatter`.
+Note: Go additionally ships `LlamaFormatter`, `MistralFormatter`, and
+`NemotronFormatter` (Go-only, selected only by the Go selector). Python and
+TypeScript selectors do not map those names; they fall through to
+`GenericFormatter`.
 
 ### 3. Reasoning and thinking tags
 
