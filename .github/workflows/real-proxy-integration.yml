@@ -33,7 +33,7 @@ on:
         default: ''
         type: string
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
     paths:
       - 'examples/**'
       - 'fixtures/kei/**'
