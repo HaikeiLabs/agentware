@@ -3,7 +3,7 @@
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from ..tools import Result, schema_of
 
@@ -445,6 +445,299 @@ class QwenFormatter:
         return None
 
 
+MiniMaxVersion = Literal["m2", "m3"]
+
+#: The marker MiniMax M3 puts before every structural tag of a tool call.
+MINIMAX_M3_NAMESPACE = "]<]minimax[>["
+_MM3_TOOL_CALL = MINIMAX_M3_NAMESPACE + "<tool_call>"
+_MM3_INVOKE = MINIMAX_M3_NAMESPACE + "<invoke name="
+_MM3_INVOKE_END = MINIMAX_M3_NAMESPACE + "</invoke>"
+_MM3_ELEMENT = MINIMAX_M3_NAMESPACE + "<"
+_MM3_MAX_DEPTH = 128
+_MM3_MIXED_TEXT = "$text"
+
+_MM_TOOLS_HEADER = (
+    "# Tools\nYou may call one or more tools to assist with the user query.\n"
+    "Here are the tools available in JSONSchema format:\n\n<tools>\n"
+)
+_MM2_INSTRUCTIONS = (
+    "When making tool calls, use XML format to invoke tools and pass parameters:\n\n"
+    '<minimax:tool_call>\n<invoke name="tool-name-1">\n'
+    '<parameter name="param-key-1">param-value-1</parameter>\n'
+    '<parameter name="param-key-2">param-value-2</parameter>\n'
+    "...\n</invoke>\n</minimax:tool_call>"
+)
+
+
+def _mm3_instructions() -> str:
+    ns = MINIMAX_M3_NAMESPACE
+    return (
+        f"To call tools, wrap all invocations in a single {ns}<tool_call>{ns}</tool_call> block. "
+        "Parameter values containing nested objects or arrays are recursively expanded into "
+        "XML elements. Example:\n\n"
+        f"{ns}<tool_call>\n"
+        f'{ns}<invoke name="tool-name-1">{ns}<param-1>value-1{ns}</param-1>{ns}<param-2>'
+        f"{ns}<item>{ns}<key-a>val-a{ns}</key-a>{ns}<key-b>val-b{ns}</key-b>{ns}</item>"
+        f"{ns}</param-2>{ns}</invoke>\n"
+        f'{ns}<invoke name="tool-name-2">{ns}<param-1>value-1{ns}</param-1>{ns}</invoke>\n'
+        f"{ns}</tool_call>"
+    )
+
+
+_MM2_BLOCK = "<minimax:tool_call>"
+_MM2_INVOKE_OPEN = "<invoke name="
+_mm2_invoke_re = re.compile(
+    r"""<invoke name=(?:"([^"]*)"|'([^']*)'|([^>\s]*))>(.*?)</invoke>""", re.DOTALL
+)
+_mm2_param_open_re = re.compile(
+    r"""<\s*parameter\s+name\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+))\s*>""", re.DOTALL
+)
+_mm2_param_close_re = re.compile(r"<\s*/\s*parameter\s*>")
+
+# An M3 element value: its text, or its (name, value) children in order.
+_MM3Element = str | list[tuple[str, Any]]
+
+
+def _mm2_params(body: str) -> tuple[dict[str, Any], bool]:
+    """Parse M2 parameter tags; the flag is False if one was dropped unterminated.
+
+    A value runs to its closing tag or, as in vLLM, to the next parameter tag.
+    Values stay verbatim strings: the template writes strings as is and other
+    values as JSON, and with no schema here the two cannot be told apart.
+    """
+    openers = list(_mm2_param_open_re.finditer(body))
+    params: dict[str, Any] = {}
+    complete = True
+    for i, opener in enumerate(openers):
+        end = openers[i + 1].start() if i + 1 < len(openers) else len(body)
+        region = body[opener.end() : end]
+        close = _mm2_param_close_re.search(region)
+        if close is not None:
+            value = region[: close.start()]
+        elif i + 1 < len(openers):
+            value = region
+        else:
+            complete = False
+            continue
+        name = (opener[1] or opener[2] or opener[3] or "").strip()
+        if name:
+            params[name] = value
+    return params, complete
+
+
+def _mm3_element(text: str, pos: int, depth: int) -> tuple[str, _MM3Element, int] | None:
+    """Parse the M3 element starting at ``pos``; ``None`` if malformed."""
+    if depth > _MM3_MAX_DEPTH:
+        return None
+    name_start = pos + len(_MM3_ELEMENT)
+    name_end = text.find(">", name_start)
+    if name_end <= name_start:
+        return None
+    name = text[name_start:name_end]
+    if name.startswith("/") or not name.strip():
+        return None
+    close_tag = f"{MINIMAX_M3_NAMESPACE}</{name}>"
+    pos = name_end + 1
+    text_parts: list[str] = []
+    children: list[tuple[str, Any]] = []
+    while True:
+        marker = text.find(MINIMAX_M3_NAMESPACE, pos)
+        if marker < 0:
+            return None
+        text_parts.append(text[pos:marker])
+        if text.startswith(close_tag, marker):
+            pos = marker + len(close_tag)
+            break
+        if not text.startswith(_MM3_ELEMENT, marker):
+            return None
+        child = _mm3_element(text, marker, depth + 1)
+        if child is None:
+            return None
+        children.append((child[0], child[1]))
+        pos = child[2]
+    body_text = "".join(text_parts)
+    if not children:
+        return name, body_text, pos
+    if body_text.strip():
+        field = _MM3_MIXED_TEXT
+        while any(child_name == field for child_name, _ in children):
+            field = "$" + field
+        children.append((field, body_text))
+    return name, children, pos
+
+
+def _mm3_params(body: str) -> tuple[list[tuple[str, Any]], bool]:
+    """Parse an M3 invoke body; the flag is False if parsing stopped early.
+
+    Parsing stops at the first malformed element and keeps the ones before it.
+    """
+    params: list[tuple[str, Any]] = []
+    pos = 0
+    while True:
+        while pos < len(body) and body[pos].isspace():
+            pos += 1
+        if pos == len(body):
+            return params, True
+        if not body.startswith(_MM3_ELEMENT, pos):
+            return params, False
+        element = _mm3_element(body, pos, 1)
+        if element is None:
+            return params, False
+        params.append((element[0], element[1]))
+        pos = element[2]
+
+
+def _mm3_object(elements: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Elements to an object without a schema; a repeated name collects a list."""
+    result: dict[str, Any] = {}
+    repeated: set[str] = set()
+    for name, element in elements:
+        value = element if isinstance(element, str) else _mm3_object(element)
+        if name not in result:
+            result[name] = value
+        elif name in repeated:
+            result[name].append(value)
+        else:
+            result[name] = [result[name], value]
+            repeated.add(name)
+    return result
+
+
+@dataclass
+class _MiniMaxInvoke:
+    name: str
+    args: dict[str, Any]
+    raw: str
+    complete: bool
+
+
+def _mm3_invokes(response: str) -> tuple[list[_MiniMaxInvoke], str | None]:
+    """M3 invokes after the tool_call opener, and the first format error."""
+    start = response.find(_MM3_TOOL_CALL)
+    if start < 0:
+        if _MM3_INVOKE in response:
+            return [], "MiniMax M3 invoke outside a tool_call block"
+        return [], None
+    invokes: list[_MiniMaxInvoke] = []
+    pos = start + len(_MM3_TOOL_CALL)
+    while True:
+        begin = response.find(_MM3_INVOKE, pos)
+        if begin < 0:
+            break
+        name_start = begin + len(_MM3_INVOKE)
+        quote = response[name_start : name_start + 1]
+        if quote in ('"', "'"):
+            name_start += 1
+            name_end = response.find(quote + ">", name_start)
+            body_start = name_end + 2
+        else:
+            name_end = response.find(">", name_start)
+            body_start = name_end + 1
+        if name_end < 0:
+            return invokes, "unterminated MiniMax invoke"
+        end = response.find(_MM3_INVOKE_END, body_start)
+        if end < 0:
+            return invokes, "unterminated MiniMax invoke"
+        params, complete = _mm3_params(response[body_start:end])
+        pos = end + len(_MM3_INVOKE_END)
+        invokes.append(
+            _MiniMaxInvoke(
+                name=response[name_start:name_end].strip(),
+                args=_mm3_object(params),
+                raw=response[begin:pos],
+                complete=complete,
+            )
+        )
+    if not invokes:
+        return [], "MiniMax tool_call block has no invoke"
+    return invokes, None
+
+
+def _mm2_invokes(response: str) -> tuple[list[_MiniMaxInvoke], str | None]:
+    """M2 invokes anywhere in the response (as vLLM), and the first format error."""
+    invokes = []
+    for match in _mm2_invoke_re.finditer(response):
+        args, complete = _mm2_params(match[4])
+        name = (match[1] or match[2] or match[3] or "").strip()
+        invokes.append(_MiniMaxInvoke(name=name, args=args, raw=match[0], complete=complete))
+    if response.count(_MM2_INVOKE_OPEN) != len(invokes):
+        return invokes, "unterminated MiniMax invoke"
+    if not invokes and _MM2_BLOCK in response:
+        return [], "MiniMax tool_call block has no invoke"
+    return invokes, None
+
+
+def _minimax_invokes(response: str) -> tuple[list[_MiniMaxInvoke], str | None]:
+    """A response with the M3 namespace marker is M3; any other is M2."""
+    if MINIMAX_M3_NAMESPACE in response:
+        return _mm3_invokes(response)
+    return _mm2_invokes(response)
+
+
+class MiniMaxFormatter:
+    """MiniMax M2 and M3 tool calls, as the official chat templates render them.
+
+    ``version`` picks the tool-definition prompt (M2 parameter tags or M3
+    namespaced elements). Parsing and validation accept both syntaxes, and a
+    tool result is a ``response`` block in both. Parameter values are not
+    coerced to the tool schema: they arrive as strings (M3 nested elements as
+    objects, repeated names as lists), the same as vLLM's parsers without a
+    request schema.
+    """
+
+    def __init__(self, version: MiniMaxVersion = "m2") -> None:
+        if version not in ("m2", "m3"):
+            raise ValueError(f"unknown MiniMax version {version!r}; expected 'm2' or 'm3'")
+        self.version: MiniMaxVersion = version
+
+    def format_tool_definitions(self, tools: list[ToolFormatInput]) -> str:
+        if not tools:
+            return ""
+        lines = []
+        for tool in tools:
+            function: dict[str, Any] = {"name": tool.name, "description": tool.description}
+            schema = _get_input_schema(tool)
+            if schema is not None:
+                function["parameters"] = schema
+            encoded = json.dumps(
+                function, separators=(",", ":"), ensure_ascii=False, sort_keys=True
+            )
+            lines.append(f"<tool>{encoded}</tool>")
+        instructions = _mm3_instructions() if self.version == "m3" else _MM2_INSTRUCTIONS
+        return _MM_TOOLS_HEADER + "\n".join(lines) + "\n</tools>\n\n" + instructions
+
+    def parse_tool_calls(self, response: str) -> list[ParsedToolCall]:
+        invokes, _ = _minimax_invokes(response)
+        return [
+            ParsedToolCall(id="", name=invoke.name, args=invoke.args, raw=invoke.raw)
+            for invoke in invokes
+            if invoke.name
+        ]
+
+    def format_tool_result(self, name: str, result: Result, call_id: str | None = None) -> str:
+        # Both chat templates emit a tool message's content verbatim between
+        # the response tags, so a string is not quoted.
+        if result.success:
+            text = _result_text(result.data)
+        else:
+            text = json.dumps({"error": result.error}, ensure_ascii=False, separators=(",", ":"))
+        return f"<response>{text}</response>"
+
+    def model_family(self) -> str:
+        return "minimax"
+
+    def validate_format(self, response: str) -> str | None:
+        invokes, error = _minimax_invokes(response)
+        if error is not None:
+            return error
+        for invoke in invokes:
+            if not invoke.name:
+                return "MiniMax invoke missing tool name"
+            if not invoke.complete:
+                return f"MiniMax invoke {invoke.name!r} has a malformed or unterminated parameter"
+        return None
+
+
 class DeepSeekFormatter(GenericFormatter):
     """DeepSeek uses standard OpenAI-compatible JSON function-calling format."""
 
@@ -462,6 +755,10 @@ class GLMFormatter(GenericFormatter):
 def get_formatter(model_name: str) -> ToolFormatter:
     """Select the appropriate formatter for a given model name."""
     lower = model_name.lower()
+    if "minimax-m3" in lower:
+        return MiniMaxFormatter(version="m3")
+    if "minimax-m2" in lower:
+        return MiniMaxFormatter(version="m2")
     if "anthropic" in lower or "claude" in lower:
         return AnthropicFormatter()
     if "qwq" in lower or "qwen" in lower:

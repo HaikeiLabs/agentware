@@ -28,6 +28,7 @@ const familyModels: Record<string, string> = {
   deepseek: "deepseek-chat",
   anthropic: "claude-3",
   qwen: "qwen-2",
+  minimax: "MiniMax-M2.5",
   // Harmony is opt-in, so no model name selects it: this sentinel stands for
   // the explicit formatter (see formatterFor).
   "gpt-oss": "opt-in:harmony",

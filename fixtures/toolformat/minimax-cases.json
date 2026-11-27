@@ -1,0 +1,389 @@
+{
+  "family": "minimax",
+  "description": "MiniMax M2 and M3 tool calls, from the official MiniMax-M2 and MiniMax-M3 chat templates (chat_template.jinja) and the vLLM minimax_m2 / minimax_m3 parsers. format_definitions is the M2 prompt; m3_format_definitions (read by each port's MiniMax unit tests, not the shared runner) is the M3 prompt. parse_calls and validate_format cover both syntaxes. Parameter values are not coerced: with no schema at parse time they stay strings, as in vLLM.",
+  "format_definitions": [
+    {
+      "name": "two tools (M2)",
+      "expected": "# Tools\nYou may call one or more tools to assist with the user query.\nHere are the tools available in JSONSchema format:\n\n\u003ctools>\n\u003ctool>{\"description\":\"Get current weather for a location\",\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"City name, e.g. 'Tokyo'\",\"type\":\"string\"},\"unit\":{\"default\":\"celsius\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"}}\u003c/tool>\n\u003ctool>{\"description\":\"Search the web for information\",\"name\":\"search_web\",\"parameters\":{\"properties\":{\"query\":{\"description\":\"Search query\",\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}}\u003c/tool>\n\u003c/tools>\n\nWhen making tool calls, use XML format to invoke tools and pass parameters:\n\n\u003cminimax:tool_call>\n\u003cinvoke name=\"tool-name-1\">\n\u003cparameter name=\"param-key-1\">param-value-1\u003c/parameter>\n\u003cparameter name=\"param-key-2\">param-value-2\u003c/parameter>\n...\n\u003c/invoke>\n\u003c/minimax:tool_call>"
+    }
+  ],
+  "m3_format_definitions": [
+    {
+      "name": "two tools (M3)",
+      "expected": "# Tools\nYou may call one or more tools to assist with the user query.\nHere are the tools available in JSONSchema format:\n\n\u003ctools>\n\u003ctool>{\"description\":\"Get current weather for a location\",\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"City name, e.g. 'Tokyo'\",\"type\":\"string\"},\"unit\":{\"default\":\"celsius\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"}}\u003c/tool>\n\u003ctool>{\"description\":\"Search the web for information\",\"name\":\"search_web\",\"parameters\":{\"properties\":{\"query\":{\"description\":\"Search query\",\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}}\u003c/tool>\n\u003c/tools>\n\nTo call tools, wrap all invocations in a single ]\u003c]minimax[>[\u003ctool_call>]\u003c]minimax[>[\u003c/tool_call> block. Parameter values containing nested objects or arrays are recursively expanded into XML elements. Example:\n\n]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"tool-name-1\">]\u003c]minimax[>[\u003cparam-1>value-1]\u003c]minimax[>[\u003c/param-1>]\u003c]minimax[>[\u003cparam-2>]\u003c]minimax[>[\u003citem>]\u003c]minimax[>[\u003ckey-a>val-a]\u003c]minimax[>[\u003c/key-a>]\u003c]minimax[>[\u003ckey-b>val-b]\u003c]minimax[>[\u003c/key-b>]\u003c]minimax[>[\u003c/item>]\u003c]minimax[>[\u003c/param-2>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003cinvoke name=\"tool-name-2\">]\u003c]minimax[>[\u003cparam-1>value-1]\u003c]minimax[>[\u003c/param-1>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>"
+    }
+  ],
+  "parse_calls": [
+    {
+      "name": "M2 call as the chat template renders it",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003cparameter name=\"unit\">celsius\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2 two invokes after content",
+      "input": "Let me check both.\n\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003c/invoke>\n\u003cinvoke name=\"search_web\">\n\u003cparameter name=\"query\">Tokyo events\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo"
+          }
+        },
+        {
+          "name": "search_web",
+          "args": {
+            "query": "Tokyo events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2 values stay verbatim strings",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"search_web\">\n\u003cparameter name=\"query\"> two\nlines \u003c/parameter>\n\u003cparameter name=\"limit\">3\u003c/parameter>\n\u003cparameter name=\"filters\">{\"open\":true}\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "search_web",
+          "args": {
+            "query": " two\nlines ",
+            "limit": "3",
+            "filters": "{\"open\":true}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2 single-quoted and bare names",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name='search_web'>\n\u003cparameter name=query>news\u003c/parameter>\n\u003cparameter name='lang'>en\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "search_web",
+          "args": {
+            "query": "news",
+            "lang": "en"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2 parameter closed by the next parameter",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003cparameter name=\"unit\">celsius\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2 unterminated last parameter is dropped",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003cparameter name=\"unit\">celsius\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2 call without parameters",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_time\">\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": [
+        {
+          "name": "get_time",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "name": "M2 empty invoke name is skipped",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "expected": []
+    },
+    {
+      "name": "M2 unterminated invoke is not a call",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n",
+      "expected": []
+    },
+    {
+      "name": "M3 call as the chat template renders it",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003cunit>celsius]\u003c]minimax[>[\u003c/unit>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo",
+            "unit": "celsius"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3 two invokes",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003cinvoke name=\"search_web\">]\u003c]minimax[>[\u003cquery>Tokyo events]\u003c]minimax[>[\u003c/query>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo"
+          }
+        },
+        {
+          "name": "search_web",
+          "args": {
+            "query": "Tokyo events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3 nested elements without a schema",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"create_order\">]\u003c]minimax[>[\u003cuser_id>42]\u003c]minimax[>[\u003c/user_id>]\u003c]minimax[>[\u003citems>]\u003c]minimax[>[\u003citem>]\u003c]minimax[>[\u003csku>book-001]\u003c]minimax[>[\u003c/sku>]\u003c]minimax[>[\u003c/item>]\u003c]minimax[>[\u003citem>]\u003c]minimax[>[\u003csku>pen-002]\u003c]minimax[>[\u003c/sku>]\u003c]minimax[>[\u003cqty>2]\u003c]minimax[>[\u003c/qty>]\u003c]minimax[>[\u003c/item>]\u003c]minimax[>[\u003c/items>]\u003c]minimax[>[\u003cnote>]\u003c]minimax[>[\u003c/note>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "expected": [
+        {
+          "name": "create_order",
+          "args": {
+            "user_id": "42",
+            "items": {
+              "item": [
+                {
+                  "sku": "book-001"
+                },
+                {
+                  "sku": "pen-002",
+                  "qty": "2"
+                }
+              ]
+            },
+            "note": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3 repeated parameter collects a list",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"search_web\">]\u003c]minimax[>[\u003cquery>a]\u003c]minimax[>[\u003c/query>]\u003c]minimax[>[\u003cquery>b]\u003c]minimax[>[\u003c/query>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "expected": [
+        {
+          "name": "search_web",
+          "args": {
+            "query": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3 mixed text keeps a text field",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"search_web\">]\u003c]minimax[>[\u003cquery>news]\u003c]minimax[>[\u003clang>en]\u003c]minimax[>[\u003c/lang>]\u003c]minimax[>[\u003c/query>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "expected": [
+        {
+          "name": "search_web",
+          "args": {
+            "query": {
+              "lang": "en",
+              "$text": "news"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3 malformed element keeps earlier parameters",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003cunit>celsius]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "expected": [
+        {
+          "name": "get_weather",
+          "args": {
+            "location": "Tokyo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3 invoke outside a tool_call block is not a call",
+      "input": "]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003c/invoke>\n",
+      "expected": []
+    },
+    {
+      "name": "plain text has no calls",
+      "input": "The weather in Tokyo is sunny.",
+      "expected": []
+    },
+    {
+      "name": "empty response",
+      "input": "",
+      "expected": []
+    },
+    {
+      "name": "old inline function_call pattern is not parsed",
+      "input": "function_call: get_weather({\"location\": \"Tokyo\"})",
+      "expected": []
+    },
+    {
+      "name": "old tool_name block pattern is not parsed",
+      "input": "\u003ctool_call>\u003ctool_name>get_weather\u003c/tool_name>\u003cparameters>{\"location\": \"Tokyo\"}\u003c/parameters>\u003c/tool_call>",
+      "expected": []
+    }
+  ],
+  "format_result": [
+    {
+      "name": "success",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": "Sunny, 22°C"
+      },
+      "expected": "\u003cresponse>Sunny, 22°C\u003c/response>"
+    },
+    {
+      "name": "error",
+      "tool_name": "get_weather",
+      "result": {
+        "success": false,
+        "error": "API unavailable"
+      },
+      "expected": "\u003cresponse>{\"error\":\"API unavailable\"}\u003c/response>"
+    },
+    {
+      "name": "string that looks like JSON stays verbatim",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": "{\"temp\":22}"
+      },
+      "expected": "\u003cresponse>{\"temp\":22}\u003c/response>"
+    },
+    {
+      "name": "dict result is compact JSON in key order",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": {
+          "temp": 22,
+          "sky": "rain",
+          "note": "22°C"
+        }
+      },
+      "expected": "\u003cresponse>{\"temp\":22,\"sky\":\"rain\",\"note\":\"22°C\"}\u003c/response>"
+    },
+    {
+      "name": "list result is compact JSON",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": [
+          1,
+          "a",
+          true,
+          null
+        ]
+      },
+      "expected": "\u003cresponse>[1,\"a\",true,null]\u003c/response>"
+    },
+    {
+      "name": "number result is JSON",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": 22.5
+      },
+      "expected": "\u003cresponse>22.5\u003c/response>"
+    },
+    {
+      "name": "boolean result is JSON",
+      "tool_name": "get_weather",
+      "result": {
+        "success": true,
+        "output": false
+      },
+      "expected": "\u003cresponse>false\u003c/response>"
+    }
+  ],
+  "validate_format": [
+    {
+      "name": "M2 call",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003cparameter name=\"unit\">celsius\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "valid": true
+    },
+    {
+      "name": "M3 call",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003cunit>celsius]\u003c]minimax[>[\u003c/unit>]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "valid": true
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "valid": true
+    },
+    {
+      "name": "plain text",
+      "input": "The weather in Tokyo is sunny.",
+      "valid": true
+    },
+    {
+      "name": "M2 call without parameters",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_time\">\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "valid": true
+    },
+    {
+      "name": "M2 parameter closed by the next parameter",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003cparameter name=\"unit\">celsius\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "valid": true
+    },
+    {
+      "name": "M2 unterminated invoke",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n",
+      "valid": false
+    },
+    {
+      "name": "M2 empty invoke name",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "valid": false
+    },
+    {
+      "name": "M2 unterminated last parameter",
+      "input": "\u003cminimax:tool_call>\n\u003cinvoke name=\"get_weather\">\n\u003cparameter name=\"location\">Tokyo\u003c/parameter>\n\u003cparameter name=\"unit\">celsius\n\u003c/invoke>\n\u003c/minimax:tool_call>",
+      "valid": false
+    },
+    {
+      "name": "M2 block without an invoke",
+      "input": "\u003cminimax:tool_call>\n\u003c/minimax:tool_call>",
+      "valid": false
+    },
+    {
+      "name": "M3 malformed element",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003cunit>celsius]\u003c]minimax[>[\u003c/invoke>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "valid": false
+    },
+    {
+      "name": "M3 unterminated invoke",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>",
+      "valid": false
+    },
+    {
+      "name": "M3 block without an invoke",
+      "input": "]\u003c]minimax[>[\u003ctool_call>\n]\u003c]minimax[>[\u003c/tool_call>",
+      "valid": false
+    },
+    {
+      "name": "M3 invoke outside a tool_call block",
+      "input": "]\u003c]minimax[>[\u003cinvoke name=\"get_weather\">]\u003c]minimax[>[\u003clocation>Tokyo]\u003c]minimax[>[\u003c/location>]\u003c]minimax[>[\u003c/invoke>\n",
+      "valid": false
+    }
+  ]
+}

@@ -4,7 +4,7 @@ name: Wiki Memory E2E
 # three SDK surfaces (Go core, Python client + inference, TS client).
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
     paths:
       - 'go/**'
       - 'python/**'
@@ -12,7 +12,7 @@ on:
       - 'ontologies'
       - '.github/workflows/memory-e2e.yml'
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
     paths:
       - 'go/**'
       - 'python/**'

@@ -87,6 +87,7 @@ fn family_model(family: &str) -> Option<&'static str> {
         "deepseek" => Some("deepseek-chat"),
         "glm" => Some("nvidia/GLM-5.3-Flash-FP4-Local"),
         "qwen" => Some("qwen2.5"),
+        "minimax" => Some("MiniMaxAI/MiniMax-M2.5"),
         _ => None,
     }
 }
@@ -250,4 +251,9 @@ fn qwen_cases() {
 #[test]
 fn gpt_oss_cases() {
     assert_fixture_file("harmony-cases.json");
+}
+
+#[test]
+fn minimax_cases() {
+    assert_fixture_file("minimax-cases.json");
 }

@@ -413,6 +413,252 @@ export class QwenFormatter implements ToolFormatter {
   }
 }
 
+export type MiniMaxVersion = "m2" | "m3";
+
+/** The marker MiniMax M3 puts before every structural tag of a tool call. */
+export const MINIMAX_M3_NAMESPACE = "]<]minimax[>[";
+const MM3_TOOL_CALL = `${MINIMAX_M3_NAMESPACE}<tool_call>`;
+const MM3_INVOKE = `${MINIMAX_M3_NAMESPACE}<invoke name=`;
+const MM3_INVOKE_END = `${MINIMAX_M3_NAMESPACE}</invoke>`;
+const MM3_ELEMENT = `${MINIMAX_M3_NAMESPACE}<`;
+const MM3_MAX_DEPTH = 128;
+const MM3_MIXED_TEXT = "$text";
+const MM2_BLOCK = "<minimax:tool_call>";
+const MM2_INVOKE_OPEN = "<invoke name=";
+const MM_TOOLS_HEADER =
+  "# Tools\nYou may call one or more tools to assist with the user query.\n" +
+  "Here are the tools available in JSONSchema format:\n\n<tools>\n";
+const MM2_INSTRUCTIONS =
+  "When making tool calls, use XML format to invoke tools and pass parameters:\n\n" +
+  '<minimax:tool_call>\n<invoke name="tool-name-1">\n' +
+  '<parameter name="param-key-1">param-value-1</parameter>\n' +
+  '<parameter name="param-key-2">param-value-2</parameter>\n' +
+  "...\n</invoke>\n</minimax:tool_call>";
+
+function mm3Instructions(): string {
+  const ns = MINIMAX_M3_NAMESPACE;
+  return (
+    `To call tools, wrap all invocations in a single ${ns}<tool_call>${ns}</tool_call> block. ` +
+    "Parameter values containing nested objects or arrays are recursively expanded into XML elements. Example:\n\n" +
+    `${ns}<tool_call>\n` +
+    `${ns}<invoke name="tool-name-1">${ns}<param-1>value-1${ns}</param-1>${ns}<param-2>` +
+    `${ns}<item>${ns}<key-a>val-a${ns}</key-a>${ns}<key-b>val-b${ns}</key-b>${ns}</item>` +
+    `${ns}</param-2>${ns}</invoke>\n` +
+    `${ns}<invoke name="tool-name-2">${ns}<param-1>value-1${ns}</param-1>${ns}</invoke>\n` +
+    `${ns}</tool_call>`
+  );
+}
+
+const mm2InvokeRegex = /<invoke name=(?:"([^"]*)"|'([^']*)'|([^>\s]*))>([\s\S]*?)<\/invoke>/g;
+const mm2ParamOpenRegex = /<\s*parameter\s+name\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+))\s*>/g;
+const mm2ParamCloseRegex = /<\s*\/\s*parameter\s*>/;
+
+/** Sets an own property, so a model-chosen name such as __proto__ stays data. */
+function setOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
+interface MiniMaxInvoke { name: string; args: Record<string, unknown>; raw: string; complete: boolean }
+
+/**
+ * Parses M2 parameter tags; `complete` is false if one was dropped
+ * unterminated. A value runs to its closing tag or, as in vLLM, to the next
+ * parameter tag. Values stay verbatim strings.
+ */
+function mm2Params(body: string): { params: Record<string, unknown>; complete: boolean } {
+  const openers = [...body.matchAll(mm2ParamOpenRegex)];
+  const params: Record<string, unknown> = {};
+  let complete = true;
+  openers.forEach((opener, i) => {
+    const next = openers[i + 1];
+    const region = body.slice(opener.index! + opener[0].length, next ? next.index : body.length);
+    const close = mm2ParamCloseRegex.exec(region);
+    let value: string;
+    if (close) value = region.slice(0, close.index);
+    else if (next) value = region;
+    else { complete = false; return; }
+    const name = (opener[1] || opener[2] || opener[3] || "").trim();
+    if (name) setOwn(params, name, value);
+  });
+  return { params, complete };
+}
+
+/** An M3 element value: its text, or its [name, value] children in order. */
+type MM3Node = string | Array<[string, MM3Node]>;
+
+/** Parses the M3 element starting at `pos`; null if it is malformed. */
+function mm3Element(text: string, pos: number, depth: number): [string, MM3Node, number] | null {
+  if (depth > MM3_MAX_DEPTH) return null;
+  const nameStart = pos + MM3_ELEMENT.length;
+  const nameEnd = text.indexOf(">", nameStart);
+  if (nameEnd <= nameStart) return null;
+  const name = text.slice(nameStart, nameEnd);
+  if (name.startsWith("/") || !name.trim()) return null;
+  const closeTag = `${MINIMAX_M3_NAMESPACE}</${name}>`;
+  let cursor = nameEnd + 1;
+  const parts: string[] = [];
+  const children: Array<[string, MM3Node]> = [];
+  for (;;) {
+    const marker = text.indexOf(MINIMAX_M3_NAMESPACE, cursor);
+    if (marker < 0) return null;
+    parts.push(text.slice(cursor, marker));
+    if (text.startsWith(closeTag, marker)) { cursor = marker + closeTag.length; break; }
+    if (!text.startsWith(MM3_ELEMENT, marker)) return null;
+    const child = mm3Element(text, marker, depth + 1);
+    if (!child) return null;
+    children.push([child[0], child[1]]);
+    cursor = child[2];
+  }
+  const bodyText = parts.join("");
+  if (!children.length) return [name, bodyText, cursor];
+  if (bodyText.trim()) {
+    let field = MM3_MIXED_TEXT;
+    while (children.some(([childName]) => childName === field)) field = "$" + field;
+    children.push([field, bodyText]);
+  }
+  return [name, children, cursor];
+}
+
+/** Parses an M3 invoke body; `complete` is false if parsing stopped at a malformed element. */
+function mm3Params(body: string): { params: Array<[string, MM3Node]>; complete: boolean } {
+  const params: Array<[string, MM3Node]> = [];
+  let pos = 0;
+  for (;;) {
+    while (pos < body.length && /\s/.test(body[pos])) pos++;
+    if (pos === body.length) return { params, complete: true };
+    if (!body.startsWith(MM3_ELEMENT, pos)) return { params, complete: false };
+    const element = mm3Element(body, pos, 1);
+    if (!element) return { params, complete: false };
+    params.push([element[0], element[1]]);
+    pos = element[2];
+  }
+}
+
+/** Elements to an object without a schema; a repeated name collects a list. */
+function mm3Object(elements: Array<[string, MM3Node]>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const repeated = new Set<string>();
+  for (const [name, node] of elements) {
+    const value = typeof node === "string" ? node : mm3Object(node);
+    if (!Object.prototype.hasOwnProperty.call(result, name)) setOwn(result, name, value);
+    else if (repeated.has(name)) (result[name] as unknown[]).push(value);
+    else { setOwn(result, name, [result[name], value]); repeated.add(name); }
+  }
+  return result;
+}
+
+function mm3Invokes(response: string): { invokes: MiniMaxInvoke[]; error: string | null } {
+  const start = response.indexOf(MM3_TOOL_CALL);
+  if (start < 0) {
+    return { invokes: [], error: response.includes(MM3_INVOKE) ? "MiniMax M3 invoke outside a tool_call block" : null };
+  }
+  const invokes: MiniMaxInvoke[] = [];
+  let pos = start + MM3_TOOL_CALL.length;
+  for (;;) {
+    const begin = response.indexOf(MM3_INVOKE, pos);
+    if (begin < 0) break;
+    let nameStart = begin + MM3_INVOKE.length;
+    const quote = response[nameStart];
+    let nameEnd: number;
+    let bodyStart: number;
+    if (quote === '"' || quote === "'") {
+      nameStart += 1;
+      nameEnd = response.indexOf(`${quote}>`, nameStart);
+      bodyStart = nameEnd + 2;
+    } else {
+      nameEnd = response.indexOf(">", nameStart);
+      bodyStart = nameEnd + 1;
+    }
+    if (nameEnd < 0) return { invokes, error: "unterminated MiniMax invoke" };
+    const end = response.indexOf(MM3_INVOKE_END, bodyStart);
+    if (end < 0) return { invokes, error: "unterminated MiniMax invoke" };
+    const { params, complete } = mm3Params(response.slice(bodyStart, end));
+    pos = end + MM3_INVOKE_END.length;
+    invokes.push({ name: response.slice(nameStart, nameEnd).trim(), args: mm3Object(params), raw: response.slice(begin, pos), complete });
+  }
+  if (!invokes.length) return { invokes: [], error: "MiniMax tool_call block has no invoke" };
+  return { invokes, error: null };
+}
+
+/** M2 invokes anywhere in the response, as vLLM finds them. */
+function mm2Invokes(response: string): { invokes: MiniMaxInvoke[]; error: string | null } {
+  const invokes = [...response.matchAll(mm2InvokeRegex)].map((m) => {
+    const { params, complete } = mm2Params(m[4]);
+    return { name: (m[1] || m[2] || m[3] || "").trim(), args: params, raw: m[0], complete };
+  });
+  if (response.split(MM2_INVOKE_OPEN).length - 1 !== invokes.length) return { invokes, error: "unterminated MiniMax invoke" };
+  if (!invokes.length && response.includes(MM2_BLOCK)) return { invokes: [], error: "MiniMax tool_call block has no invoke" };
+  return { invokes, error: null };
+}
+
+/** A response with the M3 namespace marker is M3; any other is M2. */
+function miniMaxInvokes(response: string): { invokes: MiniMaxInvoke[]; error: string | null } {
+  return response.includes(MINIMAX_M3_NAMESPACE) ? mm3Invokes(response) : mm2Invokes(response);
+}
+
+/**
+ * MiniMax M2 and M3 tool calls, as the official chat templates render them.
+ * `version` picks the tool-definition prompt (M2 parameter tags or M3
+ * namespaced elements). Parsing and validation accept both syntaxes, and a
+ * tool result is a response block in both. Parameter values are not coerced
+ * to the tool schema: they arrive as strings (M3 nested elements as objects,
+ * repeated names as lists), the same as vLLM's parsers without a request
+ * schema.
+ */
+export class MiniMaxFormatter implements ToolFormatter {
+  readonly version: MiniMaxVersion;
+
+  constructor(options: { version?: MiniMaxVersion } = {}) {
+    const version = options.version ?? "m2";
+    if (version !== "m2" && version !== "m3") {
+      throw new Error(`unknown MiniMax version ${JSON.stringify(version)}; expected "m2" or "m3"`);
+    }
+    this.version = version;
+  }
+
+  formatToolDefinitions(tools: FormatterTool[]): string {
+    if (!tools.length) return "";
+    const lines = tools.map((tool) => {
+      const fn: Record<string, unknown> = { name: tool.name, description: tool.description };
+      if ("parameters" in tool) fn.parameters = tool.parameters;
+      else if ("input_schema" in tool) fn.parameters = tool.input_schema;
+      else if ("inputSchema" in tool && typeof (tool as Record<string, unknown>).inputSchema === "function") {
+        const schema = (tool as any).inputSchema();
+        if (schema) fn.parameters = schema;
+      }
+      if (fn.parameters === undefined || fn.parameters === null) delete fn.parameters;
+      return `<tool>${JSON.stringify(sortedJsonValue(fn))}</tool>`;
+    });
+    const instructions = this.version === "m3" ? mm3Instructions() : MM2_INSTRUCTIONS;
+    return MM_TOOLS_HEADER + lines.join("\n") + "\n</tools>\n\n" + instructions;
+  }
+
+  parseToolCalls(response: string): ParsedToolCall[] {
+    return miniMaxInvokes(response).invokes
+      .filter((invoke) => invoke.name)
+      .map((invoke) => ({ id: "", name: invoke.name, args: invoke.args, raw: invoke.raw }));
+  }
+
+  formatToolResult(_name: string, result: Result, _callId?: string): string {
+    // Both chat templates emit a tool message's content verbatim between the
+    // response tags, so a string is not quoted.
+    const text = result.success ? resultText(result.data) : JSON.stringify({ error: result.error });
+    return `<response>${text}</response>`;
+  }
+
+  modelFamily(): string { return "minimax"; }
+
+  validateFormat(response: string): string | null {
+    const { invokes, error } = miniMaxInvokes(response);
+    if (error) return error;
+    for (const invoke of invokes) {
+      if (!invoke.name) return "MiniMax invoke missing tool name";
+      if (!invoke.complete) return `MiniMax invoke "${invoke.name}" has a malformed or unterminated parameter`;
+    }
+    return null;
+  }
+}
+
 function sortedJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortedJsonValue);
   if (value !== null && typeof value === "object") {
@@ -425,6 +671,8 @@ function sortedJsonValue(value: unknown): unknown {
 
 export function getFormatter(modelName: string): ToolFormatter {
   const lower = modelName.toLowerCase();
+  if (lower.includes("minimax-m3")) return new MiniMaxFormatter({ version: "m3" });
+  if (lower.includes("minimax-m2")) return new MiniMaxFormatter({ version: "m2" });
   if (lower.includes("anthropic") || lower.includes("claude")) return new AnthropicFormatter();
   if (lower.includes("qwen") || lower.includes("qwq")) return new QwenFormatter();
   if (lower.includes("deepseek")) return new DeepSeekFormatter();

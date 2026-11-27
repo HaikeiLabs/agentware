@@ -59,6 +59,7 @@ var formattersByFamily = map[string]ToolFormatter{
 	"deepseek":  &DeepSeekFormatter{},
 	"anthropic": &AnthropicFormatter{},
 	"qwen":      &QwenFormatter{},
+	"minimax":   &MiniMaxFormatter{},
 	"gpt-oss":   &HarmonyFormatter{}, // opt-in: no model id selects it
 }
 

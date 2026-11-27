@@ -5,6 +5,10 @@ import "strings"
 func GetFormatter(modelName string) ToolFormatter {
 	lower := strings.ToLower(modelName)
 	switch {
+	case strings.Contains(lower, "minimax-m3"):
+		return &MiniMaxFormatter{Version: MiniMaxM3}
+	case strings.Contains(lower, "minimax-m2"):
+		return &MiniMaxFormatter{Version: MiniMaxM2}
 	case strings.Contains(lower, "nemotron"):
 		return &NemotronFormatter{}
 	case strings.Contains(lower, "qwen"), strings.Contains(lower, "qwq"):
