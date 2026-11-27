@@ -27,6 +27,7 @@ const familyModels: Record<string, string> = {
   deepseek: "deepseek-chat",
   anthropic: "claude-3",
   qwen: "qwen-2",
+  minimax: "MiniMax-M2.5",
 };
 const toolformatRoot = resolve(process.cwd(), "../fixtures/toolformat");
 const reasoningRoot = resolve(process.cwd(), "../fixtures/reasoning");

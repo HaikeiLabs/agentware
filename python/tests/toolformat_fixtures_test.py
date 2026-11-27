@@ -19,6 +19,7 @@ from haikeilabs.agentware.toolformat.formatter import (
     AnthropicFormatter,
     DeepSeekFormatter,
     GLMFormatter,
+    MiniMaxFormatter,
     OpenAIFOrmatter,
     QwenFormatter,
 )
@@ -30,6 +31,7 @@ TOOLFORMAT_FORMATTERS = {
     "anthropic": AnthropicFormatter,
     "deepseek": DeepSeekFormatter,
     "glm": GLMFormatter,
+    "minimax": MiniMaxFormatter,
     "openai": OpenAIFOrmatter,
     "qwen": QwenFormatter,
 }

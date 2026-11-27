@@ -22,14 +22,17 @@ function normalizeEmbeddedJSON(value: string): string {
   );
 }
 
+const selectorModels: Record<string, string> = { minimax: "MiniMax-M2" };
+
 describe("shared toolformat fixtures", () => {
   test.each(toolFiles)("%s", (file) => {
     const fixturePath = `toolformat/${file}`;
     const data = JSON.parse(readFileSync(resolve(toolRoot, file), "utf8")) as Record<string, any>;
-    const formatter = getFormatter(data.family);
+    // A family name the selector does not route on its own gets a model id.
+    const formatter = getFormatter(selectorModels[data.family] ?? data.family);
     for (const c of data.format_definitions) {
       const actual = formatter.formatToolDefinitions(sharedTools as any);
-      if (data.family === "qwen") {
+      if (data.family === "qwen" || data.family === "minimax") {
         expect(normalizeEmbeddedJSON(actual)).toBe(normalizeEmbeddedJSON(c.expected));
       } else {
         expect(JSON.parse(actual)).toEqual(JSON.parse(c.expected));
