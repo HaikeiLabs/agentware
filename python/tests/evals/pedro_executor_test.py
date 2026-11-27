@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import json
 
-from evals.executors import PEDRO_TOOL_NAMES, pedro_tool_executor, suite_tool_executor
+from haikeilabs.agentware.evals.executors import (
+    PEDRO_TOOL_NAMES,
+    pedro_tool_executor,
+    suite_tool_executor,
+)
 
 SIX_TOOLS = {
     "list_calendar_events",

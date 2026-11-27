@@ -78,7 +78,7 @@ evals-general:
 # recording a 0% score.
 EVAL_BACKEND ?= llamacpp
 evals-beta-tools:
-	cd python && PYTHONPATH=src python3 -m evals.main --beta-tools \
+	cd python && PYTHONPATH=src python3 -m haikeilabs.agentware.evals.main --beta-tools \
 		--backend $(EVAL_BACKEND)
 
 # EV-C1 table-test suites (agentware.eval-suite.v1) on one model profile.
@@ -91,7 +91,7 @@ EVAL_THRESHOLD ?= 0.95
 EVAL_OUT ?= evals/results/$(shell date +%Y-%m-%d)-$(EVAL_PROFILE)
 EVAL_PROFILES_FILE ?= evals/model-profiles.yaml
 evals-suite:
-	cd python && PYTHONPATH=src python3 -m evals.main \
+	cd python && PYTHONPATH=src python3 -m haikeilabs.agentware.evals.main \
 		--suite ../$(EVAL_SUITE) --model-profile $(EVAL_PROFILE) \
 		--profiles ../$(EVAL_PROFILES_FILE) --out ../$(EVAL_OUT) \
 		--jobs $(EVAL_JOBS) --threshold $(EVAL_THRESHOLD)

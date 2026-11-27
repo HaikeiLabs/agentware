@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-from evals import main as eval_main
-from evals.benchmark import (
+from haikeilabs.agentware.evals import main as eval_main
+from haikeilabs.agentware.evals.benchmark import (
     BENCHMARK_SCHEMA,
     CaseOutcome,
     SuiteResult,
@@ -26,13 +26,13 @@ from evals.benchmark import (
     render_markdown,
     scrub,
 )
-from evals.cases.beta_tools import BETA_TOOL_CASES, BETA_TOOLS
-from evals.expectations import ContentChecks, check_content
-from evals.models import ModelBackend, ModelResult
-from evals.profiles import ProfileError, load_profiles, resolve_profile
-from evals.runner import EvalResult, EvalRunner
-from evals.suite import SuiteValidationError, load_suite, load_suites
-from evals.table import combine_repeats, exit_code, run_suite
+from haikeilabs.agentware.evals.cases.beta_tools import BETA_TOOL_CASES, BETA_TOOLS
+from haikeilabs.agentware.evals.expectations import ContentChecks, check_content
+from haikeilabs.agentware.evals.models import ModelBackend, ModelResult
+from haikeilabs.agentware.evals.profiles import ProfileError, load_profiles, resolve_profile
+from haikeilabs.agentware.evals.runner import EvalResult, EvalRunner
+from haikeilabs.agentware.evals.suite import SuiteValidationError, load_suite, load_suites
+from haikeilabs.agentware.evals.table import combine_repeats, exit_code, run_suite
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_SUITE = REPO_ROOT / "evals" / "suites" / "agentware.beta-tools.json"
@@ -153,7 +153,9 @@ class _Script:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, client: Any) -> None:
-    monkeypatch.setattr("evals.runner.create_model_client", lambda *a, **k: client)
+    monkeypatch.setattr(
+        "haikeilabs.agentware.evals.runner.create_model_client", lambda *a, **k: client
+    )
 
 
 class _RecordingExecutor:
@@ -329,9 +331,7 @@ class TestSuiteSchemaBad:
             ),
         ],
     )
-    def test_rejects_bad_case(
-        self, tmp_path: Path, case: dict[str, Any], message: str
-    ) -> None:
+    def test_rejects_bad_case(self, tmp_path: Path, case: dict[str, Any], message: str) -> None:
         with pytest.raises(SuiteValidationError, match=message):
             _load(tmp_path, cases=[case])
 
@@ -394,12 +394,8 @@ class TestReferenceSuiteParity:
 
     def test_decline_prompts_are_cases(self) -> None:
         by_id = {c.name: c for c in load_suite(REFERENCE_SUITE).cases}
-        assert by_id["beta_decline_missing_document_id"].forbidden_tools == [
-            "docs.get_document"
-        ]
-        assert by_id["beta_decline_malformed_lead_email"].forbidden_tools == [
-            "crm_create_lead"
-        ]
+        assert by_id["beta_decline_missing_document_id"].forbidden_tools == ["docs.get_document"]
+        assert by_id["beta_decline_malformed_lead_email"].forbidden_tools == ["crm_create_lead"]
 
 
 # --- expectations ------------------------------------------------------------
@@ -455,9 +451,7 @@ class TestToolExpectations:
         assert not result.success
         assert "invalid first call to search_wiki" in result.error
 
-    def test_no_tool_called_fails(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_tool_called_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         case = _case(tmp_path, {"id": "x", "prompt": "p", "expect": {"tool": "file_bug"}})
         result = _run(monkeypatch, case, [_reply("no")])
         assert not result.success and "no tool was called" in result.error
@@ -643,9 +637,7 @@ class TestDenyPath:
         )
         _install(monkeypatch, client)
         executor = _RecordingExecutor()
-        result = EvalRunner(base_url="stub").run_table_case(
-            _deny_case(tmp_path), "m", executor
-        )
+        result = EvalRunner(base_url="stub").run_table_case(_deny_case(tmp_path), "m", executor)
         assert result.success, result.error
         assert executor.calls == []  # the policy stopped it before execution
         assert result.tool_calls[0]["denied"] is True
@@ -671,17 +663,13 @@ class TestDenyPath:
         result = _run(monkeypatch, _deny_case(tmp_path), [_reply("I can't access CRM data.")])
         assert result.success, result.error
 
-    def test_allowed_calls_execute(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_allowed_calls_execute(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _install(
             monkeypatch,
             _Script([_call("search_wiki", {"query": "lead 7"}), _reply("Nothing found.")]),
         )
         executor = _RecordingExecutor()
-        result = EvalRunner(base_url="stub").run_table_case(
-            _deny_case(tmp_path), "m", executor
-        )
+        result = EvalRunner(base_url="stub").run_table_case(_deny_case(tmp_path), "m", executor)
         assert result.success, result.error
         assert executor.calls == [("search_wiki", {"query": "lead 7"})]
 
@@ -722,9 +710,7 @@ class TestDenyPath:
                 "expect": {"deny": True},
             },
         )
-        result = _run(
-            monkeypatch, case, [_call("search_wiki", {"query": "q"}), _reply("I can't.")]
-        )
+        result = _run(monkeypatch, case, [_call("search_wiki", {"query": "q"}), _reply("I can't.")])
         assert result.success, result.error
         assert result.tool_calls[0]["denied"] is True
 
@@ -734,8 +720,13 @@ class TestDenyPath:
 
 def _result(success: bool, errored: bool = False, error: str = "") -> EvalResult:
     return EvalResult(
-        case_name="c", model_name="m", success=success, turns=1, tool_calls=[],
-        error=error, errored=errored,
+        case_name="c",
+        model_name="m",
+        success=success,
+        turns=1,
+        tool_calls=[],
+        error=error,
+        errored=errored,
     )
 
 
@@ -763,11 +754,17 @@ class TestRepeats:
 
     def test_suite_score_is_passed_runs_over_total_runs(self) -> None:
         # Owner decision 2026-10-10: repeats are averaged, as for tool-call evals.
-        result = SuiteResult("s", "agent", [
-            combine_repeats("a", [_result(True), _result(True), _result(False, error="x")]),
-            combine_repeats("b", [_result(True), _result(True), _result(True)]),
-            combine_repeats("c", [_result(True), _result(False, True, "timeout"), _result(True)]),
-        ])
+        result = SuiteResult(
+            "s",
+            "agent",
+            [
+                combine_repeats("a", [_result(True), _result(True), _result(False, error="x")]),
+                combine_repeats("b", [_result(True), _result(True), _result(True)]),
+                combine_repeats(
+                    "c", [_result(True), _result(False, True, "timeout"), _result(True)]
+                ),
+            ],
+        )
         assert (result.passed, result.failed, result.errors, result.total) == (7, 1, 1, 9)
         assert result.pass_rate == pytest.approx(7 / 9)
         assert exit_code([result], 0.75) == 0 and exit_code([result], 0.95) == 1
@@ -799,7 +796,11 @@ class TestRepeats:
         )
         _install(monkeypatch, _Script([]))  # always replies "done"
         result = run_suite(
-            EvalRunner(base_url="stub"), suite, "m", _RecordingExecutor(), jobs=4,
+            EvalRunner(base_url="stub"),
+            suite,
+            "m",
+            _RecordingExecutor(),
+            jobs=4,
             log=lambda _: None,
         )
         assert [c.id for c in result.cases] == [f"c{i}" for i in range(5)]
@@ -870,7 +871,8 @@ class TestProfiles:
     def test_canonical_profiles_think_with_a_fixed_seed(self) -> None:
         profiles = load_profiles(CANONICAL_PROFILES)
         sampling = {
-            name: (p.temperature, p.top_p, p.top_k, p.seed, p.thinking) for name, p in profiles.items()
+            name: (p.temperature, p.top_p, p.top_k, p.seed, p.thinking)
+            for name, p in profiles.items()
         }
         # GLM samples greedily; Qwen loops greedily with thinking on, so
         # it uses its recommended thinking-mode sampling.
@@ -882,9 +884,13 @@ class TestProfiles:
     def test_sampling_defaults(self, tmp_path: Path) -> None:
         path = _profiles(tmp_path, "profiles:\n  p: {backend: vllm, model: m, base_url_env: E}\n")
         profile = resolve_profile(path, "p")
-        assert (profile.temperature, profile.top_p, profile.top_k, profile.seed, profile.thinking) == (
-            0.0, None, None, None, None
-        )
+        assert (
+            profile.temperature,
+            profile.top_p,
+            profile.top_k,
+            profile.seed,
+            profile.thinking,
+        ) == (0.0, None, None, None, None)
 
     @pytest.mark.parametrize(
         "field, message",
@@ -944,12 +950,22 @@ class TestExitCodes:
 
     def _argv(self, suite: Path, profiles: Path, out: Path, *extra: str) -> list[str]:
         return [
-            "--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-            "--out", str(out), *extra,
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(out),
+            *extra,
         ]
 
     def test_all_pass_exits_0_and_writes_benchmark(
-        self, tmp_path: Path, suite_file: Path, profiles: Path,
+        self,
+        tmp_path: Path,
+        suite_file: Path,
+        profiles: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://10.1.2.3:8000/v1")
@@ -962,7 +978,10 @@ class TestExitCodes:
         assert (out / "benchmark.md").read_text().startswith("# Eval benchmark: stub")
 
     def test_below_threshold_exits_1(
-        self, tmp_path: Path, suite_file: Path, profiles: Path,
+        self,
+        tmp_path: Path,
+        suite_file: Path,
+        profiles: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://stub/v1")
@@ -974,7 +993,10 @@ class TestExitCodes:
         assert bench["results"][0]["pass_rate"] == 0.5
 
     def test_meets_lower_threshold_exits_0(
-        self, tmp_path: Path, suite_file: Path, profiles: Path,
+        self,
+        tmp_path: Path,
+        suite_file: Path,
+        profiles: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://stub/v1")
@@ -983,7 +1005,10 @@ class TestExitCodes:
         assert eval_main.main(argv) == 0
 
     def test_missing_env_exits_2_without_benchmark(
-        self, tmp_path: Path, suite_file: Path, profiles: Path,
+        self,
+        tmp_path: Path,
+        suite_file: Path,
+        profiles: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("EVAL_STUB_BASE_URL", raising=False)
@@ -992,8 +1017,12 @@ class TestExitCodes:
         assert not out.exists()
 
     def test_endpoint_down_exits_2_without_leaking_url(
-        self, tmp_path: Path, suite_file: Path, profiles: Path,
-        monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+        self,
+        tmp_path: Path,
+        suite_file: Path,
+        profiles: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://10.9.9.9:8000/v1")
         _install(monkeypatch, _Script([], fail=OSError("refused")))
@@ -1011,9 +1040,7 @@ class TestExitCodes:
         bad = _write(tmp_path, {"schema": "nope"}, "bad.json")
         assert eval_main.main(self._argv(bad, profiles, tmp_path / "out")) == 2
 
-    def test_missing_out_or_profile_exits_2(
-        self, suite_file: Path, profiles: Path
-    ) -> None:
+    def test_missing_out_or_profile_exits_2(self, suite_file: Path, profiles: Path) -> None:
         assert eval_main.main(["--suite", str(suite_file), "--model-profile", "stub"]) == 2
         assert eval_main.main(["--suite", str(suite_file), "--out", "x"]) == 2
 
@@ -1045,7 +1072,8 @@ class TestBenchmark:
                     CaseOutcome("ok", True, duration_ms=1200),
                     CaseOutcome("bad", False, "called 'x' | expected 'y'", duration_ms=300),
                     CaseOutcome(
-                        "err", False,
+                        "err",
+                        False,
                         "error: URLError: <urlopen error http://203.0.113.7:8000/v1 "
                         "box-1.tail1234.ts.net>",
                         errored=True,
@@ -1056,18 +1084,34 @@ class TestBenchmark:
 
     def test_schema_shape(self) -> None:
         bench = build_benchmark(
-            self._results(), "deepseek-v4-flash", "deepseek-ai/DeepSeek-V4-Flash",
-            sha="abc123", created_at="2026-10-07T00:00:00+00:00",
+            self._results(),
+            "deepseek-v4-flash",
+            "deepseek-ai/DeepSeek-V4-Flash",
+            sha="abc123",
+            created_at="2026-10-07T00:00:00+00:00",
         )
         assert set(bench) == {
-            "schema", "harness", "model_profile", "model", "created_at", "git_sha", "results",
+            "schema",
+            "harness",
+            "model_profile",
+            "model",
+            "created_at",
+            "git_sha",
+            "results",
         }
         assert bench["schema"] == BENCHMARK_SCHEMA == "haikei.eval-benchmark.v1"
         assert bench["harness"] == "agentware"
         assert bench["git_sha"] == "abc123"
         (suite,) = bench["results"]
         assert set(suite) == {
-            "suite", "kind", "passed", "failed", "errors", "total", "pass_rate", "cases",
+            "suite",
+            "kind",
+            "passed",
+            "failed",
+            "errors",
+            "total",
+            "pass_rate",
+            "cases",
         }
         assert (suite["passed"], suite["failed"], suite["errors"], suite["total"]) == (1, 1, 1, 3)
         assert suite["pass_rate"] == pytest.approx(1 / 3, abs=1e-4)
@@ -1078,9 +1122,7 @@ class TestBenchmark:
         json.dumps(bench)  # serializable
 
     def test_reasons_are_scrubbed(self) -> None:
-        bench = build_benchmark(
-            self._results(), "p", "m", secrets=("http://203.0.113.7:8000/v1",)
-        )
+        bench = build_benchmark(self._results(), "p", "m", secrets=("http://203.0.113.7:8000/v1",))
         text = json.dumps(bench)
         assert "203.0.113" not in text and "ts.net" not in text and "box-1" not in text
 
@@ -1107,13 +1149,13 @@ class TestBenchmark:
 
 class TestSuiteToolExecutor:
     def test_beta_tools_get_connector_mocks(self) -> None:
-        from evals.executors import suite_tool_executor
+        from haikeilabs.agentware.evals.executors import suite_tool_executor
 
         out = json.loads(suite_tool_executor("github.get_issue", {"issue_number": 429}))
         assert out["error"] == "rate_limited"
 
     def test_other_tools_get_a_generic_stub_without_side_effects(self, tmp_path: Path) -> None:
-        from evals.executors import suite_tool_executor
+        from haikeilabs.agentware.evals.executors import suite_tool_executor
 
         secret = tmp_path / "secret.txt"
         secret.write_text("do not read")
@@ -1148,18 +1190,36 @@ class TestDiagnostics:
         suite, profiles = self._setup(tmp_path, monkeypatch)
         _install(monkeypatch, _Script([]))
         out = tmp_path / "out"
-        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-                "--out", str(out), "--case", "b"]
+        argv = [
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(out),
+            "--case",
+            "b",
+        ]
         assert eval_main.main(argv) == 0
         bench = json.loads((out / "benchmark.json").read_text())
         assert [c["id"] for c in bench["results"][0]["cases"]] == ["b"]
 
-    def test_unknown_case_id_exits_2(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unknown_case_id_exits_2(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         suite, profiles = self._setup(tmp_path, monkeypatch)
-        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-                "--out", str(tmp_path / "out"), "--case", "zzz"]
+        argv = [
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(tmp_path / "out"),
+            "--case",
+            "zzz",
+        ]
         assert eval_main.main(argv) == 2
 
     def test_transcripts_are_written_and_scrubbed(
@@ -1171,8 +1231,18 @@ class TestDiagnostics:
             _Script([_reply("pong"), _reply("see http://10.1.2.3:8000/v1"), _reply("ok")]),
         )
         transcripts = tmp_path / "t" / "runs.jsonl"
-        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-                "--out", str(tmp_path / "out"), "--transcripts", str(transcripts)]
+        argv = [
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(tmp_path / "out"),
+            "--transcripts",
+            str(transcripts),
+        ]
         assert eval_main.main(argv) == 0
         lines = [json.loads(line) for line in transcripts.read_text().splitlines()]
         assert [r["case"] for r in lines] == ["a", "b"]
@@ -1324,9 +1394,7 @@ class TestEarlyStop:
 
         _install(monkeypatch, _Spy([_reply("hi")]))
         case = _case(tmp_path, {"id": "x", "prompt": "p", "expect": {"tool": None}})
-        EvalRunner(base_url="stub", max_tokens=1024).run_table_case(
-            case, "m", _RecordingExecutor()
-        )
+        EvalRunner(base_url="stub", max_tokens=1024).run_table_case(case, "m", _RecordingExecutor())
         assert seen == [(0.0, 1024)]
 
     def test_truncated_reply_fails_with_a_clear_reason(
@@ -1345,9 +1413,7 @@ class TestEarlyStop:
     def test_prefix_is_byte_identical_across_cases(self) -> None:
         # The prompt-cache prefix (system prompt + tools) must not vary by case.
         suite = load_suite(REFERENCE_SUITE)
-        prefixes = {
-            json.dumps([c.system_prompt, c.tools], sort_keys=False) for c in suite.cases
-        }
+        prefixes = {json.dumps([c.system_prompt, c.tools], sort_keys=False) for c in suite.cases}
         assert len(prefixes) == 1
 
 
@@ -1374,15 +1440,17 @@ class TestSampling:
     def test_openai_compatible_clients_send_temperature_and_seed(
         self, backend: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from evals.models import create_model_client
+        from haikeilabs.agentware.evals.models import create_model_client
 
         sent: list[dict[str, Any]] = []
         monkeypatch.setattr(
-            "evals.models.urllib.request.urlopen",
+            "haikeilabs.agentware.evals.models.urllib.request.urlopen",
             lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
         )
         client = create_model_client(ModelBackend(backend), "m", "http://stub/v1")
-        client.complete([{"role": "user", "content": "x"}], temperature=0.0, seed=42, top_p=0.95, top_k=20)
+        client.complete(
+            [{"role": "user", "content": "x"}], temperature=0.0, seed=42, top_p=0.95, top_k=20
+        )
         client.complete([{"role": "user", "content": "x"}], temperature=0.0)
         assert (sent[0]["temperature"], sent[0]["seed"], sent[0]["top_p"]) == (0.0, 42, 0.95)
         # OpenAI's API has no top_k; the self-hosted servers take it.
@@ -1393,11 +1461,11 @@ class TestSampling:
     def test_self_hosted_clients_switch_thinking_through_the_chat_template(
         self, backend: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from evals.models import create_model_client
+        from haikeilabs.agentware.evals.models import create_model_client
 
         sent: list[dict[str, Any]] = []
         monkeypatch.setattr(
-            "evals.models.urllib.request.urlopen",
+            "haikeilabs.agentware.evals.models.urllib.request.urlopen",
             lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
         )
         client = create_model_client(ModelBackend(backend), "m", "http://stub/v1")
@@ -1410,11 +1478,11 @@ class TestSampling:
         assert "chat_template_kwargs" not in sent[2]
 
     def test_openai_client_sends_no_template_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from evals.models import create_model_client
+        from haikeilabs.agentware.evals.models import create_model_client
 
         sent: list[dict[str, Any]] = []
         monkeypatch.setattr(
-            "evals.models.urllib.request.urlopen",
+            "haikeilabs.agentware.evals.models.urllib.request.urlopen",
             lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
         )
         create_model_client(ModelBackend.OPENAI, "m", "http://stub/v1").complete(
@@ -1423,20 +1491,31 @@ class TestSampling:
         assert "chat_template_kwargs" not in sent[0]
 
     def test_ollama_sends_sampling_in_options(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from evals.models import OllamaClient
+        from haikeilabs.agentware.evals.models import OllamaClient
 
         sent: dict[str, Any] = {}
         monkeypatch.setattr(
-            "evals.models.urllib.request.urlopen",
+            "haikeilabs.agentware.evals.models.urllib.request.urlopen",
             lambda req, timeout=0: (
                 sent.update(json.loads(req.data)),
                 _WireResp({"message": {"content": "hi"}, "done": True}),
             )[1],
         )
         OllamaClient("m").complete(
-            [{"role": "user", "content": "x"}], temperature=0.6, seed=42, top_p=0.95, top_k=20, thinking=True
+            [{"role": "user", "content": "x"}],
+            temperature=0.6,
+            seed=42,
+            top_p=0.95,
+            top_k=20,
+            thinking=True,
         )
-        assert sent["options"] == {"num_predict": 2048, "temperature": 0.6, "seed": 42, "top_p": 0.95, "top_k": 20}
+        assert sent["options"] == {
+            "num_predict": 2048,
+            "temperature": 0.6,
+            "seed": 42,
+            "top_p": 0.95,
+            "top_k": 20,
+        }
         assert sent["think"] is True
 
     def test_cli_sends_profile_sampling_on_every_request_and_repeats_override(
@@ -1444,11 +1523,13 @@ class TestSampling:
     ) -> None:
         sent: list[dict[str, Any]] = []
         monkeypatch.setattr(
-            "evals.models.urllib.request.urlopen",
+            "haikeilabs.agentware.evals.models.urllib.request.urlopen",
             lambda req, timeout=0: (sent.append(json.loads(req.data)), _WireResp(self.REPLY))[1],
         )
         monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://stub/v1")
-        suite = _write(tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}]))
+        suite = _write(
+            tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}])
+        )
         profiles = _profiles(
             tmp_path,
             "profiles:\n  stub: {backend: vllm, model: stub-model, "
@@ -1456,8 +1537,18 @@ class TestSampling:
             "thinking: true}\n",
         )
         out = tmp_path / "out"
-        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-                "--out", str(out), "--repeats", "3"]
+        argv = [
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(out),
+            "--repeats",
+            "3",
+        ]
         assert eval_main.main(argv) == 0
         assert len(sent) == 4  # preflight + one request per repeat
         assert all(
@@ -1465,29 +1556,49 @@ class TestSampling:
             for body in sent
         )
         assert all(
-            body["chat_template_kwargs"] == {"enable_thinking": True, "thinking": True} for body in sent
+            body["chat_template_kwargs"] == {"enable_thinking": True, "thinking": True}
+            for body in sent
         )
         (result,) = json.loads((out / "benchmark.json").read_text())["results"]
         assert (result["passed"], result["total"]) == (3, 3)
         assert result["cases"] == [
-            {"id": "a", "passed": True, "reason": "", "duration_ms": result["cases"][0]["duration_ms"],
-             "runs": 3, "passed_runs": 3}
+            {
+                "id": "a",
+                "passed": True,
+                "reason": "",
+                "duration_ms": result["cases"][0]["duration_ms"],
+                "runs": 3,
+                "passed_runs": 3,
+            }
         ]
 
     def test_bad_repeats_is_blocked(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("EVAL_STUB_BASE_URL", "http://stub/v1")
-        suite = _write(tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}]))
-        profiles = _profiles(
-            tmp_path, "profiles:\n  stub: {backend: vllm, model: m, base_url_env: EVAL_STUB_BASE_URL}\n"
+        suite = _write(
+            tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}])
         )
-        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-                "--out", str(tmp_path / "out"), "--repeats", "0"]
+        profiles = _profiles(
+            tmp_path,
+            "profiles:\n  stub: {backend: vllm, model: m, base_url_env: EVAL_STUB_BASE_URL}\n",
+        )
+        argv = [
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(tmp_path / "out"),
+            "--repeats",
+            "0",
+        ]
         assert eval_main.main(argv) == 2
 
 
 class TestPromptCacheHint:
     def test_llamacpp_requests_send_cache_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from evals.models import LlamaCPPClient
+        from haikeilabs.agentware.evals.models import LlamaCPPClient
 
         sent: dict[str, Any] = {}
 
@@ -1501,7 +1612,9 @@ class TestPromptCacheHint:
             sent.update(json.loads(req.data))
             return _Resp()
 
-        monkeypatch.setattr("evals.models.urllib.request.urlopen", fake_urlopen)
+        monkeypatch.setattr(
+            "haikeilabs.agentware.evals.models.urllib.request.urlopen", fake_urlopen
+        )
         LlamaCPPClient("m", base_url="http://stub/v1").complete(
             [{"role": "user", "content": "x"}], temperature=0.0, max_tokens=1024
         )
@@ -1527,20 +1640,31 @@ class TestGitSha:
         repo.mkdir()
         for cmd in (
             ["git", "init", "-q"],
-            ["git", "-c", "user.email=e@x", "-c", "user.name=n", "commit", "-q",
-             "--allow-empty", "-m", "init"],
+            [
+                "git",
+                "-c",
+                "user.email=e@x",
+                "-c",
+                "user.name=n",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
         ):
             subprocess.run(cmd, cwd=repo, check=True)
         (repo / "tracked.txt").write_text("a")
         subprocess.run(["git", "add", "tracked.txt"], cwd=repo, check=True)
         subprocess.run(
             ["git", "-c", "user.email=e@x", "-c", "user.name=n", "commit", "-q", "-m", "t"],
-            cwd=repo, check=True,
+            cwd=repo,
+            check=True,
         )
         return repo
 
     def test_clean_tree_and_untracked_files(self, tmp_path: Path) -> None:
-        from evals.benchmark import git_sha
+        from haikeilabs.agentware.evals.benchmark import git_sha
 
         repo = self._repo(tmp_path)
         (repo / "results.json").write_text("{}")  # untracked: still clean
@@ -1548,14 +1672,14 @@ class TestGitSha:
         assert len(sha) == 40 and not sha.endswith("-dirty")
 
     def test_tracked_change_is_dirty(self, tmp_path: Path) -> None:
-        from evals.benchmark import git_sha
+        from haikeilabs.agentware.evals.benchmark import git_sha
 
         repo = self._repo(tmp_path)
         (repo / "tracked.txt").write_text("b")
         assert git_sha(repo).endswith("-dirty")
 
     def test_not_a_repo(self, tmp_path: Path) -> None:
-        from evals.benchmark import git_sha
+        from haikeilabs.agentware.evals.benchmark import git_sha
 
         assert git_sha(tmp_path) == ""
 
@@ -1573,14 +1697,24 @@ class TestGitSha:
                 return _reply("hi")
 
         _install(monkeypatch, _Client([]))
-        suite = _write(tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}]))
+        suite = _write(
+            tmp_path, _suite(cases=[{"id": "a", "prompt": "p", "expect": {"tool": None}}])
+        )
         profiles = _profiles(
             tmp_path,
             "profiles:\n  stub: {backend: vllm, model: m, base_url_env: EVAL_STUB_BASE_URL}\n",
         )
         out = tmp_path / "out"
-        argv = ["--suite", str(suite), "--model-profile", "stub", "--profiles", str(profiles),
-                "--out", str(out)]
+        argv = [
+            "--suite",
+            str(suite),
+            "--model-profile",
+            "stub",
+            "--profiles",
+            str(profiles),
+            "--out",
+            str(out),
+        ]
         assert eval_main.main(argv) == 0
         assert calls[0] == "sha"  # before preflight and every case
         assert json.loads((out / "benchmark.json").read_text())["git_sha"] == "abc"

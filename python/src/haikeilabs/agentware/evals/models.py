@@ -331,7 +331,7 @@ class OllamaClient(BaseModelClient):
                         "id": tc.get("id", ""),
                         "name": tc.get("function", {}).get("name", ""),
                         "arguments": tc.get("function", {}).get("arguments", ""),
-                    **({"metadata": tc["extra_content"]} if "extra_content" in tc else {}),
+                        **({"metadata": tc["extra_content"]} if "extra_content" in tc else {}),
                     }
                 )
 

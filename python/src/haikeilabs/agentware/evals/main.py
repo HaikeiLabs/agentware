@@ -17,6 +17,7 @@ Legacy Python case modules:
   python -m evals.main [--file-search | --general | --github | --calendar
                        | --beta-tools | --all]
 """
+
 import argparse
 import json
 import os
@@ -26,23 +27,34 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from evals.benchmark import build_benchmark, git_sha, scrub, write_benchmark
-from evals.cases.beta_tools import BETA_TOOL_CASES
-from evals.cases.calendar import CALENDAR_CASES
-from evals.cases.file_search import FILE_SEARCH_CASES
-from evals.cases.general import GENERAL_CASES
-from evals.cases.github import GITHUB_CASES
-from evals.executors import (
+from haikeilabs.agentware.evals.benchmark import build_benchmark, git_sha, scrub, write_benchmark
+from haikeilabs.agentware.evals.cases.beta_tools import BETA_TOOL_CASES
+from haikeilabs.agentware.evals.cases.calendar import CALENDAR_CASES
+from haikeilabs.agentware.evals.cases.file_search import FILE_SEARCH_CASES
+from haikeilabs.agentware.evals.cases.general import GENERAL_CASES
+from haikeilabs.agentware.evals.cases.github import GITHUB_CASES
+from haikeilabs.agentware.evals.executors import (
     beta_tool_executor,
     dispatch_tool_executor,
     mock_tool_executor,
     suite_tool_executor,
 )
-from evals.models import ModelBackend
-from evals.profiles import ProfileError, resolve_profile
-from evals.runner import EndpointUnavailableError, EvalCase, EvalResult, EvalRunner
-from evals.suite import Suite, SuiteValidationError, load_suites
-from evals.table import EXIT_UNAVAILABLE, ResultHook, exit_code, run_suite, select_cases
+from haikeilabs.agentware.evals.models import ModelBackend
+from haikeilabs.agentware.evals.profiles import ProfileError, resolve_profile
+from haikeilabs.agentware.evals.runner import (
+    EndpointUnavailableError,
+    EvalCase,
+    EvalResult,
+    EvalRunner,
+)
+from haikeilabs.agentware.evals.suite import Suite, SuiteValidationError, load_suites
+from haikeilabs.agentware.evals.table import (
+    EXIT_UNAVAILABLE,
+    ResultHook,
+    exit_code,
+    run_suite,
+    select_cases,
+)
 
 __all__ = [
     "beta_tool_executor",
@@ -53,7 +65,7 @@ __all__ = [
 ]
 
 # python/src/evals/main.py -> repo root
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 _PROFILES_NAME = Path("evals") / "model-profiles.yaml"
 
 
@@ -157,9 +169,7 @@ def run_suites(args: argparse.Namespace) -> int:
     )
     on_result = transcript_writer(Path(args.transcripts), (base_url,)) if args.transcripts else None
     results = [
-        run_suite(
-            runner, suite, profile.model, suite_tool_executor, jobs=jobs, on_result=on_result
-        )
+        run_suite(runner, suite, profile.model, suite_tool_executor, jobs=jobs, on_result=on_result)
         for suite in suites
     ]
 
@@ -175,8 +185,10 @@ def run_suites(args: argparse.Namespace) -> int:
 
     print("\n=== Summary ===")
     for r in results:
-        print(f"{r.suite}: {r.passed}/{r.total} runs passed ({r.pass_rate:.1%}), "
-              f"{r.failed} failed, {r.errors} errors")
+        print(
+            f"{r.suite}: {r.passed}/{r.total} runs passed ({r.pass_rate:.1%}), "
+            f"{r.failed} failed, {r.errors} errors"
+        )
     print(f"Benchmark written to: {out_dir}")
     return exit_code(results, args.threshold)
 
@@ -232,7 +244,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Completion token budget per turn; a reply cut off here is failed as truncated",
     )
     parser.add_argument("--file-search", action="store_true", help="Run file search evals only")
-    parser.add_argument("--general", action="store_true", help="Run general tool calling evals only")
+    parser.add_argument(
+        "--general", action="store_true", help="Run general tool calling evals only"
+    )
     parser.add_argument("--github", action="store_true", help="Run GitHub tool evals only")
     parser.add_argument("--calendar", action="store_true", help="Run calendar tool evals only")
     parser.add_argument(
@@ -249,7 +263,12 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("EVAL_BASE_URL", "http://localhost:8000"),
         help="API base URL (default: $EVAL_BASE_URL)",
     )
-    parser.add_argument("--backend", default="llamacpp", choices=["openai", "anthropic", "ollama", "vllm", "lmstudio", "llamacpp"], help="Model backend")
+    parser.add_argument(
+        "--backend",
+        default="llamacpp",
+        choices=["openai", "anthropic", "ollama", "vllm", "lmstudio", "llamacpp"],
+        help="Model backend",
+    )
     parser.add_argument("--max-turns", type=int, default=10, help="Max turns per eval")
     args = parser.parse_args(argv)
 
@@ -276,9 +295,7 @@ def main(argv: list[str] | None = None) -> int:
         cases = BETA_TOOL_CASES
         output_file = "beta_tools_results.json"
     else:
-        cases = (
-            FILE_SEARCH_CASES + GENERAL_CASES + GITHUB_CASES + CALENDAR_CASES + BETA_TOOL_CASES
-        )
+        cases = FILE_SEARCH_CASES + GENERAL_CASES + GITHUB_CASES + CALENDAR_CASES + BETA_TOOL_CASES
         output_file = "results.json"
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]

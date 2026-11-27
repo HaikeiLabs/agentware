@@ -1,7 +1,8 @@
 """
 File search tool call test cases.
 """
-from evals.runner import EvalCase
+
+from haikeilabs.agentware.evals.runner import EvalCase
 
 FILE_SEARCH_TOOLS = [
     {
@@ -13,11 +14,11 @@ FILE_SEARCH_TOOLS = [
                 "type": "object",
                 "properties": {
                     "pattern": {"type": "string", "description": "Glob pattern to match files"},
-                    "directory": {"type": "string", "description": "Directory to search in"}
+                    "directory": {"type": "string", "description": "Directory to search in"},
                 },
-                "required": ["pattern"]
-            }
-        }
+                "required": ["pattern"],
+            },
+        },
     },
     {
         "type": "function",
@@ -29,9 +30,9 @@ FILE_SEARCH_TOOLS = [
                 "properties": {
                     "path": {"type": "string", "description": "Path to the file to read"}
                 },
-                "required": ["path"]
-            }
-        }
+                "required": ["path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -42,12 +43,12 @@ FILE_SEARCH_TOOLS = [
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Text to search for"},
-                    "path": {"type": "string", "description": "Directory path to search in"}
+                    "path": {"type": "string", "description": "Directory path to search in"},
                 },
-                "required": ["query"]
-            }
-        }
-    }
+                "required": ["query"],
+            },
+        },
+    },
 ]
 
 FILE_SEARCH_CASES = [
@@ -57,7 +58,7 @@ FILE_SEARCH_CASES = [
         system_prompt="You are a helpful assistant with file system access. Use the provided tools to help the user.",
         user_message="Find all Python files in the current directory",
         tools=FILE_SEARCH_TOOLS,
-        expected_tool="glob"
+        expected_tool="glob",
     ),
     EvalCase(
         name="glob_md_files",
@@ -65,7 +66,7 @@ FILE_SEARCH_CASES = [
         system_prompt="You are a helpful assistant with file system access. Use the provided tools to help the user.",
         user_message="List all markdown files (*.md) in this directory",
         tools=FILE_SEARCH_TOOLS,
-        expected_tool="glob"
+        expected_tool="glob",
     ),
     EvalCase(
         name="search_code",
@@ -73,7 +74,7 @@ FILE_SEARCH_CASES = [
         system_prompt="You are a helpful assistant with file system access. Use the provided tools to help the user.",
         user_message="Search for all files containing 'func main'",
         tools=FILE_SEARCH_TOOLS,
-        expected_tool="search_files"
+        expected_tool="search_files",
     ),
     EvalCase(
         name="read_config",
@@ -81,6 +82,6 @@ FILE_SEARCH_CASES = [
         system_prompt="You are a helpful assistant with file system access. Use the provided tools to help the user.",
         user_message="Read the contents of go.mod",
         tools=FILE_SEARCH_TOOLS,
-        expected_tool="read_file"
+        expected_tool="read_file",
     ),
 ]

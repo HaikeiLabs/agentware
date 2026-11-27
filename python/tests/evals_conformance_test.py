@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from evals.models import BaseModelClient, ModelResult
-from evals.runner import EvalRunner
-from evals.suite import SuiteValidationError, load_suite
+from haikeilabs.agentware.evals.models import BaseModelClient, ModelResult
+from haikeilabs.agentware.evals.runner import EvalRunner
+from haikeilabs.agentware.evals.suite import SuiteValidationError, load_suite
 
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "evals" / "suite-v1"
 

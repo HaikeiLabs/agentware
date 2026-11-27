@@ -1,4 +1,5 @@
 """``haikei.eval-benchmark.v1`` output: benchmark.json + benchmark.md (EV-C1 §5)."""
+
 import json
 import re
 import subprocess

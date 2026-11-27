@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
 
-from evals.models import ModelResult
-from evals.runner import EvalCase, EvalReport, EvalRunner, case_from_contract
+from haikeilabs.agentware.evals.models import ModelResult
+from haikeilabs.agentware.evals.runner import EvalCase, EvalReport, EvalRunner, case_from_contract
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures/evals/expectations/cases.json"
 DATA = json.loads(FIXTURE.read_text(encoding="utf-8"))

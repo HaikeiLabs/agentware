@@ -4,15 +4,14 @@ A profile names an OpenAI-compatible endpoint by the *environment variable*
 that holds its base URL, never the URL itself, so profile files can live in
 public repos without leaking private hostnames or addresses.
 """
+
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-from evals.models import ModelBackend
+from haikeilabs.agentware.evals.models import ModelBackend
 
 
 class ProfileError(RuntimeError):
@@ -114,6 +113,13 @@ def load_profiles(path: str | Path) -> dict[str, ModelProfile]:
     shared with other runners (e.g. the skills runner) can carry their fields.
     """
     profile_path = Path(path)
+    try:
+        import yaml  # provided by the [evals] extra; imported lazily so the
+        # CLI's argument handling works without it
+    except ImportError as exc:
+        raise ProfileError(
+            "PyYAML is required to load model profiles; install the package with the [evals] extra"
+        ) from exc
     try:
         data = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
     except OSError as exc:

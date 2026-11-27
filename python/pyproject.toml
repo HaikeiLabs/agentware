@@ -73,6 +73,12 @@ pydantic-ai = [
     "pydantic-ai>=1.0",
 ]
 
+[project.scripts]
+# The eval runner CLI (EV-C1). pyyaml comes with the [evals] extra; without it
+# the CLI still starts (--help, argument errors) and only profile loading
+# reports the missing extra.
+agentware-evals = "haikeilabs.agentware.evals.main:main"
+
 [project.urls]
 Homepage = "https://github.com/HaikeiLabs/agentware"
 Documentation = "https://github.com/HaikeiLabs/agentware/tree/main/docs/python"
@@ -85,9 +91,10 @@ where = ["src"]
 # haikeilabs/ is a PEP 420 implicit namespace package (no __init__.py), so other
 # haikeilabs.* distributions can install beside this one.
 namespaces = true
-# The SDK and its deprecated pedro_agentware alias. src/evals is the repo's eval
-# runner (run with PYTHONPATH=src) and must not land on PyPI as a top-level
-# "evals" package.
+# The SDK, its deprecated pedro_agentware alias, and the eval runner shipped
+# as haikeilabs.agentware.evals ([evals] extra, `agentware-evals` console
+# script). The evals extra's pyyaml is NOT a core dependency, so profile
+# loading fails with a clear message when the extra is missing.
 include = ["haikeilabs.agentware*", "pedro_agentware*"]
 exclude = ["*.__pycache__"]
 

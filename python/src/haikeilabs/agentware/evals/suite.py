@@ -7,6 +7,7 @@ satisfied are rejected before any model is called. Loaded cases are plain
 ``EvalCase`` objects, so JSON suites and the Python case modules share one
 runner and one validator.
 """
+
 import json
 import re
 from dataclasses import dataclass
@@ -15,8 +16,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from evals.expectations import ContentChecks
-from evals.runner import EvalCase
+from haikeilabs.agentware.evals.expectations import ContentChecks
+from haikeilabs.agentware.evals.runner import EvalCase
 
 SUITE_SCHEMA = "agentware.eval-suite.v1"
 CASE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
@@ -240,9 +241,7 @@ def load_suite(path: str | Path) -> Suite:
                 ),
                 context=context,
                 allowed_tools=(
-                    None
-                    if case.context.allowed_tools is None
-                    else list(case.context.allowed_tools)
+                    None if case.context.allowed_tools is None else list(case.context.allowed_tools)
                 ),
             )
         )

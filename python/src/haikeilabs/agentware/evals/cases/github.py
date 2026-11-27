@@ -1,7 +1,8 @@
 """
 GitHub tool test cases.
 """
-from evals.runner import EvalCase
+
+from haikeilabs.agentware.evals.runner import EvalCase
 
 GITHUB_TOOLS = [
     {
@@ -14,11 +15,15 @@ GITHUB_TOOLS = [
                 "properties": {
                     "owner": {"type": "string", "description": "Repository owner"},
                     "repo": {"type": "string", "description": "Repository name"},
-                    "state": {"type": "string", "enum": ["open", "closed", "all"], "description": "PR state"},
+                    "state": {
+                        "type": "string",
+                        "enum": ["open", "closed", "all"],
+                        "description": "PR state",
+                    },
                 },
-                "required": ["owner", "repo"]
-            }
-        }
+                "required": ["owner", "repo"],
+            },
+        },
     },
     {
         "type": "function",
@@ -30,11 +35,15 @@ GITHUB_TOOLS = [
                 "properties": {
                     "owner": {"type": "string", "description": "Repository owner"},
                     "repo": {"type": "string", "description": "Repository name"},
-                    "state": {"type": "string", "enum": ["open", "closed", "all"], "description": "Issue state"},
+                    "state": {
+                        "type": "string",
+                        "enum": ["open", "closed", "all"],
+                        "description": "Issue state",
+                    },
                 },
-                "required": ["owner", "repo"]
-            }
-        }
+                "required": ["owner", "repo"],
+            },
+        },
     },
     {
         "type": "function",
@@ -49,9 +58,9 @@ GITHUB_TOOLS = [
                     "title": {"type": "string", "description": "Issue title"},
                     "body": {"type": "string", "description": "Issue body"},
                 },
-                "required": ["owner", "repo", "title"]
-            }
-        }
+                "required": ["owner", "repo", "title"],
+            },
+        },
     },
     {
         "type": "function",
@@ -65,9 +74,9 @@ GITHUB_TOOLS = [
                     "repo": {"type": "string", "description": "Repository name"},
                     "workflow_id": {"type": "string", "description": "Workflow ID or name"},
                 },
-                "required": ["owner", "repo"]
-            }
-        }
+                "required": ["owner", "repo"],
+            },
+        },
     },
 ]
 
@@ -78,7 +87,7 @@ GITHUB_CASES = [
         system_prompt="You are a helpful assistant with GitHub access. Use tools to help the user.",
         user_message="Show me the open pull requests in soypete/pedro-agentware",
         tools=GITHUB_TOOLS,
-        expected_tool="list_prs"
+        expected_tool="list_prs",
     ),
     EvalCase(
         name="list_issues",
@@ -86,7 +95,7 @@ GITHUB_CASES = [
         system_prompt="You are a helpful assistant with GitHub access. Use tools to help the user.",
         user_message="What bugs are open in soypete/pedro-agentware?",
         tools=GITHUB_TOOLS,
-        expected_tool="list_issues"
+        expected_tool="list_issues",
     ),
     EvalCase(
         name="create_issue",
@@ -94,7 +103,7 @@ GITHUB_CASES = [
         system_prompt="You are a helpful assistant with GitHub access. Use tools to help the user.",
         user_message="File a bug about the login issue in soypete/pedro-agentware",
         tools=GITHUB_TOOLS,
-        expected_tool="create_issue"
+        expected_tool="create_issue",
     ),
     EvalCase(
         name="workflow_status",
@@ -102,6 +111,6 @@ GITHUB_CASES = [
         system_prompt="You are a helpful assistant with GitHub access. Use tools to help the user.",
         user_message="What's the CI status for soypete/pedro-agentware?",
         tools=GITHUB_TOOLS,
-        expected_tool="get_workflow_status"
+        expected_tool="get_workflow_status",
     ),
 ]
