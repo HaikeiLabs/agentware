@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import fc from "fast-check";
-import { getFormatter } from "../src/toolformat/index.js";
+import { HarmonyFormatter, getFormatter } from "../src/toolformat/index.js";
+import type { ToolFormatter } from "../src/toolformat/index.js";
 import {
   ManifestV3Error,
   parseManifestV3,
@@ -27,8 +28,12 @@ const familyModels: Record<string, string> = {
   deepseek: "deepseek-chat",
   anthropic: "claude-3",
   qwen: "qwen-2",
-  "gpt-oss": "openai/gpt-oss-20b",
+  // Harmony is opt-in, so no model name selects it: this sentinel stands for
+  // the explicit formatter (see formatterFor).
+  "gpt-oss": "opt-in:harmony",
 };
+const formatterFor = (model: string): ToolFormatter =>
+  model === "opt-in:harmony" ? new HarmonyFormatter() : getFormatter(model);
 const toolformatRoot = resolve(process.cwd(), "../fixtures/toolformat");
 const reasoningRoot = resolve(process.cwd(), "../fixtures/reasoning");
 const manifestRoot = resolve(process.cwd(), "../fixtures/toolspec/manifest-v3");
@@ -140,7 +145,7 @@ describe("parser property fuzzing", () => {
   test("tool-call formatters only return named calls with JSON object arguments", () => {
     fc.assert(
       fc.property(toolCallArb, ([model, response]) => {
-        const calls = getFormatter(model).parseToolCalls(response);
+        const calls = formatterFor(model).parseToolCalls(response);
         for (const call of calls) {
           expect(typeof call.name).toBe("string");
           expect(call.name.length).toBeGreaterThan(0);

@@ -301,15 +301,26 @@ arguments as JSON string").
 
 GPT-OSS is trained on OpenAI's [Harmony](https://github.com/openai/harmony)
 format. Over chat completions the server applies Harmony and returns
-OpenAI-style `tool_calls`. Over raw `/v1/completions` the caller renders the
-prompt and parses the completion text itself, which is what this formatter and
-the Harmony prompt renderer do. The rendering follows the reference renderer
+OpenAI-style `tool_calls`, so GPT-OSS model ids keep the OpenAI formatter
+there. Over raw `/v1/completions` the caller renders the prompt and parses the
+completion text itself, which is what this formatter and the Harmony prompt
+renderer do.
+
+**Harmony is opt-in.** `get_formatter` / `GetFormatter` / `getFormatter` /
+`for_model` never return `HarmonyFormatter`, and the executor dispatchers
+never pick it: a GPT-OSS id still selects `OpenAIFOrmatter`, so
+chat-completions callers see no change. A raw-completions caller constructs it
+(`HarmonyFormatter()`, `&toolformat.HarmonyFormatter{}`,
+`new HarmonyFormatter()`, `HarmonyFormatter`), renders the prompt with the
+Harmony prompt renderer, and sends it with the stop sequences below. The SDK
+backends call chat completions only, so the request to `/v1/completions` is
+the caller's. The rendering follows the reference renderer
 (`src/encoding.rs` in openai/harmony) byte for byte; the shared fixture
 `fixtures/toolformat/harmony-cases.json` replays openai/harmony's test-data.
 
 | | Detail |
 |---|---|
-| **Model names** | Any id containing `gpt-oss`, `gpt_oss` or `gptoss` (`openai/gpt-oss-20b`, `gpt-oss-120b`, GGUF builds). Checked before the `gpt` rule that selects `OpenAIFOrmatter` |
+| **Selection** | Opt-in: construct `HarmonyFormatter` for raw completions. No model id selects it; `openai/gpt-oss-20b` and other GPT-OSS ids select `OpenAIFOrmatter` |
 | **Definitions format** | The developer message's `# Tools` section: a TypeScript-style `namespace functions { ... }`, one `type NAME = (_: {...}) => any;` per tool, descriptions as `//` comments. JSON Schema maps as the reference does: `?` for optional properties, string enums as unions of literals, `// default: ...` comments, `T[]` arrays, `\| null` for `nullable`, `oneOf` as a `\|` list, nested objects inline. A tool with no schema is `() => any` |
 | **Parse format** | An assistant message on the commentary channel addressed `to=functions.NAME`, optionally with `<\|constrain\|>json`, its JSON arguments between `<\|message\|>` and `<\|call\|>`. The recipient is read after the role (`<\|start\|>assistant to=functions.NAME<\|channel\|>commentary ...`, the reference renderer) or after the channel (`<\|channel\|>commentary to=functions.NAME ...`, what the model emits). A message may also end at `<\|end\|>`, `<\|return\|>` or the end of the text, because servers strip the stop sequence. Calls have no id. `functions.github.get_issue` is the tool `github.get_issue` |
 | **Result format** | A tool message: `<\|start\|>functions.NAME to=assistant<\|channel\|>commentary<\|message\|>TEXT<\|end\|>` (see [Tool result serialization](#tool-result-serialization)); a failure is `{"error": <message>}` |
@@ -336,10 +347,13 @@ a final one. While a tool-calling turn is still running, its analysis stays in
 the prompt. Turn this off with `auto_drop_analysis=False` (Go
 `KeepAnalysis: true`).
 
-**Go property order.** A Go `map[string]any` keeps no key order, so the Go port
-renders an object's required properties first, in `required` order, and then
-the rest by name. The other ports keep schema order, as the reference does. The
-fixture schemas are written in that order, so every port renders them the same.
+**Property order.** Object properties render in schema order in every port,
+as in the reference. A Go `map[string]any` keeps no key order, so the Go port
+reads the order from the schema's JSON text when the tool implements
+`toolformat.OrderedSchemaTool` (`InputSchemaJSON() json.RawMessage`). A schema
+that only exists as a Go map (`InputSchema()` without it, or a `ToolSpec`'s
+`Parameters`) renders required properties first, in `required` order, and then
+the rest by name.
 
 **Example: one tool-calling step over `/v1/completions`.**
 

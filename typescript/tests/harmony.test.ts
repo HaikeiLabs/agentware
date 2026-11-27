@@ -100,18 +100,12 @@ describe("Harmony history", () => {
   });
 });
 
-describe("getFormatter routes GPT-OSS", () => {
-  test.each(["openai/gpt-oss-20b", "gpt-oss-120b", "GPT-OSS-20B", "gpt_oss", "ggml-org/gpt-oss-20b-GGUF"])(
-    "%s",
-    (model) => {
-      const formatter = getFormatter(model);
-      expect(formatter).toBeInstanceOf(HarmonyFormatter);
-      expect(formatter.modelFamily()).toBe("gpt-oss");
-    },
-  );
-
-  test("other gpt models stay on the OpenAI formatter", () => {
-    expect(getFormatter("gpt-4o")).toBeInstanceOf(OpenAIFOrmatter);
+describe("Harmony is opt-in", () => {
+  // Chat-completions users keep the OpenAI formatter; raw-completions callers
+  // construct HarmonyFormatter themselves.
+  test.each(["openai/gpt-oss-20b", "gpt-oss-120b", "ggml-org/gpt-oss-20b-GGUF"])("%s", (model) => {
+    expect(getFormatter(model)).toBeInstanceOf(OpenAIFOrmatter);
+    expect(new HarmonyFormatter().modelFamily()).toBe("gpt-oss");
   });
 
   test("no tools renders nothing", () => {

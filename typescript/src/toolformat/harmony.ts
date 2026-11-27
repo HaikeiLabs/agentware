@@ -9,6 +9,10 @@
  * completion text into messages, with the analysis channel as the reasoning
  * and the final channel as the answer.
  *
+ * Harmony is opt-in: `getFormatter` never returns {@link HarmonyFormatter},
+ * so chat-completions callers keep their formatter; raw-completions callers
+ * construct it themselves.
+ *
  * The rendering follows the reference renderer in openai/harmony
  * (`src/encoding.rs`), including its JSON Schema to TypeScript mapping and
  * its schema key order. Mirrors `python/.../toolformat/harmony.py`; the shared

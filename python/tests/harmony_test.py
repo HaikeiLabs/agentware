@@ -116,18 +116,12 @@ def test_stop_tokens() -> None:
     assert HARMONY_STOP_TOKENS == ("<|return|>", "<|call|>")
 
 
-@pytest.mark.parametrize(
-    "model",
-    ["openai/gpt-oss-20b", "gpt-oss-120b", "GPT-OSS-20B", "gpt_oss", "ggml-org/gpt-oss-20b-GGUF"],
-)
-def test_get_formatter_routes_gpt_oss(model: str) -> None:
-    fmt = get_formatter(model)
-    assert isinstance(fmt, HarmonyFormatter)
-    assert fmt.model_family() == "gpt-oss"
-
-
-def test_get_formatter_keeps_other_gpt_models_on_openai() -> None:
-    assert isinstance(get_formatter("gpt-4o"), OpenAIFOrmatter)
+@pytest.mark.parametrize("model", ["openai/gpt-oss-20b", "gpt-oss-120b", "ggml-org/gpt-oss-20b-GGUF"])
+def test_harmony_is_opt_in(model: str) -> None:
+    # Chat-completions users keep the OpenAI formatter; raw-completions
+    # callers construct HarmonyFormatter themselves.
+    assert isinstance(get_formatter(model), OpenAIFOrmatter)
+    assert HarmonyFormatter().model_family() == "gpt-oss"
 
 
 def test_no_tools_renders_nothing() -> None:

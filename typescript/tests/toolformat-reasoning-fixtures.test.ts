@@ -1,6 +1,6 @@
 import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { getFormatter } from "../src/toolformat/index.js";
+import { HarmonyFormatter, getFormatter } from "../src/toolformat/index.js";
 import { Result } from "../src/tools/index.js";
 import { ReasoningAdapter } from "../src/reasoning/index.js";
 
@@ -26,7 +26,8 @@ describe("shared toolformat fixtures", () => {
   test.each(toolFiles)("%s", (file) => {
     const fixturePath = `toolformat/${file}`;
     const data = JSON.parse(readFileSync(resolve(toolRoot, file), "utf8")) as Record<string, any>;
-    const formatter = getFormatter(data.family);
+    // Harmony is opt-in: no model id selects it, so callers construct it.
+    const formatter = data.family === "gpt-oss" ? new HarmonyFormatter() : getFormatter(data.family);
     for (const c of data.format_definitions) {
       const actual = formatter.formatToolDefinitions(sharedTools as any);
       if (data.family === "qwen") {

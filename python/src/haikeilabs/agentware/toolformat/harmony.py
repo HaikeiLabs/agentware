@@ -14,6 +14,10 @@ whole prompt and parses the completion text. This module does both:
 - :func:`parse_harmony_completion` splits completion text into messages; the
   analysis channel is the reasoning and the final channel is the answer.
 
+Harmony is opt-in: :func:`~.formatter.get_formatter` never returns
+:class:`HarmonyFormatter`, so chat-completions callers keep their formatter;
+raw-completions callers construct it themselves.
+
 The rendering follows the reference renderer in openai/harmony
 (``src/encoding.rs``) byte for byte, including its JSON Schema to TypeScript
 mapping, and the shared fixture ``fixtures/toolformat/harmony-cases.json``

@@ -181,18 +181,17 @@ fn rejects_invalid_messages() {
     assert!(render_harmony_prompt(&[], &opts).is_err());
 }
 
+/// Harmony is opt-in: chat-completions users keep the OpenAI formatter.
 #[test]
-fn for_model_routes_gpt_oss() {
+fn harmony_is_opt_in() {
     for model in [
         "openai/gpt-oss-20b",
         "gpt-oss-120b",
-        "GPT-OSS-20B",
-        "gpt_oss",
         "ggml-org/gpt-oss-20b-GGUF",
     ] {
-        assert_eq!(for_model(model).model_family(), "gpt-oss", "{model}");
+        assert_eq!(for_model(model).model_family(), "openai", "{model}");
     }
-    assert_eq!(for_model("gpt-4o").model_family(), "openai");
+    assert_eq!(HarmonyFormatter.model_family(), "gpt-oss");
 }
 
 #[test]

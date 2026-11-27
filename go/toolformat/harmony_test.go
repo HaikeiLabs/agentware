@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/haikeilabs/agentware/go/tools"
 )
 
 // harmonyFixture holds the Harmony-only sections of
@@ -39,9 +42,9 @@ type harmonyFixture struct {
 }
 
 type fixtureToolDef struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	InputSchema map[string]any `json:"input_schema"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	InputSchema json.RawMessage `json:"input_schema"`
 }
 
 type harmonyMsgDef struct {
@@ -105,7 +108,7 @@ func harmonyOptions(t *testing.T, system json.RawMessage, instructions string, d
 		}
 	}
 	for _, d := range defs {
-		opts.Tools = append(opts.Tools, fixtureTool{name: d.Name, description: d.Description, inputSchema: d.InputSchema})
+		opts.Tools = append(opts.Tools, newFixtureTool(t, d.Name, d.Description, d.InputSchema))
 	}
 	opts.KeepAnalysis = drop != nil && !*drop
 	if next != nil {
@@ -201,14 +204,32 @@ func TestHarmonyRejectsInvalidMessages(t *testing.T) {
 	}
 }
 
-func TestGetFormatterRoutesGPTOSS(t *testing.T) {
-	for _, model := range []string{"openai/gpt-oss-20b", "gpt-oss-120b", "GPT-OSS-20B", "gpt_oss", "ggml-org/gpt-oss-20b-GGUF"} {
-		if f := GetFormatter(model); f.ModelFamily() != "gpt-oss" {
-			t.Errorf("%s: family = %s, want gpt-oss", model, f.ModelFamily())
+// Harmony is opt-in: chat-completions users keep the OpenAI formatter.
+func TestHarmonyIsOptIn(t *testing.T) {
+	for _, model := range []string{"openai/gpt-oss-20b", "gpt-oss-120b", "ggml-org/gpt-oss-20b-GGUF"} {
+		if f := GetFormatter(model); f.ModelFamily() != "openai" {
+			t.Errorf("%s: family = %s, want openai", model, f.ModelFamily())
 		}
 	}
-	if f := GetFormatter("gpt-4o"); f.ModelFamily() != "openai" {
-		t.Errorf("gpt-4o: family = %s, want openai", f.ModelFamily())
+}
+
+// A schema given only as a Go map has no key order: required properties come
+// first, in "required" order, then the rest by name. Go-native []string
+// values work like decoded JSON arrays.
+func TestHarmonyMapSchemaOrder(t *testing.T) {
+	tool := fixtureTool{name: "pick", description: "Pick one.", inputSchema: map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"zeta":  map[string]any{"type": "string", "enum": []string{"a", "b"}},
+			"alpha": map[string]any{"type": "integer"},
+			"mid":   map[string]any{"type": "boolean"},
+		},
+		"required": []string{"mid"},
+	}}
+	got := (&HarmonyFormatter{}).FormatToolDefinitions([]tools.Tool{tool})
+	want := "type pick = (_: {\nmid: boolean,\nalpha?: number,\nzeta?: \"a\" | \"b\",\n}) => any;"
+	if !strings.Contains(got, want) {
+		t.Errorf("got %q", got)
 	}
 }
 

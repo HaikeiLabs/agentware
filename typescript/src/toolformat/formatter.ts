@@ -1,7 +1,6 @@
 import type { AnyTool, Result } from "../tools/index.js";
 import type { ToolSpec } from "../toolspec/index.js";
 import type { ToolDefinition } from "../llm/request.js";
-import { HarmonyFormatter } from "./harmony.js";
 
 export interface ParsedToolCall {
   id: string;
@@ -430,7 +429,6 @@ export function getFormatter(modelName: string): ToolFormatter {
   if (lower.includes("qwen") || lower.includes("qwq")) return new QwenFormatter();
   if (lower.includes("deepseek")) return new DeepSeekFormatter();
   if (lower.includes("glm") || lower.includes("chatglm")) return new GLMFormatter();
-  if (lower.includes("gpt-oss") || lower.includes("gpt_oss") || lower.includes("gptoss")) return new HarmonyFormatter();
   if (lower.includes("gpt") || lower.includes("o1") || lower.includes("o3")) return new OpenAIFOrmatter();
   return new GenericFormatter();
 }

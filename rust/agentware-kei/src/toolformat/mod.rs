@@ -137,8 +137,6 @@ pub fn for_model(model_name: &str) -> Box<dyn Formatter> {
         Box::new(DeepSeekFormatter)
     } else if lower.contains("glm") || lower.contains("chatglm") {
         Box::new(GLMFormatter)
-    } else if lower.contains("gpt-oss") || lower.contains("gpt_oss") || lower.contains("gptoss") {
-        Box::new(HarmonyFormatter)
     } else if lower.contains("gpt") || lower.contains("o1") || lower.contains("o3") {
         Box::new(OpenAIFormatter)
     } else {

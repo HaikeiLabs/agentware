@@ -19,8 +19,6 @@ func GetFormatter(modelName string) ToolFormatter {
 		return &DeepSeekFormatter{}
 	case strings.Contains(lower, "glm"), strings.Contains(lower, "chatglm"):
 		return &GLMFormatter{}
-	case strings.Contains(lower, "gpt-oss"), strings.Contains(lower, "gpt_oss"), strings.Contains(lower, "gptoss"):
-		return &HarmonyFormatter{}
 	case strings.Contains(lower, "gpt"), strings.Contains(lower, "o1"), strings.Contains(lower, "o3"):
 		return &OpenAIFOrmatter{}
 	default:

@@ -10,11 +10,13 @@ package toolformat
 // with the analysis channel as the reasoning and the final channel as the
 // answer.
 //
+// Harmony is opt-in: GetFormatter never returns HarmonyFormatter, so
+// chat-completions callers keep their formatter; raw-completions callers
+// construct HarmonyFormatter themselves.
+//
 // The rendering follows the reference renderer in openai/harmony
-// (src/encoding.rs), including its JSON Schema to TypeScript mapping. One
-// difference is Go's: a map[string]any has no key order, so object
-// properties render required ones first (in "required" order) and the rest
-// by name, where the reference keeps schema order. The shared fixture
+// (src/encoding.rs), including its JSON Schema to TypeScript mapping and its
+// schema key order (see OrderedSchemaTool). The shared fixture
 // fixtures/toolformat/harmony-cases.json replays openai/harmony's test-data.
 
 import (
@@ -460,6 +462,150 @@ func harmonySystemText(s HarmonySystem, hasFunctionTools bool) (string, error) {
 	return strings.Join(sections, "\n\n"), nil
 }
 
+// OrderedSchemaTool is implemented by a tool that can give its input schema
+// as JSON text. HarmonyFormatter decodes that text in order, so object
+// properties render in schema order, as in the other ports and the
+// reference renderer. A schema given only as a map[string]any (InputSchema,
+// a ToolSpec's Parameters) has no key order left, so its properties render
+// required ones first, in "required" order, and then the rest by name.
+type OrderedSchemaTool interface {
+	InputSchemaJSON() json.RawMessage
+}
+
+// harmonyObject is a JSON object that keeps its key order. ordered is false
+// for one converted from a Go map, whose keys are sorted.
+type harmonyObject struct {
+	keys    []string
+	values  map[string]any
+	ordered bool
+}
+
+func (o *harmonyObject) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteByte('{')
+	for i, k := range o.keys {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(harmonyJSON(k))
+		b.WriteByte(':')
+		b.WriteString(harmonyJSON(o.values[k]))
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
+}
+
+// harmonyDecodeOrdered decodes JSON text keeping object key order. Numbers
+// stay json.Number, so a default renders as written.
+func harmonyDecodeOrdered(raw []byte) (any, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	v, err := harmonyDecodeValue(dec)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := dec.Token(); err == nil {
+		return nil, errors.New("trailing data after the schema")
+	}
+	return v, nil
+}
+
+func harmonyDecodeValue(dec *json.Decoder) (any, error) {
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	switch tok {
+	case json.Delim('{'):
+		o := &harmonyObject{values: map[string]any{}, ordered: true}
+		for dec.More() {
+			keyTok, err := dec.Token()
+			if err != nil {
+				return nil, err
+			}
+			key, _ := keyTok.(string)
+			value, err := harmonyDecodeValue(dec)
+			if err != nil {
+				return nil, err
+			}
+			if _, seen := o.values[key]; !seen {
+				o.keys = append(o.keys, key)
+			}
+			o.values[key] = value
+		}
+		_, err := dec.Token()
+		return o, err
+	case json.Delim('['):
+		arr := []any{}
+		for dec.More() {
+			value, err := harmonyDecodeValue(dec)
+			if err != nil {
+				return nil, err
+			}
+			arr = append(arr, value)
+		}
+		_, err := dec.Token()
+		return arr, err
+	default:
+		return tok, nil
+	}
+}
+
+// harmonyFromMap converts a Go schema value: maps become sorted
+// harmonyObjects, and []string and []map[string]any become []any.
+func harmonyFromMap(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		o := &harmonyObject{values: make(map[string]any, len(x))}
+		for k, val := range x {
+			o.keys = append(o.keys, k)
+			o.values[k] = harmonyFromMap(val)
+		}
+		sort.Strings(o.keys)
+		return o
+	case []any:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = harmonyFromMap(val)
+		}
+		return out
+	case []map[string]any:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = harmonyFromMap(val)
+		}
+		return out
+	case []string:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = val
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// harmonySchemaOf returns a tool's schema as harmonyObject values, or nil
+// when it has none. Ordered JSON text wins over the map.
+func harmonySchemaOf(t formatTool) any {
+	var inner any = t
+	if legacy, ok := t.(legacyFormatTool); ok {
+		inner = legacy.Tool
+	}
+	if ordered, ok := inner.(OrderedSchemaTool); ok {
+		if raw := ordered.InputSchemaJSON(); len(raw) > 0 {
+			if v, err := harmonyDecodeOrdered(raw); err == nil && v != nil {
+				return v
+			}
+		}
+	}
+	if s := t.InputSchema(); s != nil {
+		return harmonyFromMap(s)
+	}
+	return nil
+}
+
 func harmonyToolsSection(ts []formatTool) string {
 	if len(ts) == 0 {
 		return ""
@@ -469,7 +615,7 @@ func harmonyToolsSection(ts []formatTool) string {
 		for _, line := range harmonyLines(t.Description()) {
 			lines = append(lines, "// "+line)
 		}
-		if schema := t.InputSchema(); schema != nil {
+		if schema := harmonySchemaOf(t); schema != nil {
 			lines = append(lines, "type "+t.Name()+" = (_: "+harmonyTypeScript(schema, "")+") => any;\n")
 		} else {
 			lines = append(lines, "type "+t.Name()+" = () => any;\n")
@@ -506,11 +652,11 @@ func harmonyJSON(v any) string {
 }
 
 func harmonyGet(schema any, key string) (any, bool) {
-	m, ok := schema.(map[string]any)
+	o, ok := schema.(*harmonyObject)
 	if !ok {
 		return nil, false
 	}
-	v, ok := m[key]
+	v, ok := o.values[key]
 	return v, ok
 }
 
@@ -592,7 +738,7 @@ func harmonyTypeScript(schema any, indent string) string {
 	case string:
 		switch k {
 		case "object":
-			return harmonyTypeScriptObject(schema.(map[string]any), indent)
+			return harmonyTypeScriptObject(schema.(*harmonyObject), indent)
 		case "string":
 			v, _ := harmonyGet(schema, "enum")
 			if arr, ok := v.([]any); ok {
@@ -621,56 +767,55 @@ func harmonyTypeScript(schema any, indent string) string {
 	return "any"
 }
 
-// harmonyPropertyOrder lists required properties first, in "required"
-// order, then the rest by name: a Go map keeps no schema order.
-func harmonyPropertyOrder(props map[string]any, required []string) []string {
-	order := make([]string, 0, len(props))
+// harmonyPropertyOrder is the schema's order for decoded JSON text. For a
+// schema converted from a map it lists required properties first, in
+// "required" order, then the rest by name.
+func harmonyPropertyOrder(props *harmonyObject, required []string) []string {
+	if props.ordered {
+		return props.keys
+	}
+	order := make([]string, 0, len(props.keys))
 	seen := map[string]bool{}
 	for _, r := range required {
-		if _, ok := props[r]; ok && !seen[r] {
+		if _, ok := props.values[r]; ok && !seen[r] {
 			order = append(order, r)
 			seen[r] = true
 		}
 	}
-	var rest []string
-	for k := range props {
+	for _, k := range props.keys {
 		if !seen[k] {
-			rest = append(rest, k)
+			order = append(order, k)
 		}
 	}
-	sort.Strings(rest)
-	return append(order, rest...)
+	return order
 }
 
-func harmonyRequired(schema map[string]any) []string {
+func harmonyRequired(schema *harmonyObject) []string {
 	var required []string
-	switch r := schema["required"].(type) {
-	case []any:
+	if r, ok := schema.values["required"].([]any); ok {
 		for _, v := range r {
 			if s, ok := v.(string); ok {
 				required = append(required, s)
 			}
 		}
-	case []string:
-		required = r
 	}
 	return required
 }
 
-func harmonyTypeScriptObject(schema map[string]any, indent string) string {
+func harmonyTypeScriptObject(schema *harmonyObject, indent string) string {
 	var b strings.Builder
-	if d, ok := schema["description"].(string); ok {
+	if d, ok := harmonyString(schema, "description"); ok {
 		b.WriteString(indent + "// " + d + "\n")
 	}
 	b.WriteString("{\n")
-	if props, ok := schema["properties"].(map[string]any); ok {
+	if props, ok := schema.values["properties"].(*harmonyObject); ok {
 		required := harmonyRequired(schema)
 		isRequired := map[string]bool{}
 		for _, r := range required {
 			isRequired[r] = true
 		}
 		for _, key := range harmonyPropertyOrder(props, required) {
-			value := props[key]
+			value := props.values[key]
 			optional := "?"
 			if isRequired[key] {
 				optional = ""
@@ -695,7 +840,7 @@ func harmonyTypeScriptObject(schema map[string]any, indent string) string {
 				}
 			}
 			if variants, ok := oneOf.([]any); ok {
-				b.WriteString(harmonyOneOfProperty(key, optional, value.(map[string]any), variants, indent))
+				b.WriteString(harmonyOneOfProperty(key, optional, value.(*harmonyObject), variants, indent))
 				continue
 			}
 			b.WriteString(indent + key + optional + ": ")
@@ -712,9 +857,9 @@ func harmonyTypeScriptObject(schema map[string]any, indent string) string {
 	return b.String()
 }
 
-func harmonyOneOfProperty(key, optional string, value map[string]any, variants []any, indent string) string {
+func harmonyOneOfProperty(key, optional string, value *harmonyObject, variants []any, indent string) string {
 	var b strings.Builder
-	propDescription, hasPropDescription := value["description"].(string)
+	propDescription, hasPropDescription := harmonyString(value, "description")
 	skip := false
 	if hasPropDescription && len(variants) > 0 {
 		if first, ok := harmonyString(variants[0], "description"); ok && first == propDescription {
@@ -726,7 +871,7 @@ func harmonyOneOfProperty(key, optional string, value map[string]any, variants [
 		b.WriteString(indent + "// " + propDescription + "\n")
 		describedAbove = true
 	}
-	if d, ok := value["default"]; ok {
+	if d, ok := value.values["default"]; ok {
 		b.WriteString(indent + "// " + harmonyDefaultText(d, value) + "\n")
 	}
 	b.WriteString(indent + key + optional + ":\n")

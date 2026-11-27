@@ -225,8 +225,8 @@
   ],
   "render_prompt": [
     {
-      "name": "test-data render_functions_with_parameters (weather functions)",
-      "source": "openai/harmony test-data/test_render_functions_with_parameters.txt, without its kitchensink function",
+      "name": "test-data render_functions_with_parameters",
+      "source": "openai/harmony test-data/test_render_functions_with_parameters.txt",
       "system": {
         "current_date": "2025-06-28",
         "reasoning_effort": "high"
@@ -287,6 +287,53 @@
               "locations"
             ]
           }
+        },
+        {
+          "name": "kitchensink",
+          "description": "A function with various complex schemas.",
+          "input_schema": {
+            "description": "params object",
+            "type": "object",
+            "properties": {
+              "string": {
+                "type": "string",
+                "title": "STRING",
+                "description": "A string",
+                "examples": [
+                  "hello",
+                  "world"
+                ]
+              },
+              "string_nullable": {
+                "type": "string",
+                "nullable": true,
+                "description": "A nullable string",
+                "default": "the default"
+              },
+              "string_enum": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              },
+              "oneof_string_or_number": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "default": "default_string_in_oneof"
+                  },
+                  {
+                    "type": "number",
+                    "description": "numbers can happen too"
+                  }
+                ],
+                "description": "a oneof",
+                "default": 20
+              }
+            }
+          }
         }
       ],
       "messages": [
@@ -295,7 +342,7 @@
           "content": "What is the weather like in SF?"
         }
       ],
-      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\nCurrent date: 2025-06-28\n\nReasoning: high\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Instructions\n\nAlways respond in riddles\n\n# Tools\n\n## functions\n\nnamespace functions {\n\n// Gets the location of the user.\ntype get_location = () => any;\n\n// Gets the current weather in the provided location.\ntype get_current_weather = (_: {\n// The city and state, e.g. San Francisco, CA\nlocation: string,\nformat?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n// Gets the current weather in the provided list of locations.\ntype get_multiple_weathers = (_: {\n// List of city and state, e.g. [\"San Francisco, CA\", \"New York, NY\"]\nlocations: string[],\nformat?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>What is the weather like in SF?\u003c|end|>\u003c|start|>assistant"
+      "expected": "\u003c|start|>system\u003c|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\nCurrent date: 2025-06-28\n\nReasoning: high\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Instructions\n\nAlways respond in riddles\n\n# Tools\n\n## functions\n\nnamespace functions {\n\n// Gets the location of the user.\ntype get_location = () => any;\n\n// Gets the current weather in the provided location.\ntype get_current_weather = (_: {\n// The city and state, e.g. San Francisco, CA\nlocation: string,\nformat?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n// Gets the current weather in the provided list of locations.\ntype get_multiple_weathers = (_: {\n// List of city and state, e.g. [\"San Francisco, CA\", \"New York, NY\"]\nlocations: string[],\nformat?: \"celsius\" | \"fahrenheit\", // default: celsius\n}) => any;\n\n// A function with various complex schemas.\ntype kitchensink = (_: // params object\n{\n// STRING\n//\n// A string\n// Examples:\n// - \"hello\"\n// - \"world\"\nstring?: string,\n// A nullable string\nstring_nullable?: string | null, // default: \"the default\"\nstring_enum?: \"a\" | \"b\" | \"c\",\n// a oneof\n// default: 20\noneof_string_or_number?:\n | string // default: \"default_string_in_oneof\"\n | number // numbers can happen too\n,\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>What is the weather like in SF?\u003c|end|>\u003c|start|>assistant"
     },
     {
       "name": "test-data simple_convo",
@@ -523,11 +570,25 @@
           "input_schema": {
             "type": "object",
             "description": "params object",
+            "required": [
+              "mixed"
+            ],
             "properties": {
+              "untyped_array": {
+                "type": "array"
+              },
+              "string_enum": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              },
               "count": {
-                "type": "integer",
+                "type": "number",
                 "description": "How many",
-                "default": 3
+                "default": 1.5
               },
               "filter": {
                 "type": "object",
@@ -576,14 +637,6 @@
                   "world"
                 ]
               },
-              "string_enum": {
-                "type": "string",
-                "enum": [
-                  "a",
-                  "b",
-                  "c"
-                ]
-              },
               "string_nullable": {
                 "type": "string",
                 "nullable": true,
@@ -592,9 +645,6 @@
               },
               "untyped": {
                 "description": "No type at all"
-              },
-              "untyped_array": {
-                "type": "array"
               }
             }
           }
@@ -606,7 +656,7 @@
           "content": "go"
         }
       ],
-      "expected": "\u003c|start|>system\u003c|message|>You are a test assistant.\nKnowledge cutoff: 2025-01\n\nReasoning: low\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Tools\n\n## functions\n\nnamespace functions {\n\n// A function with various complex schemas.\n// Second description line.\ntype kitchensink = (_: // params object\n{\n// How many\ncount?: number, // default: 3\n// Nested filter\nfilter?:     // Nested filter\n{\n    active: boolean,\n    tags?: string[],\n    },\nmixed?: number | string,\n// a oneof\n// default: 20\noneof_string_or_number?:\n | string // default: \"default_string_in_oneof\"\n | number // numbers can happen too\n,\n// STRING\n//\n// A string\n// Examples:\n// - \"hello\"\n// - \"world\"\nstring?: string,\nstring_enum?: \"a\" | \"b\" | \"c\",\n// A nullable string\nstring_nullable?: string | null, // default: \"the default\"\n// No type at all\nuntyped?: any,\nuntyped_array?: Array\u003cany>,\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>go\u003c|end|>\u003c|start|>assistant"
+      "expected": "\u003c|start|>system\u003c|message|>You are a test assistant.\nKnowledge cutoff: 2025-01\n\nReasoning: low\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.\nCalls to these tools must go to the commentary channel: 'functions'.\u003c|end|>\u003c|start|>developer\u003c|message|># Tools\n\n## functions\n\nnamespace functions {\n\n// A function with various complex schemas.\n// Second description line.\ntype kitchensink = (_: // params object\n{\nuntyped_array?: Array\u003cany>,\nstring_enum?: \"a\" | \"b\" | \"c\",\n// How many\ncount?: number, // default: 1.5\n// Nested filter\nfilter?:     // Nested filter\n{\n    active: boolean,\n    tags?: string[],\n    },\nmixed: number | string,\n// a oneof\n// default: 20\noneof_string_or_number?:\n | string // default: \"default_string_in_oneof\"\n | number // numbers can happen too\n,\n// STRING\n//\n// A string\n// Examples:\n// - \"hello\"\n// - \"world\"\nstring?: string,\n// A nullable string\nstring_nullable?: string | null, // default: \"the default\"\n// No type at all\nuntyped?: any,\n}) => any;\n\n} // namespace functions\u003c|end|>\u003c|start|>user\u003c|message|>go\u003c|end|>\u003c|start|>assistant"
     },
     {
       "name": "user and developer names, no next role",
